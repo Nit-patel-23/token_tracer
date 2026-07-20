@@ -433,18 +433,33 @@ function renderMembersTable(rows) {
   const el = document.getElementById('members');
   if (!el) return;
   if (!rows?.length) { el.innerHTML = '<p class="muted">No members</p>'; return; }
+  const host = window.location.origin;
+
   el.innerHTML = `<table><thead><tr><th>Name</th><th>Role</th><th>Last sync</th><th>Actions</th></tr></thead><tbody>
-    ${rows.map((m) => `<tr>
-      <td><strong>👤 ${m.display_name}</strong></td>
-      <td><span class="source-tag">${m.role}</span></td>
-      <td>${fmtDate(m.last_sync_at)}</td>
-      <td>
-        <button type="button" class="hbtn" onclick="openEditMember('${m.id}', '${encodeURIComponent(m.display_name)}', '${m.role}')">✏️ Edit</button>
-        <button type="button" class="hbtn" style="color:#ee5555" onclick="confirmDeleteMember('${m.id}', '${encodeURIComponent(m.display_name)}')">🗑️ Delete</button>
-      </td>
-    </tr>`).join('')}
+    ${rows.map((m) => {
+      const installCmd = `curl -fsSL ${host}/install.sh | bash -s -- --key ${m.api_key || 'av_live_KEY'}`;
+      return `<tr>
+        <td><strong>👤 ${m.display_name}</strong></td>
+        <td><span class="source-tag">${m.role}</span></td>
+        <td>${fmtDate(m.last_sync_at)}</td>
+        <td>
+          <button type="button" class="hbtn primary" onclick="copyInstallCmd('${encodeURIComponent(installCmd)}')">📋 Copy Mac Install Command</button>
+          <button type="button" class="hbtn" onclick="openEditMember('${m.id}', '${encodeURIComponent(m.display_name)}', '${m.role}')">✏️ Edit</button>
+          <button type="button" class="hbtn" style="color:#ee5555" onclick="confirmDeleteMember('${m.id}', '${encodeURIComponent(m.display_name)}')">🗑️ Delete</button>
+        </td>
+      </tr>`;
+    }).join('')}
   </tbody></table>`;
 }
+
+window.copyInstallCmd = function (encodedCmd) {
+  const cmd = decodeURIComponent(encodedCmd);
+  navigator.clipboard.writeText(cmd).then(() => {
+    alert('📋 Mac Install Command copied to clipboard!\n\nTeam member can paste this in Mac Terminal:\n\n' + cmd);
+  }).catch(() => {
+    prompt('Copy Mac Install Command:', cmd);
+  });
+};
 
 window.openEditMember = function (id, encodedName, role) {
   const name = decodeURIComponent(encodedName);
@@ -646,9 +661,17 @@ document.getElementById('add-member-form').addEventListener('submit', async (e) 
     });
     document.getElementById('add-member-dialog').close();
     document.getElementById('member-name').value = '';
+
+    const host = window.location.origin;
+    const installCmd = `curl -fsSL ${host}/install.sh | bash -s -- --key ${apiKey}`;
+
     const banner = document.getElementById('new-key');
     banner.hidden = false;
-    banner.textContent = `API key for ${member.display_name} (copy now — shown once): ${apiKey}`;
+    banner.innerHTML = `<strong>New Member Created: ${member.display_name}</strong><br/>` +
+      `API Key: <code>${apiKey}</code><br/><br/>` +
+      `<strong>Mac One-Line Install Command:</strong><br/>` +
+      `<code style="user-select:all">${installCmd}</code>`;
+
     loadMembers();
     loadStats();
   } catch (err) {
