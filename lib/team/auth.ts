@@ -1,6 +1,6 @@
 /**
  * Auth helpers: API key generation/hashing, admin token (stateless HMAC),
- * and cookie parsing.  All secrets come from env vars — never hardcoded.
+ * and cookie parsing. All secrets come from env vars — never hardcoded.
  */
 import crypto from 'node:crypto';
 import { adminPassword, sessionSecret } from './env';
@@ -72,6 +72,12 @@ export function adminTokenFromCookie(cookieHeader: string | undefined | null): s
 export function verifyAdminPassword(password: string | undefined | null): boolean {
   const expected = adminPassword();
   if (!expected || !password) return false;
-  if (password.length !== expected.length) return false;
-  return crypto.timingSafeEqual(Buffer.from(password), Buffer.from(expected));
+  try {
+    const a = Buffer.from(password);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
