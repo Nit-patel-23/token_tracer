@@ -1,13 +1,14 @@
 /**
  * Team admin dashboard page (/team).
  * Features custom filters (Member, Token Usage Range, AI Agent Source),
- * Model Pricing Rates Management ($/1M tokens), vertical sidebar, and deep analytics.
+ * Model Pricing Rates Management ($/1M tokens), API cost recalculation,
+ * vertical sidebar, and deep analytics.
  */
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Team Analytics — Visualisation Dashboard',
-  description: 'Comprehensive team agent analytics — member token logs, custom model pricing, token range filters, project tracking, and scorecards.',
+  description: 'Comprehensive team agent analytics — member token logs, custom model pricing, API cost recalculation, and scorecards.',
 };
 
 export default function TeamDashboardPage() {
@@ -222,10 +223,15 @@ export default function TeamDashboardPage() {
                 <div className="panel">
                   <div className="panel-head">
                     <h2>💲 Custom Model Pricing & Cost Configuration</h2>
-                    <button id="add-pricing-btn" className="hbtn primary">+ Add Model Pricing Rule</button>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button id="recalculate-costs-btn" className="hbtn" style={{ borderColor: 'var(--brand)', color: 'var(--brand-hi)', fontWeight: 600 }}>
+                        ⚡ Recalculate All Session Costs
+                      </button>
+                      <button id="add-pricing-btn" className="hbtn primary">+ Add Model Pricing Rule</button>
+                    </div>
                   </div>
                   <p className="muted" style={{ marginBottom: '16px' }}>
-                    Configure custom LLM pricing rules ($ per Million Tokens) to accurately calculate API-equivalent costs for your team.
+                    Configure custom LLM pricing rules ($ per Million Tokens). Click <strong>Recalculate All Session Costs</strong> to update total costs across all member sessions!
                   </p>
                   <div id="model-pricing-table" className="table-wrap"></div>
                 </div>

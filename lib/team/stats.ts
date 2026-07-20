@@ -1,7 +1,7 @@
 /**
  * Team statistics queries and member management.
  * Provides deep analytics per member, per project, per agent source, per file,
- * and custom model pricing rates.
+ * custom model pricing rates, and API cost recalculations.
  */
 import { query } from './db';
 import { generateApiKey, hashApiKey } from './auth';
@@ -410,4 +410,53 @@ export async function deleteMember(memberId: string, teamId: string) {
     [memberId, teamId],
   );
   return { ok: true, deleted: (rowCount || 0) > 0 };
+}
+
+/**
+ * Recalculate API costs across all synced sessions for a team using the latest model pricing rules.
+ */
+export async function recalculateTeamCosts(teamId: string) {
+  const { rows: customRules } = await query(
+    'SELECT model_pattern, cost_in_per_m, cost_out_per_m, cost_cache_read_per_m FROM model_pricing WHERE team_id = $1',
+    [teamId],
+  );
+
+  const defaultRules = [
+    { model_pattern: 'claude-3-7-sonnet', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
+    { model_pattern: 'claude-3-5-sonnet', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
+    { model_pattern: 'claude-3-5-haiku', cost_in_per_m: 0.8, cost_out_per_m: 4.0, cost_cache_read_per_m: 0.08 },
+    { model_pattern: 'gpt-4o', cost_in_per_m: 2.5, cost_out_per_m: 10.0, cost_cache_read_per_m: 1.25 },
+    { model_pattern: 'o1', cost_in_per_m: 15.0, cost_out_per_m: 60.0, cost_cache_read_per_m: 7.5 },
+    { model_pattern: 'o3-mini', cost_in_per_m: 1.1, cost_out_per_m: 4.4, cost_cache_read_per_m: 0.55 },
+    { model_pattern: 'deepseek-r1', cost_in_per_m: 0.55, cost_out_per_m: 2.19, cost_cache_read_per_m: 0.14 },
+    { model_pattern: 'deepseek-v3', cost_in_per_m: 0.14, cost_out_per_m: 0.28, cost_cache_read_per_m: 0.014 },
+    { model_pattern: '', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
+  ];
+
+  const allRules = [...customRules, ...defaultRules];
+
+  const { rows: sessions } = await query(
+    'SELECT id, model, tokens_in, tokens_out, tokens_cache_read FROM sync_sessions WHERE team_id = $1',
+    [teamId],
+  );
+
+  let updatedCount = 0;
+  for (const s of sessions) {
+    const modelName = (s.model || '').toLowerCase();
+    const rule = allRules.find((r) => r.model_pattern && modelName.includes(r.model_pattern.toLowerCase())) || defaultRules[defaultRules.length - 1];
+
+    const tokensIn = Number(s.tokens_in || 0);
+    const tokensOut = Number(s.tokens_out || 0);
+    const tokensCacheRead = Number(s.tokens_cache_read || 0);
+
+    const cost =
+      (tokensIn / 1_000_000) * rule.cost_in_per_m +
+      (tokensOut / 1_000_000) * rule.cost_out_per_m +
+      (tokensCacheRead / 1_000_000) * rule.cost_cache_read_per_m;
+
+    await query('UPDATE sync_sessions SET api_cost = $1, priced = true WHERE id = $2', [cost, s.id]);
+    updatedCount++;
+  }
+
+  return { updatedCount, totalSessions: sessions.length };
 }

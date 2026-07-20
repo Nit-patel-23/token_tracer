@@ -628,6 +628,29 @@ document.getElementById('refresh').addEventListener('click', () => {
   Promise.all([loadStats(), loadMembers()]).catch((err) => setAppError(formatError(err.message)));
 });
 
+document.getElementById('recalculate-costs-btn')?.addEventListener('click', async () => {
+  if (!teamId) return;
+  const btn = document.getElementById('recalculate-costs-btn');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Recalculating session costs…';
+
+  try {
+    const res = await api('/api/v1/team/recalculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId }),
+    });
+    await loadStats();
+    alert(`✓ Successfully recalculated costs across ${res.updatedCount || res.totalSessions || 0} sessions using latest model rates!`);
+  } catch (err) {
+    alert(formatError(err.message));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+});
+
 document.getElementById('add-member-btn').addEventListener('click', () => {
   document.getElementById('add-member-dialog').showModal();
 });
