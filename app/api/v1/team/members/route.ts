@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminToken, adminTokenFromCookie } from '@/lib/team/auth';
-import { createMemberWithKey } from '@/lib/team/stats';
+import { createMemberWithKey, updateMember, deleteMember } from '@/lib/team/stats';
 import { query } from '@/lib/team/db';
 
 export const dynamic = 'force-dynamic';
@@ -52,6 +52,47 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ member, apiKey }, { status: 201 });
   } catch (err) {
     console.error('[team/members POST error]', err);
+    return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    if (!requireAdmin(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    let body: Record<string, unknown> = {};
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: 'invalid JSON' }, { status: 400 });
+    }
+    if (!body.id || !body.teamId || !body.displayName) {
+      return NextResponse.json({ error: 'id, teamId, and displayName required' }, { status: 400 });
+    }
+    const member = await updateMember(
+      String(body.id),
+      String(body.teamId),
+      String(body.displayName),
+      String(body.role ?? 'member'),
+    );
+    if (!member) return NextResponse.json({ error: 'member not found' }, { status: 404 });
+    return NextResponse.json({ member });
+  } catch (err) {
+    console.error('[team/members PUT error]', err);
+    return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    if (!requireAdmin(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    const id = req.nextUrl.searchParams.get('id');
+    const teamId = req.nextUrl.searchParams.get('teamId');
+    if (!id || !teamId) return NextResponse.json({ error: 'id and teamId required' }, { status: 400 });
+
+    const res = await deleteMember(id, teamId);
+    return NextResponse.json(res);
+  } catch (err) {
+    console.error('[team/members DELETE error]', err);
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
   }
 }

@@ -20,9 +20,16 @@ export async function GET(req: NextRequest) {
     if (!requireAdmin(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     const teamId = req.nextUrl.searchParams.get('teamId');
     if (!teamId) return NextResponse.json({ error: 'teamId required' }, { status: 400 });
+    const minTok = req.nextUrl.searchParams.get('minTokens');
+    const maxTok = req.nextUrl.searchParams.get('maxTokens');
+
     const stats = await buildTeamStats(teamId, {
       from: req.nextUrl.searchParams.get('from'),
       to: req.nextUrl.searchParams.get('to'),
+      memberId: req.nextUrl.searchParams.get('memberId'),
+      source: req.nextUrl.searchParams.get('source'),
+      minTokens: minTok ? Number(minTok) : null,
+      maxTokens: maxTok ? Number(maxTok) : null,
     });
     return NextResponse.json(stats);
   } catch (err) {
