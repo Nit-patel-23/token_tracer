@@ -689,3 +689,45 @@ details pre {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
 }
+
+/* ── cost calculation loader ────────────────────────────────────────── */
+.cost-calc-banner {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 99999;
+  background: var(--card, #1a1c23);
+  color: var(--ink, #ffffff);
+  border: 1px solid var(--brand, #6366f1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  padding: 12px 20px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  backdrop-filter: blur(8px);
+  animation: calcBannerSlide 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cost-calc-banner .spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--brand, #6366f1);
+  border-radius: 50%;
+  animation: calcSpin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes calcSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes calcBannerSlide {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+

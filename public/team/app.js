@@ -48,9 +48,32 @@ async function api(path, opts = {}) {
     headers.Authorization = `Bearer ${adminToken}`;
   }
   const res = await fetch(path, { credentials: 'include', ...opts, headers });
+  if (res.status === 401) {
+    adminToken = '';
+    sessionStorage.removeItem('team-admin-token');
+    showLogin();
+    throw new Error('session expired');
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
+}
+
+function showRecalculationLoader(msg = 'Updating token cost calculations...') {
+  let loader = document.getElementById('cost-calculation-loader');
+  if (!loader) {
+    loader = document.createElement('div');
+    loader.id = 'cost-calculation-loader';
+    loader.className = 'cost-calc-banner';
+    document.body.appendChild(loader);
+  }
+  loader.innerHTML = `<div class="spinner"></div> <span>${msg}</span>`;
+  loader.style.display = 'flex';
+}
+
+function hideRecalculationLoader() {
+  const loader = document.getElementById('cost-calculation-loader');
+  if (loader) loader.style.display = 'none';
 }
 
 function setLoginError(msg) {
@@ -412,11 +435,14 @@ function renderModelPricingTable(pricingList) {
 
 window.deletePricingRule = async function (id) {
   if (!confirm('Are you sure you want to delete this model pricing override rule?')) return;
+  showRecalculationLoader('Removing rule & recalculating session costs...');
   try {
     await api(`/api/v1/team/pricing?id=${id}&teamId=${teamId}`, { method: 'DELETE' });
-    loadStats();
+    await loadStats();
   } catch (err) {
     alert(formatError(err.message));
+  } finally {
+    hideRecalculationLoader();
   }
 };
 
@@ -634,6 +660,7 @@ document.getElementById('recalculate-costs-btn')?.addEventListener('click', asyn
   const origText = btn.textContent;
   btn.disabled = true;
   btn.textContent = '⏳ Recalculating session costs…';
+  showRecalculationLoader('⚡ Recalculating costs across all team sessions...');
 
   try {
     const res = await api('/api/v1/team/recalculate', {
@@ -648,6 +675,7 @@ document.getElementById('recalculate-costs-btn')?.addEventListener('click', asyn
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
+    hideRecalculationLoader();
   }
 });
 
@@ -730,6 +758,15 @@ document.getElementById('add-pricing-form')?.addEventListener('submit', async (e
   const costCacheReadPerM = document.getElementById('pricing-cost-cache').value;
   if (!modelPattern || !teamId) return;
 
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const origText = submitBtn ? submitBtn.textContent : 'Save Rule';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '⏳ Saving & Recalculating Costs...';
+  }
+
+  showRecalculationLoader('Calculating session costs with new pricing rule...');
+
   try {
     await api('/api/v1/team/pricing', {
       method: 'POST',
@@ -747,9 +784,15 @@ document.getElementById('add-pricing-form')?.addEventListener('submit', async (e
     document.getElementById('pricing-cost-in').value = '';
     document.getElementById('pricing-cost-out').value = '';
     document.getElementById('pricing-cost-cache').value = '';
-    loadStats();
+    await loadStats();
   } catch (err) {
     alert(formatError(err.message));
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = origText;
+    }
+    hideRecalculationLoader();
   }
 });
 

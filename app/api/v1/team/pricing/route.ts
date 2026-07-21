@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdminToken, adminTokenFromCookie } from '@/lib/team/auth';
 import { query } from '@/lib/team/db';
+import { recalculateTeamCosts } from '@/lib/team/stats';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +59,10 @@ export async function POST(req: NextRequest) {
       ],
     );
 
-    return NextResponse.json({ item: rows[0] }, { status: 201 });
+    // Automatically recalculate costs for all synced sessions of this team
+    const recalc = await recalculateTeamCosts(teamId);
+
+    return NextResponse.json({ item: rows[0], recalc }, { status: 201 });
   } catch (err) {
     console.error('[team/pricing POST error]', err);
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
@@ -73,9 +77,13 @@ export async function DELETE(req: NextRequest) {
     if (!id || !teamId) return NextResponse.json({ error: 'id and teamId required' }, { status: 400 });
 
     const { rowCount } = await query('DELETE FROM model_pricing WHERE id = $1 AND team_id = $2', [id, teamId]);
+    if (rowCount && rowCount > 0) {
+      await recalculateTeamCosts(teamId);
+    }
     return NextResponse.json({ ok: true, deleted: (rowCount || 0) > 0 });
   } catch (err) {
     console.error('[team/pricing DELETE error]', err);
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
   }
 }
+

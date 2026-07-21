@@ -139,5 +139,13 @@ export async function ingestSessions(
     [member.team_id, member.member_id, sessions.length, accepted, 'ok'],
   );
 
+  try {
+    const { recalculateTeamCosts } = await import('./stats');
+    await recalculateTeamCosts(member.team_id);
+  } catch (err) {
+    console.error('[ingest recalculate err]', err);
+  }
+
   return { accepted, total: sessions.length };
 }
+

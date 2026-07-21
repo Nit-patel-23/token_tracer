@@ -412,6 +412,20 @@ export async function deleteMember(memberId: string, teamId: string) {
   return { ok: true, deleted: (rowCount || 0) > 0 };
 }
 
+function matchesModelPattern(modelName: string, pattern: string): boolean {
+  if (!pattern) return false;
+  if (!modelName) return false;
+  const normModel = modelName.toLowerCase().trim();
+  const subPatterns = pattern.toLowerCase().split(/[/,|,]/).map((p) => p.trim()).filter(Boolean);
+  return subPatterns.some((p) => {
+    if (!p) return false;
+    if (normModel.includes(p)) return true;
+    const cleanP = p.replace(/[-_.\s]/g, '');
+    const cleanModel = normModel.replace(/[-_.\s]/g, '');
+    return cleanModel.includes(cleanP);
+  });
+}
+
 /**
  * Recalculate API costs across all synced sessions for a team using the latest model pricing rules.
  */
@@ -436,23 +450,27 @@ export async function recalculateTeamCosts(teamId: string) {
   const allRules = [...customRules, ...defaultRules];
 
   const { rows: sessions } = await query(
-    'SELECT id, model, tokens_in, tokens_out, tokens_cache_read FROM sync_sessions WHERE team_id = $1',
+    'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write FROM sync_sessions WHERE team_id = $1',
     [teamId],
   );
 
   let updatedCount = 0;
   for (const s of sessions) {
     const modelName = (s.model || '').toLowerCase();
-    const rule = allRules.find((r) => r.model_pattern && modelName.includes(r.model_pattern.toLowerCase())) || defaultRules[defaultRules.length - 1];
+    const rule = allRules.find((r) => r.model_pattern && matchesModelPattern(modelName, r.model_pattern)) || defaultRules[defaultRules.length - 1];
 
     const tokensIn = Number(s.tokens_in || 0);
     const tokensOut = Number(s.tokens_out || 0);
     const tokensCacheRead = Number(s.tokens_cache_read || 0);
+    const tokensCacheWrite = Number(s.tokens_cache_write || 0);
+
+    const freshInput = Math.max(0, tokensIn - tokensCacheRead - tokensCacheWrite);
 
     const cost =
-      (tokensIn / 1_000_000) * rule.cost_in_per_m +
-      (tokensOut / 1_000_000) * rule.cost_out_per_m +
-      (tokensCacheRead / 1_000_000) * rule.cost_cache_read_per_m;
+      (freshInput / 1_000_000) * Number(rule.cost_in_per_m || 0) +
+      (tokensOut / 1_000_000) * Number(rule.cost_out_per_m || 0) +
+      (tokensCacheRead / 1_000_000) * Number(rule.cost_cache_read_per_m || 0) +
+      (tokensCacheWrite / 1_000_000) * Number(((rule as any).cost_cache_write_per_m ?? rule.cost_in_per_m) || 0);
 
     await query('UPDATE sync_sessions SET api_cost = $1, priced = true WHERE id = $2', [cost, s.id]);
     updatedCount++;
@@ -460,3 +478,4 @@ export async function recalculateTeamCosts(teamId: string) {
 
   return { updatedCount, totalSessions: sessions.length };
 }
+
