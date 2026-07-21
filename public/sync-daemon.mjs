@@ -46,12 +46,60 @@ function textOf(content) {
 }
 function sumUsage(stats, usage) {
   if (!usage || typeof usage !== "object") return;
-  const cacheRead = usage.cacheRead ?? usage.cache_read_input_tokens ?? 0;
-  const cacheWrite = usage.cacheWrite ?? usage.cache_creation_input_tokens ?? 0;
-  stats.tokensIn += (usage.input ?? usage.input_tokens ?? 0) + cacheRead + cacheWrite;
-  stats.tokensOut += usage.output ?? usage.output_tokens ?? 0;
+  const cacheRead = Number(
+    usage.cacheRead ??
+    usage.cache_read_input_tokens ??
+    usage.cacheReadTokens ??
+    usage.cache_read_tokens ??
+    usage.prompt_tokens_details?.cached_tokens ??
+    0
+  );
+  const cacheWrite = Number(
+    usage.cacheWrite ??
+    usage.cache_creation_input_tokens ??
+    usage.cacheWriteTokens ??
+    usage.cache_write_tokens ??
+    0
+  );
+  const rawIn = Number(
+    usage.input ??
+    usage.input_tokens ??
+    usage.inputTokens ??
+    usage.prompt_tokens ??
+    usage.promptTokens ??
+    usage.tokensIn ??
+    usage.tokens_in ??
+    0
+  );
+  const rawOut = Number(
+    usage.output ??
+    usage.output_tokens ??
+    usage.outputTokens ??
+    usage.completion_tokens ??
+    usage.completionTokens ??
+    usage.tokensOut ??
+    usage.tokens_out ??
+    0
+  );
+  stats.tokensIn += rawIn + cacheRead + cacheWrite;
+  stats.tokensOut += rawOut;
   stats.tokensCacheRead += cacheRead;
   stats.tokensCacheWrite += cacheWrite;
+}
+function estimateTokensIfMissing(session) {
+  if ((session.stats.tokensIn || 0) + (session.stats.tokensOut || 0) > 0) return;
+  let inChars = 0;
+  let outChars = 0;
+  for (const ev of session.events) {
+    const len = typeof ev.text === "string" ? ev.text.length : 0;
+    if (ev.kind === "user") inChars += len || 40;
+    else if (ev.kind === "assistant" || ev.kind === "thinking") outChars += len || 40;
+    else if (ev.kind === "tool") outChars += JSON.stringify(ev.tool?.args ?? {}).length || 30;
+  }
+  if (inChars > 0 || outChars > 0) {
+    session.stats.tokensIn = Math.ceil(inChars / 4);
+    session.stats.tokensOut = Math.ceil(outChars / 4);
+  }
 }
 function jsonLines(file) {
   let raw;
@@ -102,6 +150,7 @@ function finalizeLabel(session) {
     const first = session.events.find((e) => e.kind === "user" || e.kind === "assistant");
     session.label = first ? first.text.slice(0, 100) : "(empty session)";
   }
+  estimateTokensIfMissing(session);
 }
 function safeReaddir(dir) {
   try {

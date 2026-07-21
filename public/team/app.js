@@ -33,13 +33,17 @@ function rangeFromPreset(id) {
 }
 
 function cleanProjectName(p) {
-  if (!p) return 'default';
-  if (p === 'default') return 'default';
-  return p
-    .replace(/^Users-[^-]+-Coding-/, '')
-    .replace(/^Users-[^-]+-/, '')
-    .replace(/^home-[^-]+-/, '')
-    .replaceAll('-', '/');
+  if (!p || p === 'default' || p === 'unknown') return 'default';
+  let s = String(p).trim();
+  if (s.includes('/') || s.includes('\\')) {
+    const parts = s.split(/[\/\\]/).filter(Boolean);
+    return parts[parts.length - 1] || s;
+  }
+  if (/^(Users|home|[A-Z])-/i.test(s)) {
+    s = s.replace(/^(Users|home|C)-[^-]+-(Coding|Projects|code|dev|workspace|github)-/i, '');
+    s = s.replace(/^(Users|home|C)-[^-]+-/i, '');
+  }
+  return s || 'default';
 }
 
 async function api(path, opts = {}) {
@@ -291,54 +295,81 @@ function renderMemberDrilldown(membersData) {
       : '<p class="muted">No source breakdown</p>';
 
     const projectsHtml = m.projects?.length
-      ? `<table><thead><tr><th>Project / Workspace</th><th>Source</th><th>Sessions</th><th>Tokens</th><th>Cost</th></tr></thead><tbody>` +
+      ? `<div class="table-wrap"><table><thead><tr><th>Project / Workspace</th><th>Source</th><th>Sessions</th><th>Tokens</th><th>Cost</th></tr></thead><tbody>` +
         m.projects.map((p) => `<tr>
           <td><strong>📁 ${cleanProjectName(p.project)}</strong></td>
           <td><span class="source-tag">${p.source}</span></td>
           <td>${fmt(p.sessions)}</td>
           <td>${fmt(p.tokens_in)} in</td>
           <td>${fmtCost(p.api_cost)}</td>
-        </tr>`).join('') + `</tbody></table>`
+        </tr>`).join('') + `</tbody></table></div>`
       : '<p class="muted">No projects logged yet</p>';
 
+    const modelsHtml = m.models?.length
+      ? `<div class="table-wrap"><table><thead><tr><th>LLM Model Used</th><th>Source</th><th>Sessions</th><th>Tokens (In/Out)</th><th>Est. Cost</th></tr></thead><tbody>` +
+        m.models.map((mod) => `<tr>
+          <td><strong>🤖 <code>${mod.model}</code></strong></td>
+          <td><span class="source-tag">${mod.source}</span></td>
+          <td>${fmt(mod.sessions)}</td>
+          <td>${fmt(mod.tokens_in)} / ${fmt(mod.tokens_out)}</td>
+          <td><strong>${fmtCost(mod.api_cost)}</strong></td>
+        </tr>`).join('') + `</tbody></table></div>`
+      : '<p class="muted">No model usage logged yet</p>';
+
     const filesHtml = m.topFiles?.length
-      ? `<table><thead><tr><th>File Path</th><th>Edits</th><th>Diff (+ / −)</th></tr></thead><tbody>` +
+      ? `<div class="table-wrap"><table><thead><tr><th>File Path</th><th>Edits</th><th>Diff (+ / −)</th></tr></thead><tbody>` +
         m.topFiles.map((f) => `<tr>
           <td><code>${f.path}</code></td>
           <td>${fmt(f.edits)}</td>
           <td><span class="diff-add">+${fmt(f.additions)}</span> <span class="diff-del">−${fmt(f.deletions)}</span></td>
-        </tr>`).join('') + `</tbody></table>`
+        </tr>`).join('') + `</tbody></table></div>`
       : '<p class="muted">No code edit payloads found</p>';
 
     return `
-      <div class="member-card">
-        <div class="member-header">
-          <h3>👤 ${m.display_name}</h3>
-          <div><span class="source-tag">${fmt(m.sessions)} sessions</span> <strong>${fmtCost(m.api_cost)} total cost</strong></div>
-        </div>
-        <div class="member-stats-grid">
-          <div class="mini-stat"><span>Input Tokens</span><strong>${fmt(m.tokens_in)}</strong></div>
-          <div class="mini-stat"><span>Output Tokens</span><strong>${fmt(m.tokens_out)}</strong></div>
-          <div class="mini-stat"><span>Cache Read</span><strong>${fmt(m.tokens_cache_read)}</strong></div>
-          <div class="mini-stat"><span>Code Edits</span><strong>${fmt(m.edits)}</strong></div>
-          <div class="mini-stat"><span>Lines Changed</span><strong>+${fmt(m.additions || 0)} / −${fmt(m.deletions || 0)}</strong></div>
-          <div class="mini-stat"><span>API Cost</span><strong>${fmtCost(m.api_cost)}</strong></div>
-        </div>
-        <div class="member-sections">
-          <div class="member-subpanel">
-            <h4>AI Tools & Accounts Used</h4>
-            ${sourcesHtml}
+      <details class="member-card" open id="member-card-${m.member_id}">
+        <summary class="member-header">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <h3 style="margin:0;">👤 ${m.display_name}</h3>
+            <span class="source-tag">${fmt(m.sessions)} sessions</span>
+            <span class="source-tag">${fmt(m.tokens_in + m.tokens_out)} tokens</span>
           </div>
-          <div class="member-subpanel">
-            <h4>Projects & Repos Worked On</h4>
-            ${projectsHtml}
+          <div style="display:flex; align-items:center; gap:10px;">
+            <strong>${fmtCost(m.api_cost)} total cost</strong>
+            <button type="button" class="hbtn" style="border-color:var(--brand);color:var(--brand-hi);font-size:11px;padding:3px 8px;" onclick="event.stopPropagation(); triggerMemberSync('${m.member_id}', '${encodeURIComponent(m.display_name)}')">⚡ Trigger Sync</button>
+            <span class="collapse-icon">▼</span>
+          </div>
+        </summary>
+        <div class="member-body">
+          <div class="member-stats-grid">
+            <div class="mini-stat"><span>Input Tokens</span><strong>${fmt(m.tokens_in)}</strong></div>
+            <div class="mini-stat"><span>Output Tokens</span><strong>${fmt(m.tokens_out)}</strong></div>
+            <div class="mini-stat"><span>Cache Read</span><strong>${fmt(m.tokens_cache_read)}</strong></div>
+            <div class="mini-stat"><span>Code Edits</span><strong>${fmt(m.edits)}</strong></div>
+            <div class="mini-stat"><span>Lines Changed</span><strong>+${fmt(m.additions || 0)} / −${fmt(m.deletions || 0)}</strong></div>
+            <div class="mini-stat"><span>API Cost</span><strong>${fmtCost(m.api_cost)}</strong></div>
+          </div>
+          <div class="member-sections">
+            <div class="member-subpanel">
+              <h4>AI Tools & Accounts Used</h4>
+              ${sourcesHtml}
+            </div>
+            <div class="member-subpanel">
+              <h4>Projects & Repos Worked On</h4>
+              ${projectsHtml}
+            </div>
+          </div>
+          <div style="margin-top: 14px;" class="member-sections">
+            <div class="member-subpanel">
+              <h4>LLM Models Used by ${m.display_name}</h4>
+              ${modelsHtml}
+            </div>
+            <div class="member-subpanel">
+              <h4>Top Modified Files by ${m.display_name}</h4>
+              ${filesHtml}
+            </div>
           </div>
         </div>
-        <div style="margin-top: 14px;" class="member-subpanel">
-          <h4>Top Modified Files by ${m.display_name}</h4>
-          ${filesHtml}
-        </div>
-      </div>`;
+      </details>`;
   }).join('');
 }
 
@@ -433,6 +464,26 @@ function renderModelPricingTable(pricingList) {
   </tr>`).join('')}</tbody></table>`;
 }
 
+function renderMemberModelsTable(memberModels) {
+  const el = document.getElementById('member-models-table');
+  if (!el) return;
+  if (!memberModels?.length) {
+    el.innerHTML = '<p class="muted">No member model usage recorded matching filters.</p>';
+    return;
+  }
+  el.innerHTML = `<table><thead><tr>
+    <th>Member Name</th><th>LLM Model Used</th><th>Agent Source</th><th>Sessions</th><th>Input Tokens</th><th>Output Tokens</th><th>Estimated API Cost</th>
+  </tr></thead><tbody>${memberModels.map((m) => `<tr>
+    <td><strong>👤 ${m.member_name}</strong></td>
+    <td>🤖 <code>${m.model}</code></td>
+    <td><span class="source-tag">${m.source}</span></td>
+    <td>${fmt(m.sessions)}</td>
+    <td>${fmt(m.tokens_in)}</td>
+    <td>${fmt(m.tokens_out)}</td>
+    <td><strong>${fmtCost(m.api_cost)}</strong></td>
+  </tr>`).join('')}</tbody></table>`;
+}
+
 window.deletePricingRule = async function (id) {
   if (!confirm('Are you sure you want to delete this model pricing override rule?')) return;
   showRecalculationLoader('Removing rule & recalculating session costs...');
@@ -458,18 +509,24 @@ function renderMembersTable(rows) {
 
   const el = document.getElementById('members');
   if (!el) return;
-  if (!rows?.length) { el.innerHTML = '<p class="muted">No members</p>'; return; }
+  if (!rows?.length) { el.innerHTML = '<p class="muted">No members registered</p>'; return; }
   const host = window.location.origin;
 
-  el.innerHTML = `<table><thead><tr><th>Name</th><th>Role</th><th>Last sync</th><th>Actions</th></tr></thead><tbody>
+  el.innerHTML = `<table><thead><tr>
+    <th>Member Name</th><th>Role</th><th>Sessions</th><th>Tokens Used</th><th>Total API Cost</th><th>Last Sync</th><th>Actions</th>
+  </tr></thead><tbody>
     ${rows.map((m) => {
-      const installCmd = `curl -fsSL ${host}/install.sh | bash -s -- --key ${m.api_key || 'av_live_KEY'}`;
+      const installCmd = `curl -fsSL ${host}/install.sh | bash -s -- --key ${m.api_key || 'av_live_YOUR_KEY'}`;
       return `<tr>
         <td><strong>👤 ${m.display_name}</strong></td>
         <td><span class="source-tag">${m.role}</span></td>
+        <td>${fmt(m.session_count || 0)}</td>
+        <td>${fmt(m.total_tokens || 0)}</td>
+        <td><strong>${fmtCost(m.total_cost || 0)}</strong></td>
         <td>${fmtDate(m.last_sync_at)}</td>
         <td>
-          <button type="button" class="hbtn primary" onclick="copyInstallCmd('${encodeURIComponent(installCmd)}')">📋 Copy Mac Install Command</button>
+          <button type="button" class="hbtn" style="border-color:var(--brand);color:var(--brand-hi);" onclick="triggerMemberSync('${m.id}', '${encodeURIComponent(m.display_name)}')">⚡ Trigger Sync</button>
+          <button type="button" class="hbtn primary" onclick="copyInstallCmd('${encodeURIComponent(installCmd)}')">📋 Copy Install Cmd</button>
           <button type="button" class="hbtn" onclick="openEditMember('${m.id}', '${encodeURIComponent(m.display_name)}', '${m.role}')">✏️ Edit</button>
           <button type="button" class="hbtn" style="color:#ee5555" onclick="confirmDeleteMember('${m.id}', '${encodeURIComponent(m.display_name)}')">🗑️ Delete</button>
         </td>
@@ -526,6 +583,7 @@ async function loadStats() {
   renderTopFiles(stats.topFiles);
   renderSessionLogs(stats.recentLogs);
   renderModelPricingTable(stats.modelPricing);
+  renderMemberModelsTable(stats.memberModels);
 }
 
 async function loadMembers() {
@@ -794,6 +852,44 @@ document.getElementById('add-pricing-form')?.addEventListener('submit', async (e
     }
     hideRecalculationLoader();
   }
+});
+
+window.triggerMemberSync = async function (memberId = 'all', name = 'all members') {
+  const memberName = name && name !== 'all members' ? decodeURIComponent(name) : 'all members';
+  showRecalculationLoader(`Broadcasting sync signal to ${memberName}...`);
+  try {
+    await api('/api/v1/team/members/trigger-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId, memberId }),
+    });
+    alert(
+      `⚡ Sync Request Broadcasted!\n\n` +
+      `Server sent instant sync request to ${memberName}.\n` +
+      `The background sync agent will perform an instant log rescan.\n\n` +
+      `Optional: To force instant execution from Mac Terminal right now, run:\n` +
+      `launchctl kickstart -k gui/$(id -u)/com.token-tracer.daemon`
+    );
+    await loadMembers();
+    await loadStats();
+  } catch (err) {
+    alert(formatError(err.message));
+  } finally {
+    const banner = document.querySelector('.cost-calc-banner');
+    if (banner) banner.remove();
+  }
+};
+
+document.getElementById('trigger-sync-all-btn')?.addEventListener('click', () => {
+  window.triggerMemberSync('all', 'all members');
+});
+
+document.getElementById('collapse-all-members')?.addEventListener('click', () => {
+  document.querySelectorAll('#member-drilldown-cards details.member-card').forEach((el) => el.removeAttribute('open'));
+});
+
+document.getElementById('expand-all-members')?.addEventListener('click', () => {
+  document.querySelectorAll('#member-drilldown-cards details.member-card').forEach((el) => el.setAttribute('open', ''));
 });
 
 setupTabs();

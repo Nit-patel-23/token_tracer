@@ -22,8 +22,15 @@ export async function GET(req: NextRequest) {
     const teamId = req.nextUrl.searchParams.get('teamId');
     if (!teamId) return NextResponse.json({ error: 'teamId required' }, { status: 400 });
     const { rows: members } = await query(
-      `SELECT m.id, m.display_name, m.role, m.created_at,
-              (SELECT max(created_at) FROM ingest_events e WHERE e.member_id = m.id) AS last_sync_at
+      `SELECT m.id, m.display_name, m.role, m.created_at, m.sync_requested_at,
+              GREATEST(
+                (SELECT max(created_at) FROM ingest_events e WHERE e.member_id = m.id),
+                (SELECT max(COALESCE(s.ended_at, s.started_at, s.synced_at)) FROM sync_sessions s WHERE s.member_id = m.id),
+                (SELECT max(k.last_used_at) FROM member_keys k WHERE k.member_id = m.id)
+              ) AS last_sync_at,
+              (SELECT count(*) FROM sync_sessions s WHERE s.member_id = m.id)::int AS session_count,
+              (SELECT coalesce(sum(s.tokens_in + s.tokens_out), 0) FROM sync_sessions s WHERE s.member_id = m.id)::bigint AS total_tokens,
+              (SELECT coalesce(sum(s.api_cost), 0) FROM sync_sessions s WHERE s.member_id = m.id)::float AS total_cost
        FROM members m WHERE m.team_id = $1 ORDER BY m.display_name`,
       [teamId],
     );

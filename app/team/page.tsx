@@ -5,6 +5,7 @@
  * vertical sidebar, and deep analytics.
  */
 import type { Metadata } from 'next';
+import Script from 'next/script';
 
 export const metadata: Metadata = {
   title: 'Team Analytics — Visualisation Dashboard',
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 
 export default function TeamDashboardPage() {
   return (
-    <>
+    <div suppressHydrationWarning>
       <div id="login-screen" className="team-login">
         <form id="login-form">
           <h1>Team analytics</h1>
@@ -177,8 +178,14 @@ export default function TeamDashboardPage() {
               <section id="tab-members" className="tab-content" hidden>
                 <div className="panel-head">
                   <h2>Per-Member Token & Activity Drilldown</h2>
-                  <div className="filter-group">
-                    <label>Member Drilldown: </label>
+                  <div className="filter-group" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button type="button" id="collapse-all-members" className="hbtn" style={{ fontSize: '11px', padding: '4px 10px' }}>
+                      ▶ Collapse All
+                    </button>
+                    <button type="button" id="expand-all-members" className="hbtn" style={{ fontSize: '11px', padding: '4px 10px' }}>
+                      ▼ Expand All
+                    </button>
+                    <label style={{ marginLeft: '6px' }}>Member Filter: </label>
                     <select id="member-filter-select"></select>
                   </div>
                 </div>
@@ -234,6 +241,14 @@ export default function TeamDashboardPage() {
                     Configure custom LLM pricing rules ($ per Million Tokens). Click <strong>Recalculate All Session Costs</strong> to update total costs across all member sessions!
                   </p>
                   <div id="model-pricing-table" className="table-wrap"></div>
+
+                  <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--grid)' }}>
+                    <div className="panel-head" style={{ marginBottom: '12px' }}>
+                      <h2>🤖 Member Model Usage & Spend Breakdown</h2>
+                      <span className="muted">Breakdown of LLM models used by each team member</span>
+                    </div>
+                    <div id="member-models-table" className="table-wrap"></div>
+                  </div>
                 </div>
               </section>
 
@@ -242,7 +257,12 @@ export default function TeamDashboardPage() {
                 <section className="panel">
                   <div className="panel-head">
                     <h2>Team Members & API Ingest Keys</h2>
-                    <button id="add-member-btn" className="hbtn primary">+ Add member</button>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button id="trigger-sync-all-btn" className="hbtn" style={{ borderColor: 'var(--brand)', color: 'var(--brand-hi)', fontWeight: 600 }}>
+                        ⚡ Trigger Sync for All Members
+                      </button>
+                      <button id="add-member-btn" className="hbtn primary">+ Add member</button>
+                    </div>
                   </div>
                   <div id="members" className="table-wrap"></div>
                   <p id="new-key" className="key-banner" hidden></p>
@@ -314,7 +334,7 @@ export default function TeamDashboardPage() {
         </form>
       </dialog>
 
-      <script src="/team/app.js"></script>
-    </>
+      <Script src="/team/app.js" strategy="afterInteractive" />
+    </div>
   );
 }

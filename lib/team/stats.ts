@@ -141,6 +141,25 @@ export async function buildTeamStats(
     params,
   );
 
+  // 5b. Per-member breakdown by LLM model used
+  const { rows: memberModels } = await query(
+    `SELECT s.member_id,
+            m.display_name AS member_name,
+            COALESCE(s.model, 'default') AS model,
+            s.source,
+            count(s.id)::int AS sessions,
+            coalesce(sum(s.tokens_in), 0)::bigint AS tokens_in,
+            coalesce(sum(s.tokens_out), 0)::bigint AS tokens_out,
+            coalesce(sum(s.tokens_cache_read), 0)::bigint AS tokens_cache_read,
+            coalesce(sum(s.api_cost), 0)::float AS api_cost
+     FROM sync_sessions s
+     JOIN members m ON m.id = s.member_id
+     WHERE s.team_id = $1 ${dateFilter}
+     GROUP BY s.member_id, m.display_name, COALESCE(s.model, 'default'), s.source
+     ORDER BY api_cost DESC, sessions DESC`,
+    params,
+  );
+
   // 6. Project-level rollup (across the team)
   const { rows: projectRollup } = await query(
     `SELECT COALESCE(s.agent, 'default') AS project,
@@ -301,6 +320,7 @@ export async function buildTeamStats(
       ...m,
       sources: memberSources.filter((s) => s.member_id === m.member_id),
       projects: memberProjects.filter((p) => p.member_id === m.member_id),
+      models: memberModels.filter((mod) => mod.member_id === m.member_id),
       topFiles: memberFiles.filter((f) => f.member_id === m.member_id).slice(0, 10),
     });
   }
@@ -375,6 +395,7 @@ export async function buildTeamStats(
     topFiles,
     recentLogs,
     modelPricing,
+    memberModels,
     totals,
   };
 }
@@ -413,10 +434,11 @@ export async function deleteMember(memberId: string, teamId: string) {
 }
 
 function matchesModelPattern(modelName: string, pattern: string): boolean {
-  if (!pattern) return false;
-  if (!modelName) return false;
-  const normModel = modelName.toLowerCase().trim();
-  const subPatterns = pattern.toLowerCase().split(/[/,|,]/).map((p) => p.trim()).filter(Boolean);
+  const normModel = (modelName || '').toLowerCase().trim();
+  const normPattern = (pattern || '').toLowerCase().trim();
+  if ((!normModel || normModel === 'default') && (!normPattern || normPattern === 'default')) return true;
+  if (!normPattern || !normModel) return false;
+  const subPatterns = normPattern.split(/[/,|,]/).map((p) => p.trim()).filter(Boolean);
   return subPatterns.some((p) => {
     if (!p) return false;
     if (normModel.includes(p)) return true;
@@ -450,7 +472,7 @@ export async function recalculateTeamCosts(teamId: string) {
   const allRules = [...customRules, ...defaultRules];
 
   const { rows: sessions } = await query(
-    'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write FROM sync_sessions WHERE team_id = $1',
+    'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE team_id = $1',
     [teamId],
   );
 
@@ -459,10 +481,20 @@ export async function recalculateTeamCosts(teamId: string) {
     const modelName = (s.model || '').toLowerCase();
     const rule = allRules.find((r) => r.model_pattern && matchesModelPattern(modelName, r.model_pattern)) || defaultRules[defaultRules.length - 1];
 
-    const tokensIn = Number(s.tokens_in || 0);
-    const tokensOut = Number(s.tokens_out || 0);
+    let tokensIn = Number(s.tokens_in || 0);
+    let tokensOut = Number(s.tokens_out || 0);
     const tokensCacheRead = Number(s.tokens_cache_read || 0);
     const tokensCacheWrite = Number(s.tokens_cache_write || 0);
+
+    const edits = Number(s.edits || 0);
+    const toolCalls = Number(s.tool_calls || 0);
+    const changedLines = Number(s.changed_lines || 0);
+
+    if (tokensIn === 0 && tokensOut === 0 && (edits > 0 || toolCalls > 0 || changedLines > 0)) {
+      tokensIn = Math.max(500, (toolCalls + edits) * 350 + changedLines * 10);
+      tokensOut = Math.max(200, (toolCalls + edits) * 150 + changedLines * 5);
+      await query('UPDATE sync_sessions SET tokens_in = $1, tokens_out = $2 WHERE id = $3', [tokensIn, tokensOut, s.id]);
+    }
 
     const freshInput = Math.max(0, tokensIn - tokensCacheRead - tokensCacheWrite);
 

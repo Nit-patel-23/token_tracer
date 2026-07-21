@@ -253,6 +253,15 @@
       "cacheWrite": 3.75,
       "cacheRead": 0.3,
       "output": 15
+    },
+    {
+      "id": "default",
+      "label": "Default Model Rate",
+      "pattern": "^(?:default|unknown)?$",
+      "input": 3.0,
+      "cacheWrite": 3.75,
+      "cacheRead": 0.3,
+      "output": 15.0
     }
   ]
 }

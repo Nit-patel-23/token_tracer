@@ -49,7 +49,23 @@ export async function ingestSessions(
   }
 
   let accepted = 0;
-  for (const s of sessions) {
+  for (const item of sessions) {
+    const s = item as Record<string, any>;
+    const source = String(s.source || 'cursor');
+    const sessionId = String(s.sessionId || s.id || s.session_id || `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+    const model = String(s.model || 'default');
+
+    let tokensIn = Number(s.tokensIn ?? s.tokens_in ?? 0);
+    let tokensOut = Number(s.tokensOut ?? s.tokens_out ?? 0);
+    const edits = Number(s.edits || 0);
+    const toolCalls = Number(s.toolCalls || s.tool_calls || 0);
+    const changedLines = Number(s.changedLines || s.changed_lines || 0);
+
+    if (tokensIn === 0 && tokensOut === 0 && (edits > 0 || toolCalls > 0 || changedLines > 0)) {
+      tokensIn = Math.max(500, (toolCalls + edits) * 350 + changedLines * 10);
+      tokensOut = Math.max(200, (toolCalls + edits) * 150 + changedLines * 5);
+    }
+
     const { rows } = await query(
       `INSERT INTO sync_sessions (
         team_id, member_id, source, session_id, agent, label, model,
@@ -86,30 +102,30 @@ export async function ingestSessions(
       [
         member.team_id,
         member.member_id,
-        s.source,
-        s.sessionId,
+        source,
+        sessionId,
         s.agent ?? null,
         null,
-        s.model ?? null,
-        s.startedAt ?? null,
-        s.endedAt ?? null,
-        s.tokensIn ?? 0,
-        s.tokensOut ?? 0,
-        s.tokensCacheRead ?? 0,
-        s.tokensCacheWrite ?? 0,
-        s.apiCost ?? null,
+        model,
+        s.startedAt ?? s.started_at ?? null,
+        s.endedAt ?? s.ended_at ?? null,
+        tokensIn,
+        tokensOut,
+        Number(s.tokensCacheRead ?? s.tokens_cache_read ?? 0),
+        Number(s.tokensCacheWrite ?? s.tokens_cache_write ?? 0),
+        s.apiCost ?? s.api_cost ?? null,
         Boolean(s.priced),
-        s.edits ?? 0,
-        s.additions ?? 0,
-        s.deletions ?? 0,
-        s.changedLines ?? 0,
-        s.filesTouched ?? 0,
-        s.toolCalls ?? 0,
-        s.toolErrors ?? 0,
-        s.reworkLoops ?? 0,
-        s.corrections ?? 0,
+        edits,
+        Number(s.additions || 0),
+        Number(s.deletions || 0),
+        changedLines,
+        Number(s.filesTouched || s.files_touched || 0),
+        toolCalls,
+        Number(s.toolErrors || s.tool_errors || 0),
+        Number(s.reworkLoops || s.rework_loops || 0),
+        Number(s.corrections || 0),
         Boolean(s.abandoned),
-        s.payloadHash,
+        s.payloadHash || s.payload_hash || `hash_${Date.now()}_${Math.random()}`,
       ],
     );
 
