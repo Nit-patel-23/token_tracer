@@ -2,6 +2,7 @@
  * Session ingest logic — upserts sanitized session summaries for one member.
  */
 import { query } from './db';
+import { recalculateTeamCosts } from './stats';
 
 interface SessionPayload {
   source: string;
@@ -156,7 +157,6 @@ export async function ingestSessions(
   );
 
   try {
-    const { recalculateTeamCosts } = await import('./stats');
     await recalculateTeamCosts(member.team_id);
   } catch (err) {
     console.error('[ingest recalculate err]', err);

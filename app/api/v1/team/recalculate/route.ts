@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const { teamId } = body;
     if (!teamId) return NextResponse.json({ error: 'teamId required' }, { status: 400 });
 
-    const result = await recalculateTeamCosts(teamId);
+    const result = await recalculateTeamCosts(teamId, true);
     return NextResponse.json(result);
   } catch (err) {
     console.error('[team/recalculate POST error]', err);

@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     );
 
     // Automatically recalculate costs for all synced sessions of this team
-    const recalc = await recalculateTeamCosts(teamId);
+    const recalc = await recalculateTeamCosts(teamId, true);
 
     return NextResponse.json({ item: rows[0], recalc }, { status: 201 });
   } catch (err) {
@@ -78,7 +78,7 @@ export async function DELETE(req: NextRequest) {
 
     const { rowCount } = await query('DELETE FROM model_pricing WHERE id = $1 AND team_id = $2', [id, teamId]);
     if (rowCount && rowCount > 0) {
-      await recalculateTeamCosts(teamId);
+      await recalculateTeamCosts(teamId, true);
     }
     return NextResponse.json({ ok: true, deleted: (rowCount || 0) > 0 });
   } catch (err) {

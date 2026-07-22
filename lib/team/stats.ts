@@ -451,7 +451,7 @@ function matchesModelPattern(modelName: string, pattern: string): boolean {
 /**
  * Recalculate API costs across all synced sessions for a team using the latest model pricing rules.
  */
-export async function recalculateTeamCosts(teamId: string) {
+export async function recalculateTeamCosts(teamId: string, forceAll: boolean = false) {
   const { rows: customRules } = await query(
     'SELECT model_pattern, cost_in_per_m, cost_out_per_m, cost_cache_read_per_m FROM model_pricing WHERE team_id = $1',
     [teamId],
@@ -472,7 +472,9 @@ export async function recalculateTeamCosts(teamId: string) {
   const allRules = [...customRules, ...defaultRules];
 
   const { rows: sessions } = await query(
-    'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE team_id = $1',
+    forceAll
+      ? 'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE team_id = $1'
+      : 'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE team_id = $1 AND priced = false',
     [teamId],
   );
 
