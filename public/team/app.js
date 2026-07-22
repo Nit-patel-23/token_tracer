@@ -529,6 +529,7 @@ function renderMembersTable(rows) {
   </tr></thead><tbody>
     ${rows.map((m) => {
       const installCmd = `curl -fsSL ${host}/install.sh | bash -s -- --key ${m.api_key || 'av_live_YOUR_KEY'}`;
+      const winInstallCmd = `$ApiKey="${m.api_key || 'av_live_YOUR_KEY'}"; iex (irm ${host}/install.ps1)`;
       return `<tr>
         <td><strong>👤 ${m.display_name}</strong></td>
         <td><span class="source-tag">${m.role}</span></td>
@@ -538,7 +539,8 @@ function renderMembersTable(rows) {
         <td>${fmtDate(m.last_sync_at)}</td>
         <td>
           <button type="button" class="hbtn" style="border-color:var(--brand);color:var(--brand-hi);" onclick="triggerMemberSync('${m.id}', '${encodeURIComponent(m.display_name)}')">⚡ Trigger Sync</button>
-          <button type="button" class="hbtn primary" onclick="copyInstallCmd('${encodeURIComponent(installCmd)}')">📋 Copy Install Cmd</button>
+          <button type="button" class="hbtn primary" onclick="copyInstallCmd('${encodeURIComponent(installCmd)}', 'Mac')">📋 Mac Cmd</button>
+          <button type="button" class="hbtn primary" onclick="copyInstallCmd('${encodeURIComponent(winInstallCmd)}', 'Windows')">📋 Win Cmd</button>
           <button type="button" class="hbtn" onclick="openEditMember('${m.id}', '${encodeURIComponent(m.display_name)}', '${m.role}')">✏️ Edit</button>
           <button type="button" class="hbtn" style="color:#ee5555" onclick="confirmDeleteMember('${m.id}', '${encodeURIComponent(m.display_name)}')">🗑️ Delete</button>
         </td>
@@ -547,12 +549,12 @@ function renderMembersTable(rows) {
   </tbody></table>`;
 }
 
-window.copyInstallCmd = function (encodedCmd) {
+window.copyInstallCmd = function (encodedCmd, osName) {
   const cmd = decodeURIComponent(encodedCmd);
   navigator.clipboard.writeText(cmd).then(() => {
-    alert('📋 Mac Install Command copied to clipboard!\n\nTeam member can paste this in Mac Terminal:\n\n' + cmd);
+    alert(`📋 ${osName} Install Command copied to clipboard!\n\nTeam member can paste this in their ${osName === 'Mac' ? 'Mac Terminal' : 'Windows PowerShell'}:\n\n` + cmd);
   }).catch(() => {
-    prompt('Copy Mac Install Command:', cmd);
+    prompt(`Copy ${osName} Install Command:`, cmd);
   });
 };
 
