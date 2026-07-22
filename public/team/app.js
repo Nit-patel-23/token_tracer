@@ -1,5 +1,6 @@
 /* Team admin UI — deep analytics for members, projects, tokens, model pricing, and files */
 const RANGE_PRESETS = [
+  { id: 'today', label: 'Today' },
   { id: '7d', label: '7d' },
   { id: '30d', label: '30d' },
   { id: '90d', label: '90d' },
@@ -26,6 +27,7 @@ function shiftLocalDay(daysBack) {
 
 function rangeFromPreset(id) {
   const today = localDayKey();
+  if (id === 'today') return { from: today, to: today, all: false };
   if (id === '7d') return { from: shiftLocalDay(6), to: today, all: false };
   if (id === '30d') return { from: shiftLocalDay(29), to: today, all: false };
   if (id === '90d') return { from: shiftLocalDay(89), to: today, all: false };
