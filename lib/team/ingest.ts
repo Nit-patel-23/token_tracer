@@ -85,8 +85,8 @@ export async function ingestSessions(
         tokens_out = EXCLUDED.tokens_out,
         tokens_cache_read = EXCLUDED.tokens_cache_read,
         tokens_cache_write = EXCLUDED.tokens_cache_write,
-        api_cost = EXCLUDED.api_cost,
-        priced = EXCLUDED.priced,
+        api_cost = null,
+        priced = false,
         edits = EXCLUDED.edits,
         additions = EXCLUDED.additions,
         deletions = EXCLUDED.deletions,
@@ -114,8 +114,8 @@ export async function ingestSessions(
         tokensOut,
         Number(s.tokensCacheRead ?? s.tokens_cache_read ?? 0),
         Number(s.tokensCacheWrite ?? s.tokens_cache_write ?? 0),
-        s.apiCost ?? s.api_cost ?? null,
-        Boolean(s.priced),
+        null, // Always let server calculate the cost
+        false, // Always let server calculate the cost
         edits,
         Number(s.additions || 0),
         Number(s.deletions || 0),
