@@ -470,7 +470,7 @@ export async function deleteMember(memberId: string, teamId: string) {
   return { ok: true, deleted: (rowCount || 0) > 0 };
 }
 
-function matchesModelPattern(modelName: string, pattern: string): boolean {
+export function matchesModelPattern(modelName: string, pattern: string): boolean {
   const normModel = (modelName || '').toLowerCase().trim();
   const normPattern = (pattern || '').toLowerCase().trim();
   if ((!normModel || normModel === 'default') && (!normPattern || normPattern === 'default')) return true;
