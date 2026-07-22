@@ -331,7 +331,7 @@ function renderMemberDrilldown(membersData) {
           <div style="display:flex; align-items:center; gap:10px;">
             <h3 style="margin:0;">👤 ${m.display_name}</h3>
             <span class="source-tag">${fmt(m.sessions)} sessions</span>
-            <span class="source-tag">${fmt(m.tokens_in + m.tokens_out)} tokens</span>
+            <span class="source-tag">${fmt(Number(m.tokens_in || 0) + Number(m.tokens_out || 0))} tokens</span>
           </div>
           <div style="display:flex; align-items:center; gap:10px;">
             <strong>${fmtCost(m.api_cost)} total cost</strong>

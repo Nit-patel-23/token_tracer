@@ -318,9 +318,34 @@ export async function buildTeamStats(
   for (const m of memberStats) {
     memberMap.set(m.member_id, {
       ...m,
-      sources: memberSources.filter((s) => s.member_id === m.member_id),
-      projects: memberProjects.filter((p) => p.member_id === m.member_id),
-      models: memberModels.filter((mod) => mod.member_id === m.member_id),
+      tokens_in: Number(m.tokens_in || 0),
+      tokens_out: Number(m.tokens_out || 0),
+      tokens_cache_read: Number(m.tokens_cache_read || 0),
+      tokens_cache_write: Number(m.tokens_cache_write || 0),
+      sources: memberSources
+        .filter((s) => s.member_id === m.member_id)
+        .map((s) => ({
+          ...s,
+          tokens_in: Number(s.tokens_in || 0),
+          tokens_out: Number(s.tokens_out || 0),
+          tokens_cache_read: Number(s.tokens_cache_read || 0),
+        })),
+      projects: memberProjects
+        .filter((p) => p.member_id === m.member_id)
+        .map((p) => ({
+          ...p,
+          tokens_in: Number(p.tokens_in || 0),
+          tokens_out: Number(p.tokens_out || 0),
+          tokens_cache_read: Number(p.tokens_cache_read || 0),
+        })),
+      models: memberModels
+        .filter((mod) => mod.member_id === m.member_id)
+        .map((mod) => ({
+          ...mod,
+          tokens_in: Number(mod.tokens_in || 0),
+          tokens_out: Number(mod.tokens_out || 0),
+          tokens_cache_read: Number(mod.tokens_cache_read || 0),
+        })),
       topFiles: memberFiles.filter((f) => f.member_id === m.member_id).slice(0, 10),
     });
   }
@@ -329,6 +354,9 @@ export async function buildTeamStats(
     const projProjects = memberProjects.filter((mp) => mp.project === p.project);
     return {
       ...p,
+      tokens_in: Number(p.tokens_in || 0),
+      tokens_out: Number(p.tokens_out || 0),
+      tokens_cache_read: Number(p.tokens_cache_read || 0),
       members: projProjects.map((mp) => {
         const mem = members.find((m) => m.id === mp.member_id);
         return {
@@ -336,8 +364,8 @@ export async function buildTeamStats(
           display_name: mem?.display_name || 'Unknown',
           source: mp.source,
           sessions: mp.sessions,
-          tokens_in: mp.tokens_in,
-          tokens_out: mp.tokens_out,
+          tokens_in: Number(mp.tokens_in || 0),
+          tokens_out: Number(mp.tokens_out || 0),
           api_cost: mp.api_cost,
           edits: mp.edits,
         };
@@ -389,8 +417,17 @@ export async function buildTeamStats(
     tokenLeaderboard,
     scoreboard,
     projects,
-    bySource,
-    byDay,
+    bySource: bySource.map((s) => ({
+      ...s,
+      tokens_in: Number(s.tokens_in || 0),
+      tokens_out: Number(s.tokens_out || 0),
+      tokens_cache_read: Number(s.tokens_cache_read || 0),
+    })),
+    byDay: byDay.map((d) => ({
+      ...d,
+      tokens_in: Number(d.tokens_in || 0),
+      tokens_out: Number(d.tokens_out || 0),
+    })),
     topTools,
     topFiles,
     recentLogs,
