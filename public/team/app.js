@@ -124,14 +124,24 @@ function showDashboard() {
 
 function fmt(n) {
   if (n == null) return '—';
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return String(n);
+  const num = Number(n);
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}k`;
+  return num % 1 === 0 ? String(num) : num.toFixed(1);
 }
 
 function fmtCost(n) {
   if (n == null || !Number(n)) return '$0.00';
   return `$${Number(n).toFixed(2)}`;
+}
+
+function fmtMicroCost(n) {
+  if (n == null || !Number(n)) return '$0.00';
+  const num = Number(n);
+  if (num < 0.01) {
+    return `$${num.toFixed(4)}`;
+  }
+  return `$${num.toFixed(2)}`;
 }
 
 function fmtPct(n) {
@@ -262,8 +272,8 @@ function renderHeadToHead(rows) {
     <td>${fmt(r.outputTokensPerEdit)}</td>
     <td>${fmtPct(r.toolErrorRate)}</td>
     <td>${fmtPct(r.cacheEfficiency)}</td>
-    <td>${fmtCost(r.costPerEdit)}</td>
-    <td>${fmtCost(r.costPer100Lines)}</td>
+    <td>${fmtMicroCost(r.costPerEdit)}</td>
+    <td>${fmtMicroCost(r.costPer100Lines)}</td>
   </tr>`).join('')}</tbody></table>`;
 }
 
