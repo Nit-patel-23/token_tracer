@@ -45,11 +45,16 @@ export async function GET(req: NextRequest) {
       ORDER BY m.display_name
     `);
 
-    return NextResponse.json({ users: rows, unlinkedMembers });
+    // Also fetch all teams
+    const { rows: teams } = await query(`
+      SELECT id, name FROM teams ORDER BY name
+    `);
+
+    return NextResponse.json({ users: rows, unlinkedMembers, teams });
   } catch (err: any) {
     const errMsg = String(err?.message || err);
     if (errMsg.includes('relation "users" does not exist')) {
-      return NextResponse.json({ users: [], unlinkedMembers: [], needsMigration: true });
+      return NextResponse.json({ users: [], unlinkedMembers: [], teams: [], needsMigration: true });
     }
     return NextResponse.json({ error: errMsg }, { status: 500 });
   }
@@ -66,6 +71,7 @@ export async function POST(req: NextRequest) {
     const memberId = body.memberId || body.member_id || null;
     const teamId = body.teamId || body.team_id || null;
     const role = String(body.role || 'user');
+    const newTeamName = String(body.newTeamName || '').trim();
 
     if (!username || !password || !displayName) {
       return NextResponse.json({ error: 'username, password, and displayName are required' }, { status: 400 });
@@ -76,11 +82,26 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await hashPassword(password);
 
-    // Generate an API key if member is linked so they can sync
+    let finalMemberId = memberId;
     let rawApiKey: string | null = null;
     let apiKeyHash: string | null = null;
 
-    if (memberId) {
+    if (role === 'user' && memberId === 'new') {
+      let teamRes = await query("SELECT id FROM teams WHERE name = 'Independent' LIMIT 1");
+      let independentTeamId = teamRes.rows[0]?.id;
+      if (!independentTeamId) {
+        const newTeamRes = await query("INSERT INTO teams (name) VALUES ('Independent') RETURNING id");
+        independentTeamId = newTeamRes.rows[0].id;
+      }
+
+      const memberRes = await query(
+        "INSERT INTO members (team_id, display_name, role) VALUES ($1, $2, 'member') RETURNING id",
+        [independentTeamId, displayName]
+      );
+      finalMemberId = memberRes.rows[0].id;
+    }
+
+    if (finalMemberId && finalMemberId !== 'new') {
       rawApiKey = generateApiKey();
       apiKeyHash = hashApiKey(rawApiKey);
       // Upsert a member_key row for this member
@@ -88,15 +109,26 @@ export async function POST(req: NextRequest) {
         `INSERT INTO member_keys (member_id, key_hash, label)
          VALUES ($1, $2, 'default')
          ON CONFLICT (key_hash) DO NOTHING`,
-        [memberId, apiKeyHash],
+        [finalMemberId, apiKeyHash],
       );
+    }
+
+    let finalTeamId = teamId;
+    if (role === 'admin' && newTeamName) {
+      const { rows: teamRows } = await query(
+        'INSERT INTO teams (name) VALUES ($1) RETURNING id',
+        [newTeamName]
+      );
+      finalTeamId = teamRows[0].id;
+    } else if (role !== 'admin') {
+      finalTeamId = null;
     }
 
     const { rows } = await query(`
       INSERT INTO users (username, password_hash, display_name, member_id, team_id, role, api_key)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, username, display_name, role, member_id, team_id, active, created_at
-    `, [username, passwordHash, displayName, memberId, teamId, role, rawApiKey]);
+    `, [username, passwordHash, displayName, finalMemberId, finalTeamId, role, rawApiKey]);
 
     return NextResponse.json({ user: rows[0], apiKey: rawApiKey }, { status: 201 });
   } catch (err: any) {
@@ -114,7 +146,36 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     const { id, displayName, role, active, memberId, teamId } = body;
+    const newTeamName = String(body.newTeamName || '').trim();
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+
+    let finalTeamId = teamId;
+    if (role === 'admin' && newTeamName) {
+      const { rows: teamRows } = await query(
+        'INSERT INTO teams (name) VALUES ($1) RETURNING id',
+        [newTeamName]
+      );
+      finalTeamId = teamRows[0].id;
+    } else if (role !== 'admin' && role !== undefined) {
+      // If changing role away from admin, remove team association
+      finalTeamId = null;
+    }
+
+    let finalMemberId = memberId;
+    if (role === 'user' && memberId === 'new') {
+      let teamRes = await query("SELECT id FROM teams WHERE name = 'Independent' LIMIT 1");
+      let independentTeamId = teamRes.rows[0]?.id;
+      if (!independentTeamId) {
+        const newTeamRes = await query("INSERT INTO teams (name) VALUES ('Independent') RETURNING id");
+        independentTeamId = newTeamRes.rows[0].id;
+      }
+
+      const memberRes = await query(
+        "INSERT INTO members (team_id, display_name, role) VALUES ($1, $2, 'member') RETURNING id",
+        [independentTeamId, displayName || 'Unnamed Member']
+      );
+      finalMemberId = memberRes.rows[0].id;
+    }
 
     const { rows } = await query(`
       UPDATE users SET
@@ -122,11 +183,11 @@ export async function PUT(req: NextRequest) {
         role         = COALESCE($3, role),
         active       = COALESCE($4, active),
         member_id    = $5,
-        team_id      = $6,
+        team_id      = COALESCE($6, team_id),
         updated_at   = now()
       WHERE id = $1
       RETURNING id, username, display_name, role, active, member_id, team_id, updated_at
-    `, [id, displayName ?? null, role ?? null, active ?? null, memberId ?? null, teamId ?? null]);
+    `, [id, displayName ?? null, role ?? null, active ?? null, finalMemberId ?? null, finalTeamId ?? null]);
 
     if (!rows[0]) return NextResponse.json({ error: 'user not found' }, { status: 404 });
     return NextResponse.json({ user: rows[0] });

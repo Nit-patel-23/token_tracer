@@ -138,3 +138,37 @@ export async function getMemberApiKey(memberId: string): Promise<string | null> 
   // We will instead expose it via a separate endpoint that regenerates if needed.
   return rows[0]?.key_hash ? null : null; // placeholder — raw key not recoverable
 }
+
+/**
+ * Verifies if the request is from an admin or superadmin, and returns the authorized teamId.
+ * - If superadmin, returns the requested teamId (from parameters).
+ * - If admin, strictly overrides and returns their associated teamId.
+ * - Returns null if unauthorized or missing permissions.
+ */
+export function getAuthorizedTeamId(req: any, paramTeamId: string | null | undefined): string | null {
+  const session = getSessionFromCookie(req.headers.get('cookie'));
+  if (session) {
+    if (session.role === 'superadmin') {
+      return paramTeamId || null;
+    }
+    if (session.role === 'admin' && session.teamId) {
+      return session.teamId;
+    }
+  }
+
+  // Fallback check for legacy static admin password token
+  const authHeader = req.headers.get('authorization');
+  let legacyToken = '';
+  if (authHeader?.startsWith('Bearer ')) {
+    legacyToken = authHeader.slice(7);
+  } else {
+    const { adminTokenFromCookie } = require('./team/auth');
+    legacyToken = adminTokenFromCookie(req.headers.get('cookie'));
+  }
+  const { verifyAdminToken } = require('./team/auth');
+  if (verifyAdminToken(legacyToken)) {
+    return paramTeamId || null;
+  }
+
+  return null;
+}

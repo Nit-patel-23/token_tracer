@@ -13,6 +13,26 @@ let dateRange = { from: '', to: '', all: true };
 let adminToken = sessionStorage.getItem('team-admin-token') || '';
 let currentStatsData = null;
 let currentMembersList = [];
+let currentUser = null;
+
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    if (!res.ok) {
+      window.location.href = '/login';
+      return false;
+    }
+    currentUser = await res.json();
+    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin') {
+      window.location.href = '/login';
+      return false;
+    }
+    return true;
+  } catch {
+    window.location.href = '/login';
+    return false;
+  }
+}
 
 function localDayKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -622,7 +642,15 @@ async function loadTeams() {
 
 async function loadDashboardData() {
   renderPresets();
-  await loadTeams();
+  if (currentUser && currentUser.role === 'admin') {
+    teamId = currentUser.teamId;
+    const selectDiv = document.querySelector('.sidebar-team-select');
+    if (selectDiv) selectDiv.style.display = 'none';
+  } else {
+    const selectDiv = document.querySelector('.sidebar-team-select');
+    if (selectDiv) selectDiv.style.display = 'flex';
+    await loadTeams();
+  }
   await Promise.all([loadStats(), loadMembers()]);
 }
 
@@ -913,12 +941,17 @@ document.getElementById('team-logout-btn')?.addEventListener('click', async () =
 
 setupTabs();
 
-if (adminToken) {
-  showApp().catch(() => {
-    adminToken = '';
-    sessionStorage.removeItem('team-admin-token');
-    showLogin();
+(async () => {
+  const ok = await checkAuth();
+  if (!ok) return;
+
+  // Hide the legacy inline login screen and show the app
+  const loginScr = document.getElementById('login-screen');
+  if (loginScr) loginScr.style.display = 'none';
+  const appScr = document.getElementById('app');
+  if (appScr) appScr.style.display = 'block';
+
+  showApp().catch((err) => {
+    console.error('Failed to load dashboard:', err);
   });
-} else {
-  showLogin();
-}
+})();

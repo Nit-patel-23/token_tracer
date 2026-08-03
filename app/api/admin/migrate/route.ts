@@ -38,6 +38,10 @@ export async function POST(req: NextRequest) {
     await query(`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_users_member ON users(member_id)`);
 
+    // Alter tables to allow nullable team_id for independent personal dashboards
+    await query(`ALTER TABLE members ALTER COLUMN team_id DROP NOT NULL`).catch(() => {});
+    await query(`ALTER TABLE sync_sessions ALTER COLUMN team_id DROP NOT NULL`).catch(() => {});
+
     return NextResponse.json({ ok: true, message: 'Migration complete. Users table is ready.' });
   } catch (err) {
     console.error('[admin/migrate error]', err);

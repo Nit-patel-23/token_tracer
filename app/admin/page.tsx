@@ -81,8 +81,19 @@ export default async function AdminPage() {
                   <div className="form-field">
                     <label htmlFor="uf-member">Linked Member (for sync API key)</label>
                     <select id="uf-member">
-                      <option value="">— none —</option>
+                      <option value="">— none (Independent) —</option>
                     </select>
+                  </div>
+                  <div className="form-field" id="field-uf-team">
+                    <label htmlFor="uf-team">Linked Team (for Admins)</label>
+                    <select id="uf-team">
+                      <option value="">— none —</option>
+                      <option value="new">— create new team —</option>
+                    </select>
+                  </div>
+                  <div className="form-field" id="field-uf-new-team" style={{ display: 'none' }}>
+                    <label htmlFor="uf-new-team">New Team Name</label>
+                    <input id="uf-new-team" type="text" placeholder="e.g. India Developers" />
                   </div>
                 </div>
                 <div className="form-actions">

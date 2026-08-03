@@ -1,6 +1,6 @@
-// Superadmin client logic for managing users and members.
 let users = [];
 let unlinkedMembers = [];
+let teams = [];
 let currentTab = 'users';
 let editingUser = null;
 
@@ -44,12 +44,26 @@ async function loadData() {
 
     users = data.users || [];
     unlinkedMembers = data.unlinkedMembers || [];
+    teams = data.teams || [];
     renderUsers();
     renderMembers();
     populateMemberDropdown();
+    populateTeamDropdown();
   } catch (err) {
     alert(err.message);
   }
+}
+
+function populateTeamDropdown() {
+  const select = $('#uf-team');
+  if (!select) return;
+  select.innerHTML = `
+    <option value="">— none —</option>
+    <option value="new">— create new team —</option>
+  `;
+  teams.forEach(t => {
+    select.innerHTML += `<option value="${t.id}">${esc(t.name)}</option>`;
+  });
 }
 
 function renderUsers() {
@@ -115,8 +129,10 @@ function populateMemberDropdown() {
   const select = $('#uf-member');
   if (!select) return;
   
-  // Keep the first option
-  select.innerHTML = '<option value="">— none —</option>';
+  select.innerHTML = `
+    <option value="">— none —</option>
+    <option value="new">— create new independent member —</option>
+  `;
   
   unlinkedMembers.forEach(m => {
     select.innerHTML += `<option value="${m.id}">${esc(m.display_name)} (${esc(m.team_name)})</option>`;
@@ -135,9 +151,23 @@ function editUser(id) {
   $('#uf-role').value = user.role;
   $('#uf-password').placeholder = 'Leave blank to keep current password';
   
+  // Show team dropdown only for admins
+  if (user.role === 'admin') {
+    $('#field-uf-team').style.display = 'block';
+    $('#uf-team').value = user.team_id || '';
+  } else {
+    $('#field-uf-team').style.display = 'none';
+    $('#uf-team').value = '';
+  }
+  $('#field-uf-new-team').style.display = 'none';
+  $('#uf-new-team').value = '';
+
   // Temporarily add their own linked member to dropdown option list if they have one
   const select = $('#uf-member');
-  select.innerHTML = '<option value="">— none —</option>';
+  select.innerHTML = `
+    <option value="">— none —</option>
+    <option value="new">— create new independent member —</option>
+  `;
   if (user.member_id) {
     select.innerHTML += `<option value="${user.member_id}" selected>👤 ${esc(user.member_name)}</option>`;
   }
@@ -161,9 +191,14 @@ function cancelForm() {
   $('#uf-password').placeholder = 'temporary password';
   $('#uf-role').value = 'user';
   $('#uf-member').value = '';
+  $('#uf-team').value = '';
+  $('#uf-new-team').value = '';
+  $('#field-uf-team').style.display = 'none';
+  $('#field-uf-new-team').style.display = 'none';
   $('#user-form-wrap').hidden = true;
   $('#uf-error').hidden = true;
   populateMemberDropdown();
+  populateTeamDropdown();
 }
 
 async function handleFormSubmit(e) {
@@ -184,7 +219,28 @@ async function handleFormSubmit(e) {
     return;
   }
 
-  const payload = { displayName, role, memberId };
+  const teamVal = $('#uf-team').value;
+  let teamId = null;
+  let newTeamName = null;
+
+  if (role === 'admin') {
+    if (teamVal === 'new') {
+      newTeamName = $('#uf-new-team').value.trim();
+      if (!newTeamName) {
+        errorEl.textContent = 'Please enter a name for the new team';
+        errorEl.hidden = false;
+        return;
+      }
+    } else if (teamVal) {
+      teamId = teamVal;
+    } else {
+      errorEl.textContent = 'Please select or create a team for the admin account';
+      errorEl.hidden = false;
+      return;
+    }
+  }
+
+  const payload = { displayName, role, memberId, teamId, newTeamName };
   if (!id) {
     payload.username = username;
     payload.password = password;
@@ -313,6 +369,25 @@ function switchTab(tabId) {
   });
   $('#uf-cancel')?.addEventListener('click', cancelForm);
   $('#user-form')?.addEventListener('submit', handleFormSubmit);
+
+  // Form change toggles
+  $('#uf-role')?.addEventListener('change', (e) => {
+    const showTeam = e.target.value === 'admin';
+    $('#field-uf-team').style.display = showTeam ? 'block' : 'none';
+    if (!showTeam) {
+      $('#uf-team').value = '';
+      $('#field-uf-new-team').style.display = 'none';
+      $('#uf-new-team').value = '';
+    }
+  });
+
+  $('#uf-team')?.addEventListener('change', (e) => {
+    const showNewTeam = e.target.value === 'new';
+    $('#field-uf-new-team').style.display = showNewTeam ? 'block' : 'none';
+    if (!showNewTeam) {
+      $('#uf-new-team').value = '';
+    }
+  });
 
   // Logout
   $('#admin-logout-btn')?.addEventListener('click', async () => {

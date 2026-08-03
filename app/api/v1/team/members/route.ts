@@ -1,26 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminToken, adminTokenFromCookie } from '@/lib/team/auth';
+import { getAuthorizedTeamId } from '@/lib/auth';
 import { createMemberWithKey, updateMember, deleteMember } from '@/lib/team/stats';
 import { query } from '@/lib/team/db';
 
 export const dynamic = 'force-dynamic';
 
-function requireAdmin(req: NextRequest): boolean {
-  const authHeader = req.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    if (verifyAdminToken(token)) return true;
-  }
-  const cookieHeader = req.headers.get('cookie');
-  const token = adminTokenFromCookie(cookieHeader);
-  return verifyAdminToken(token);
-}
-
 export async function GET(req: NextRequest) {
   try {
-    if (!requireAdmin(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    const teamId = req.nextUrl.searchParams.get('teamId');
-    if (!teamId) return NextResponse.json({ error: 'teamId required' }, { status: 400 });
+    const rawTeamId = req.nextUrl.searchParams.get('teamId');
+    const teamId = getAuthorizedTeamId(req, rawTeamId);
+    if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
     const { rows: members } = await query(
       `SELECT m.id, m.display_name, m.role, m.created_at, m.sync_requested_at,
               GREATEST(
@@ -43,16 +33,19 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!requireAdmin(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     let body: Record<string, unknown> = {};
     try {
       body = await req.json();
     } catch {
       return NextResponse.json({ error: 'invalid JSON' }, { status: 400 });
     }
-    if (!body.teamId || !body.displayName) return NextResponse.json({ error: 'teamId and displayName required' }, { status: 400 });
+    const rawTeamId = body.teamId ? String(body.teamId) : null;
+    const teamId = getAuthorizedTeamId(req, rawTeamId);
+    if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    if (!body.displayName) return NextResponse.json({ error: 'displayName required' }, { status: 400 });
+
     const { member, apiKey } = await createMemberWithKey(
-      String(body.teamId),
+      teamId,
       String(body.displayName),
       String(body.role ?? 'member'),
     );
@@ -65,19 +58,22 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    if (!requireAdmin(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     let body: Record<string, unknown> = {};
     try {
       body = await req.json();
     } catch {
       return NextResponse.json({ error: 'invalid JSON' }, { status: 400 });
     }
-    if (!body.id || !body.teamId || !body.displayName) {
-      return NextResponse.json({ error: 'id, teamId, and displayName required' }, { status: 400 });
+    const rawTeamId = body.teamId ? String(body.teamId) : null;
+    const teamId = getAuthorizedTeamId(req, rawTeamId);
+    if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    if (!body.id || !body.displayName) {
+      return NextResponse.json({ error: 'id and displayName required' }, { status: 400 });
     }
+
     const member = await updateMember(
       String(body.id),
-      String(body.teamId),
+      teamId,
       String(body.displayName),
       String(body.role ?? 'member'),
     );
@@ -91,10 +87,11 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    if (!requireAdmin(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     const id = req.nextUrl.searchParams.get('id');
-    const teamId = req.nextUrl.searchParams.get('teamId');
-    if (!id || !teamId) return NextResponse.json({ error: 'id and teamId required' }, { status: 400 });
+    const rawTeamId = req.nextUrl.searchParams.get('teamId');
+    const teamId = getAuthorizedTeamId(req, rawTeamId);
+    if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
     const res = await deleteMember(id, teamId);
     return NextResponse.json(res);

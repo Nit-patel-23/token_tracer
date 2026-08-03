@@ -1,26 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAdminToken, adminTokenFromCookie } from '@/lib/team/auth';
+import { getAuthorizedTeamId } from '@/lib/auth';
 import { query } from '@/lib/team/db';
 import { recalculateTeamCosts } from '@/lib/team/stats';
 
 export const dynamic = 'force-dynamic';
 
-function requireAdmin(req: NextRequest): boolean {
-  const authHeader = req.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    if (verifyAdminToken(token)) return true;
-  }
-  const cookieHeader = req.headers.get('cookie');
-  const token = adminTokenFromCookie(cookieHeader);
-  return verifyAdminToken(token);
-}
-
 export async function GET(req: NextRequest) {
   try {
-    if (!requireAdmin(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    const teamId = req.nextUrl.searchParams.get('teamId');
-    if (!teamId) return NextResponse.json({ error: 'teamId required' }, { status: 400 });
+    const rawTeamId = req.nextUrl.searchParams.get('teamId');
+    const teamId = getAuthorizedTeamId(req, rawTeamId);
+    if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
     const { rows: pricing } = await query(
       'SELECT id, model_pattern, cost_in_per_m, cost_out_per_m, cost_cache_read_per_m, created_at FROM model_pricing WHERE team_id = $1 ORDER BY model_pattern',
@@ -35,11 +24,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!requireAdmin(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     const body = await req.json().catch(() => ({}));
-    const { teamId, modelPattern, costInPerM, costOutPerM, costCacheReadPerM } = body;
-    if (!teamId || !modelPattern) {
-      return NextResponse.json({ error: 'teamId and modelPattern required' }, { status: 400 });
+    const rawTeamId = body.teamId ? String(body.teamId) : null;
+    const teamId = getAuthorizedTeamId(req, rawTeamId);
+    if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    const { modelPattern, costInPerM, costOutPerM, costCacheReadPerM } = body;
+    if (!modelPattern) {
+      return NextResponse.json({ error: 'modelPattern required' }, { status: 400 });
     }
 
     const { rows } = await query(
@@ -71,10 +62,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    if (!requireAdmin(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     const id = req.nextUrl.searchParams.get('id');
-    const teamId = req.nextUrl.searchParams.get('teamId');
-    if (!id || !teamId) return NextResponse.json({ error: 'id and teamId required' }, { status: 400 });
+    const rawTeamId = req.nextUrl.searchParams.get('teamId');
+    const teamId = getAuthorizedTeamId(req, rawTeamId);
+    if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
     const { rowCount } = await query('DELETE FROM model_pricing WHERE id = $1 AND team_id = $2', [id, teamId]);
     if (rowCount && rowCount > 0) {
