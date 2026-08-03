@@ -40,6 +40,7 @@ const nextConfig: NextConfig = {
   // Disable powered-by header
   poweredByHeader: false,
 
+
   // Server external packages (Node.js built-ins used by adapters)
   serverExternalPackages: ['pg'],
 

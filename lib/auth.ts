@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { sessionSecret } from '@/lib/team/env';
 import { query } from '@/lib/team/db';
+import { adminTokenFromCookie, verifyAdminToken } from './team/auth';
 
 export const COOKIE_NAME = 'app_session';
 export const COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
@@ -162,10 +163,8 @@ export function getAuthorizedTeamId(req: any, paramTeamId: string | null | undef
   if (authHeader?.startsWith('Bearer ')) {
     legacyToken = authHeader.slice(7);
   } else {
-    const { adminTokenFromCookie } = require('./team/auth');
-    legacyToken = adminTokenFromCookie(req.headers.get('cookie'));
+    legacyToken = adminTokenFromCookie(req.headers.get('cookie')) || '';
   }
-  const { verifyAdminToken } = require('./team/auth');
   if (verifyAdminToken(legacyToken)) {
     return paramTeamId || null;
   }

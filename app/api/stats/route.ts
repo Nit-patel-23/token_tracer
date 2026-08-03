@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         if (localSessions.length > 0) {
           let filtered = localSessions;
           if (!useAll) {
-            filtered = localSessions.filter(s => {
+            filtered = localSessions.filter((s: any) => {
               const dt = new Date(s.endedAt || s.startedAt || Date.now());
               const dateStr = dt.toISOString().slice(0, 10);
               if (from && dateStr < from) return false;
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
               return true;
             });
           }
-          const localStats = buildStats(filtered, { from, to, pricing: pricingData });
+          const localStats = buildStats(filtered, { from: from || undefined, to: to || undefined, pricing: pricingData });
           return NextResponse.json(localStats);
         }
       } catch (err) {

@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
         if (localSessions.length > 0) {
           let filtered = localSessions;
           if (!useAll) {
-            filtered = localSessions.filter(s => {
+            filtered = localSessions.filter((s: any) => {
               const dt = new Date(s.endedAt || s.startedAt || Date.now());
               const dateStr = dt.toISOString().slice(0, 10);
               if (from && dateStr < from) return false;
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 
           // Count per source
           const counts: Record<string, number> = {};
-          for (const s of filtered) counts[s.source] = (counts[s.source] || 0) + 1;
+          for (const s of filtered as any[]) counts[s.source] = (counts[s.source] || 0) + 1;
           
           // Map to expected shape
           const sessionRows = filtered.map((s: any) => ({

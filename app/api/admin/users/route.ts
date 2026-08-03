@@ -198,7 +198,6 @@ export async function PUT(req: NextRequest) {
 
     if (finalMemberId && finalMemberId !== 'new') {
       if (!existingApiKey) {
-        const { generateApiKey, hashApiKey } = require('@/lib/team/auth');
         rawApiKey = generateApiKey();
         apiKeyHash = hashApiKey(rawApiKey);
         await query(
