@@ -341,6 +341,32 @@ function switchTab(tabId) {
   document.querySelectorAll('.admin-tab').forEach(t => {
     t.hidden = t.id !== tabId;
   });
+  closeMobileNav();
+}
+
+/** Hamburger toggle for the off-canvas sidebar on narrow (mobile) viewports. */
+function setupMobileNav() {
+  const layout = $('#admin-app');
+  const toggle = $('#admin-nav-toggle');
+  const overlay = $('#admin-nav-overlay');
+  if (!layout || !toggle || !overlay) return;
+
+  toggle.addEventListener('click', () => {
+    const isOpen = layout.classList.toggle('nav-open');
+    toggle.setAttribute('aria-expanded', String(isOpen));
+  });
+  overlay.addEventListener('click', () => closeMobileNav());
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeMobileNav();
+  });
+}
+
+function closeMobileNav() {
+  const layout = $('#admin-app');
+  const toggle = $('#admin-nav-toggle');
+  if (!layout) return;
+  layout.classList.remove('nav-open');
+  toggle?.setAttribute('aria-expanded', 'false');
 }
 
 // Boot
@@ -352,6 +378,7 @@ function switchTab(tabId) {
   document.querySelectorAll('.admin-sidebar-nav button').forEach(b => {
     b.addEventListener('click', () => switchTab(b.dataset.tab));
   });
+  setupMobileNav();
 
   // Action buttons
   $('#migrate-btn')?.addEventListener('click', async () => {

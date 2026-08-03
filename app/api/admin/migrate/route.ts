@@ -38,6 +38,20 @@ export async function POST(req: NextRequest) {
     await query(`CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_users_member ON users(member_id)`);
 
+    // Create model_pricing table (custom per-team cost overrides)
+    await query(`
+      CREATE TABLE IF NOT EXISTS model_pricing (
+        id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        team_id               UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        model_pattern         TEXT NOT NULL,
+        cost_in_per_m         DOUBLE PRECISION NOT NULL DEFAULT 0,
+        cost_out_per_m        DOUBLE PRECISION NOT NULL DEFAULT 0,
+        cost_cache_read_per_m DOUBLE PRECISION NOT NULL DEFAULT 0,
+        created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (team_id, model_pattern)
+      )
+    `);
+
     // Alter tables to allow nullable team_id for independent personal dashboards
     await query(`ALTER TABLE members ALTER COLUMN team_id DROP NOT NULL`).catch(() => {});
     await query(`ALTER TABLE sync_sessions ALTER COLUMN team_id DROP NOT NULL`).catch(() => {});

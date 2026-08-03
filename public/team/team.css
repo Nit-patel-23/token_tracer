@@ -252,7 +252,7 @@
 .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
 .panel-head h2 { margin: 0; }
 
-.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 20px; align-items: start; }
 
 /* Scrollable Daily Token Flow & Chart Panels */
 #by-day, #top-tools, #by-source {
@@ -295,7 +295,7 @@
 }
 
 .table-wrap { overflow-x: auto; width: 100%; border-radius: 8px; border: 1px solid var(--border); background: rgba(0, 0, 0, 0.1); }
-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; text-align: left; }
+table { width: 100%; min-width: max-content; border-collapse: separate; border-spacing: 0; font-size: 13px; text-align: left; }
 th, td { padding: 14px 16px; border-bottom: 1px solid var(--border); }
 th { color: var(--muted); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; background: rgba(0, 0, 0, 0.25); }
 tr:last-child td { border-bottom: none; }
@@ -367,6 +367,7 @@ details.member-card summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 18px;
+  align-items: start;
 }
 .member-subpanel {
   background: var(--raised);
@@ -700,11 +701,12 @@ dialog input, dialog select { padding: 9px 12px; border-radius: 8px; border: 1px
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
   box-shadow: var(--shadow);
 }
 .admin-table {
   width: 100%;
+  min-width: max-content;
   border-collapse: collapse;
   text-align: left;
   font-size: 13px;
@@ -804,3 +806,137 @@ dialog input, dialog select { padding: 9px 12px; border-radius: 8px; border: 1px
 #seg {
   margin-left: 0;
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Mobile navigation — hamburger topbar + off-canvas sidebar drawer
+   Used by the /team and /admin vertical-sidebar layouts.
+   ══════════════════════════════════════════════════════════════════════ */
+.mobile-topbar { display: none; }
+.nav-overlay { display: none; }
+.mobile-topbar-spacer { width: 40px; flex-shrink: 0; }
+
+.mobile-nav-toggle {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: var(--raised);
+  border-radius: 9px;
+  cursor: pointer;
+  padding: 0;
+}
+.mobile-nav-toggle span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ink);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.nav-open .mobile-nav-toggle span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.nav-open .mobile-nav-toggle span:nth-child(2) { opacity: 0; }
+.nav-open .mobile-nav-toggle span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+@media (max-width: 880px) {
+  /* .team-app-layout / .admin-app are `display: flex` (row) for desktop.
+     On mobile the sidebar becomes `position: fixed` (out of flow), so switch
+     the parent to block layout so the topbar + main content stack vertically
+     instead of being laid out as flex-row siblings. */
+  .team-app-layout, .admin-app { display: block; }
+
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(23, 19, 16, 0.96);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+  .mobile-topbar .wordmark h1 { font-size: 17px; margin: 0; }
+  .mobile-nav-toggle { display: flex; }
+
+  .nav-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 39;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .nav-open .nav-overlay { opacity: 1; pointer-events: auto; }
+
+  .team-sidebar, .admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: min(280px, 84vw);
+    min-width: 0;
+    height: 100dvh;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 40;
+  }
+  .nav-open .team-sidebar, .nav-open .admin-sidebar { transform: translateX(0); }
+
+  .team-header { padding: 12px 16px; position: static; }
+  .team-main, .admin-content { padding: 18px 16px 60px; }
+  .header-filters-row { flex-direction: column; align-items: stretch; }
+  .filter-label { width: 100%; justify-content: space-between; }
+  .filter-label select, .filter-label input { flex: 1; min-width: 0; }
+  .range-presets { width: 100%; }
+
+  .admin-tab-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .admin-tab-header > div { width: 100%; flex-wrap: wrap; }
+  .admin-tab-header .hbtn { flex: 1; min-width: 140px; }
+  .panel-head { flex-direction: column; align-items: flex-start; }
+  .panel-head > div { width: 100%; flex-wrap: wrap; }
+
+  .cards { grid-template-columns: repeat(2, 1fr); }
+  .member-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .member-sections { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
+
+  th, td { padding: 10px 12px; }
+  .admin-table th, .admin-table td { padding: 10px 12px; }
+
+  .actions-cell { flex-wrap: wrap; }
+}
+
+@media (max-width: 480px) {
+  .cards { grid-template-columns: 1fr 1fr; }
+  .member-stats-grid { grid-template-columns: 1fr 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+  .team-login form, .login-card, .onboarding-card { padding: 22px; }
+
+  /* Prevent iOS Safari auto-zoom on input focus (needs >=16px font) */
+  input, select, textarea { font-size: 16px; }
+}
+
+/* Larger tap targets on touch-capable / coarse-pointer devices */
+@media (pointer: coarse) {
+  .hbtn, .tab-btn, .copy-btn, .os-btn, .range-presets button { min-height: 40px; }
+  .small-btn { min-height: 34px; }
+}
+
+/* Respect iOS safe areas for fixed/sticky chrome */
+@supports (padding: max(0px)) {
+  .mobile-topbar { padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
+  .team-sidebar, .admin-sidebar { padding-top: env(safe-area-inset-top); }
+}
+
+dialog { max-height: min(600px, 88vh); overflow-y: auto; }
+.cmd-row { flex-wrap: wrap; }

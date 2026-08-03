@@ -690,8 +690,34 @@ function setupTabs() {
         targetEl.hidden = false;
         targetEl.classList.add('active');
       }
+      closeMobileNav();
     };
   });
+}
+
+/** Hamburger toggle for the off-canvas sidebar on narrow (mobile) viewports. */
+function setupMobileNav() {
+  const layout = document.getElementById('app');
+  const toggle = document.getElementById('team-nav-toggle');
+  const overlay = document.getElementById('team-nav-overlay');
+  if (!layout || !toggle || !overlay) return;
+
+  toggle.addEventListener('click', () => {
+    const isOpen = layout.classList.toggle('nav-open');
+    toggle.setAttribute('aria-expanded', String(isOpen));
+  });
+  overlay.addEventListener('click', () => closeMobileNav());
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeMobileNav();
+  });
+}
+
+function closeMobileNav() {
+  const layout = document.getElementById('app');
+  const toggle = document.getElementById('team-nav-toggle');
+  if (!layout) return;
+  layout.classList.remove('nav-open');
+  toggle?.setAttribute('aria-expanded', 'false');
 }
 
 document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -981,6 +1007,7 @@ document.getElementById('team-logout-btn')?.addEventListener('click', async () =
 });
 
 setupTabs();
+setupMobileNav();
 
 (async () => {
   const ok = await checkAuth();

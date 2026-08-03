@@ -39,8 +39,20 @@ export default async function TeamDashboardPage() {
       </div>
 
       <div id="app" hidden className="team-app-layout">
+        {/* Mobile-only topbar: shown under 880px, hosts the hamburger toggle */}
+        <div className="mobile-topbar">
+          <button type="button" id="team-nav-toggle" className="mobile-nav-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="team-sidebar-nav">
+            <span></span><span></span><span></span>
+          </button>
+          <div className="wordmark">
+            <h1>team</h1>
+          </div>
+          <div className="mobile-topbar-spacer" />
+        </div>
+        <div id="team-nav-overlay" className="nav-overlay"></div>
+
         {/* Left Vertical Sidebar */}
-        <aside className="team-sidebar">
+        <aside className="team-sidebar" id="team-sidebar-nav">
           <div className="sidebar-brand">
             <div className="wordmark">
               <h1>team</h1>

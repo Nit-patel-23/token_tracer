@@ -206,7 +206,7 @@ export async function buildTeamStats(
             coalesce(sum(s.api_cost), 0)::float AS api_cost
      FROM sync_sessions s
      WHERE s.team_id = $1 ${dateFilter}
-     GROUP BY 1 ORDER BY 1`,
+     GROUP BY 1 ORDER BY 1 DESC`,
     params,
   );
 

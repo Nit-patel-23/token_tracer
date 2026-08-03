@@ -20,7 +20,19 @@ export default async function AdminPage() {
   return (
     <div suppressHydrationWarning>
       <div id="admin-app" className="admin-app" hidden>
-        <aside className="admin-sidebar">
+        {/* Mobile-only topbar: shown under 880px, hosts the hamburger toggle */}
+        <div className="mobile-topbar">
+          <button type="button" id="admin-nav-toggle" className="mobile-nav-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="admin-sidebar-nav">
+            <span></span><span></span><span></span>
+          </button>
+          <div className="wordmark">
+            <h1>admin</h1>
+          </div>
+          <div className="mobile-topbar-spacer" />
+        </div>
+        <div id="admin-nav-overlay" className="nav-overlay"></div>
+
+        <aside className="admin-sidebar" id="admin-sidebar-nav">
           <div className="sidebar-brand">
             <div className="wordmark">
               <h1>admin</h1>
