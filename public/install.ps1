@@ -44,7 +44,7 @@ Invoke-RestMethod -Uri "$ServerUrl/sync-daemon.mjs" -OutFile $DaemonPath
 # Create run-daemon.vbs launcher to run node in the background hidden
 $VbsPath = Join-Path $TargetDir "run-daemon.vbs"
 $VbsContent = @"
-CreateObject("Wscript.Shell").Run "node `"$DaemonPath`" --config `"$ConfigPath`" --state `"$TargetDir\sync-state.json`" --log `"$TargetDir\sync.log`"", 0, False
+CreateObject("Wscript.Shell").Run "node `"`"$DaemonPath`"`" --config `"`"$ConfigPath`"`" --state `"`"$TargetDir\sync-state.json`"`" --log `"`"$TargetDir\sync.log`"`"", 0, False
 "@
 Set-Content -Path $VbsPath -Value $VbsContent -Force
 
