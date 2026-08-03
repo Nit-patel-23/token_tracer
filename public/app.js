@@ -1173,14 +1173,27 @@ addEventListener('resize', () => {
   const ok = await bootAuth();
   if (!ok) return;
 
-  renderRange();
-  await loadState();
-
-  // Show onboarding if user has never synced
-  if (state.sessions.length === 0 && currentUser?.role === 'user') {
+  if (currentUser?.sessionCount === 0 && currentUser?.role === 'user') {
     showOnboarding();
+    
+    // Poll to see when they successfully sync their first session
+    const interval = setInterval(async () => {
+      const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+      if (res.ok) {
+        const user = await res.json();
+        if (user.sessionCount > 0) {
+          clearInterval(interval);
+          document.getElementById('onboarding').hidden = true;
+          renderRange();
+          await loadState();
+          setInterval(() => loadState(), 10_000);
+        }
+      }
+    }, 5000);
+  } else {
+    renderRange();
+    await loadState();
+    setInterval(() => loadState(), 10_000);
   }
-
-  setInterval(() => loadState(), 10_000);
 })();
 

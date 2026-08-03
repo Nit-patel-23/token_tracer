@@ -20,7 +20,15 @@ export async function GET(req: NextRequest) {
   let installCommandMac: string | null = null;
   let installCommandWin: string | null = null;
 
+  let sessionCount = 0;
+
   if (session.role === 'user' && session.memberId) {
+    const { rows: countRows } = await query(
+      `SELECT count(*)::int AS count FROM sync_sessions WHERE member_id = $1`,
+      [session.memberId],
+    );
+    sessionCount = countRows[0]?.count || 0;
+
     const { rows } = await query(
       `SELECT k.id, k.label, k.created_at, k.last_used_at
        FROM member_keys k
@@ -53,6 +61,7 @@ export async function GET(req: NextRequest) {
     apiKey,
     installCommandMac,
     installCommandWin,
+    sessionCount,
   });
 }
 
