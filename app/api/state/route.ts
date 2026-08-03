@@ -153,6 +153,8 @@ export async function GET(req: NextRequest) {
         tokensOut: Number(s.tokens_out),
         tokensCacheRead: Number(s.tokens_cache_read),
         tokensCacheWrite: Number(s.tokens_cache_write),
+        toolCounts: {},
+        errors: s.tool_errors || 0,
       },
       children: [],
       parent: null,

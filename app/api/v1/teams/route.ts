@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSessionFromCookie } from '@/lib/auth';
 import { verifyAdminToken, adminTokenFromCookie } from '@/lib/team/auth';
 import { query } from '@/lib/team/db';
 
 export const dynamic = 'force-dynamic';
 
 function requireAdmin(req: NextRequest): boolean {
+  const session = getSessionFromCookie(req.headers.get('cookie'));
+  if (session?.role === 'admin' || session?.role === 'superadmin') return true;
+
   const authHeader = req.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);

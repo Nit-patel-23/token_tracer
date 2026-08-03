@@ -340,9 +340,9 @@ function renderTree() {
 function nodeHtml(s, byId, isChild) {
   const isLive = s.endedAt && Date.now() - Date.parse(s.endedAt) < 3 * 60_000;
   const live = isLive ? '<span class="live">● live</span>' : '';
-  const errs = s.stats.errors ? `<span class="err">⚠ ${s.stats.errors}</span>` : '';
-  const kids = s.children.map((id) => byId.get(id)).filter(Boolean);
-  const tools = Object.values(s.stats.toolCounts).reduce((a, b) => a + b, 0);
+  const errs = s.stats?.errors ? `<span class="err">⚠ ${s.stats.errors}</span>` : '';
+  const kids = (s.children || []).map((id) => byId.get(id)).filter(Boolean);
+  const tools = Object.values(s.stats?.toolCounts || {}).reduce((a, b) => a + b, 0);
   return `
     <div class="tree-node">
       <button class="node-btn ${selected === s.id ? 'active' : ''}" data-id="${esc(s.id)}">
