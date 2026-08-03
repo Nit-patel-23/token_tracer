@@ -358,11 +358,23 @@ function renderMain() {
   if (!state.sessions.length) {
     $('#main').innerHTML = `
       <div class="empty-state">
+        <div class="empty-state-icon" aria-hidden="true">◎</div>
         <h2>No sessions found</h2>
         <p>Visualisation Dashboard looked for agent transcripts and found none in this window.</p>
-        <p>Run your agent CLI to generate some, point this tool at a state dir with
-        <code>--dir &lt;path&gt;</code>, widen the window with <code>--all</code>,
-        or try the demo: <code>npm run sample</code></p>
+        <div class="empty-state-actions">
+          <div class="empty-state-action">
+            <span>Point this tool at a state directory</span>
+            <code>--dir &lt;path&gt;</code>
+          </div>
+          <div class="empty-state-action">
+            <span>Widen the time window</span>
+            <code>--all</code>
+          </div>
+          <div class="empty-state-action">
+            <span>Or try it with sample data</span>
+            <code>npm run sample</code>
+          </div>
+        </div>
       </div>`;
     return;
   }

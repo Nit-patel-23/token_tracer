@@ -25,7 +25,15 @@ export default async function TeamDashboardPage() {
 
   return (
     <div suppressHydrationWarning>
-      <div id="login-screen" className="team-login">
+      {/* Shown only until the cookie session check resolves, so a slow
+          network never flashes the legacy password-login screen below
+          in front of an already-authenticated user. */}
+      <div id="boot-loading" className="boot-loading" aria-busy="true" suppressHydrationWarning>
+        <div className="boot-spinner" aria-hidden="true" />
+        <span className="visually-hidden">Loading Team Analytics…</span>
+      </div>
+
+      <div id="login-screen" className="team-login" hidden suppressHydrationWarning>
         <form id="login-form">
           <h1>Team analytics</h1>
           <p className="muted">Admin login — personal dashboard is at <code>/</code></p>
@@ -34,7 +42,7 @@ export default async function TeamDashboardPage() {
             <input id="login-password" type="password" autoComplete="current-password" required />
           </label>
           <button type="submit" className="hbtn primary" id="login-submit">Sign in</button>
-          <p id="login-error" className="error" hidden></p>
+          <p id="login-error" className="error" role="alert" aria-live="assertive" hidden></p>
         </form>
       </div>
 
@@ -65,33 +73,33 @@ export default async function TeamDashboardPage() {
             <select id="team-select" aria-label="Team"></select>
           </div>
 
-          <nav className="team-sidebar-nav" id="team-tabs" role="tablist">
-            <button type="button" className="tab-btn active" data-tab="tab-overview">
-              <span className="nav-icon">📊</span> Overview & Stats
+          <nav className="team-sidebar-nav" id="team-tabs" role="tablist" aria-label="Team analytics sections">
+            <button type="button" id="tabbtn-overview" className="tab-btn active" data-tab="tab-overview" role="tab" aria-selected="true" aria-controls="tab-overview" tabIndex={0}>
+              <span className="nav-icon" aria-hidden="true">📊</span> Overview & Stats
             </button>
-            <button type="button" className="tab-btn" data-tab="tab-token-leaderboard">
-              <span className="nav-icon">🏆</span> Token Leaderboard
+            <button type="button" id="tabbtn-token-leaderboard" className="tab-btn" data-tab="tab-token-leaderboard" role="tab" aria-selected="false" aria-controls="tab-token-leaderboard" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">🏆</span> Token Leaderboard
             </button>
-            <button type="button" className="tab-btn" data-tab="tab-head-to-head">
-              <span className="nav-icon">⚔️</span> Head-to-Head
+            <button type="button" id="tabbtn-head-to-head" className="tab-btn" data-tab="tab-head-to-head" role="tab" aria-selected="false" aria-controls="tab-head-to-head" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">⚔️</span> Head-to-Head
             </button>
-            <button type="button" className="tab-btn" data-tab="tab-members">
-              <span className="nav-icon">👥</span> Member Token Logs
+            <button type="button" id="tabbtn-members" className="tab-btn" data-tab="tab-members" role="tab" aria-selected="false" aria-controls="tab-members" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">👥</span> Member Token Logs
             </button>
-            <button type="button" className="tab-btn" data-tab="tab-projects">
-              <span className="nav-icon">📁</span> Projects & Repos
+            <button type="button" id="tabbtn-projects" className="tab-btn" data-tab="tab-projects" role="tab" aria-selected="false" aria-controls="tab-projects" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">📁</span> Projects & Repos
             </button>
-            <button type="button" className="tab-btn" data-tab="tab-files">
-              <span className="nav-icon">📄</span> Code Impact Map
+            <button type="button" id="tabbtn-files" className="tab-btn" data-tab="tab-files" role="tab" aria-selected="false" aria-controls="tab-files" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">📄</span> Code Impact Map
             </button>
-            <button type="button" className="tab-btn" data-tab="tab-logs">
-              <span className="nav-icon">📜</span> Session Logs
+            <button type="button" id="tabbtn-logs" className="tab-btn" data-tab="tab-logs" role="tab" aria-selected="false" aria-controls="tab-logs" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">📜</span> Session Logs
             </button>
-            <button type="button" className="tab-btn" data-tab="tab-pricing">
-              <span className="nav-icon">💲</span> Model Pricing Rates
+            <button type="button" id="tabbtn-pricing" className="tab-btn" data-tab="tab-pricing" role="tab" aria-selected="false" aria-controls="tab-pricing" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">💲</span> Model Pricing Rates
             </button>
-            <button type="button" className="tab-btn" data-tab="tab-settings">
-              <span className="nav-icon">⚙️</span> Manage Members
+            <button type="button" id="tabbtn-settings" className="tab-btn" data-tab="tab-settings" role="tab" aria-selected="false" aria-controls="tab-settings" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">⚙️</span> Manage Members
             </button>
           </nav>
 
@@ -161,12 +169,34 @@ export default async function TeamDashboardPage() {
           </header>
 
           <main className="team-main">
-            <div id="app-error" className="app-error" hidden></div>
-            <div id="app-loading" className="app-loading" hidden>Loading team analytics…</div>
+            <div id="app-error" className="app-error" role="alert" aria-live="assertive" hidden></div>
+            <div id="app-loading" className="app-loading" hidden aria-busy="true">
+              <div className="skeleton-cards" aria-hidden="true">
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+              </div>
+              <div className="grid-2" aria-hidden="true">
+                <div className="skeleton-panel">
+                  <div className="skeleton skeleton-title" />
+                  <div className="skeleton skeleton-row" />
+                  <div className="skeleton skeleton-row" />
+                  <div className="skeleton skeleton-row" />
+                </div>
+                <div className="skeleton-panel">
+                  <div className="skeleton skeleton-title" />
+                  <div className="skeleton skeleton-row" style={{ height: '160px' }} />
+                </div>
+              </div>
+              <span className="visually-hidden">Loading team analytics…</span>
+            </div>
             <div id="app-content">
 
               {/* TAB 1: OVERVIEW & KEY STATS */}
-              <section id="tab-overview" className="tab-content active">
+              <section id="tab-overview" className="tab-content active" role="tabpanel" aria-labelledby="tabbtn-overview">
                 <div className="cards" id="totals"></div>
 
                 <div className="grid-2">
@@ -193,7 +223,7 @@ export default async function TeamDashboardPage() {
               </section>
 
               {/* TAB 2: TOKEN LEADERBOARD */}
-              <section id="tab-token-leaderboard" className="tab-content" hidden>
+              <section id="tab-token-leaderboard" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-token-leaderboard" hidden>
                 <div className="panel">
                   <div className="panel-head">
                     <h2>🏆 Token Consumption Leaderboard</h2>
@@ -204,7 +234,7 @@ export default async function TeamDashboardPage() {
               </section>
 
               {/* TAB 3: HEAD-TO-HEAD SCOREBOARD */}
-              <section id="tab-head-to-head" className="tab-content" hidden>
+              <section id="tab-head-to-head" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-head-to-head" hidden>
                 <div className="panel">
                   <div className="panel-head">
                     <h2>⚔️ Member Head-to-Head Scoreboard</h2>
@@ -215,7 +245,7 @@ export default async function TeamDashboardPage() {
               </section>
 
               {/* TAB 4: MEMBER DEEP DIVE & FILES */}
-              <section id="tab-members" className="tab-content" hidden>
+              <section id="tab-members" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-members" hidden>
                 <div className="panel-head">
                   <h2>Per-Member Token & Activity Drilldown</h2>
                   <div className="filter-group" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -233,7 +263,7 @@ export default async function TeamDashboardPage() {
               </section>
 
               {/* TAB 5: PROJECTS & WORKSPACES */}
-              <section id="tab-projects" className="tab-content" hidden>
+              <section id="tab-projects" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-projects" hidden>
                 <div className="panel">
                   <div className="panel-head">
                     <h2>Projects & Workspace Intelligence</h2>
@@ -244,7 +274,7 @@ export default async function TeamDashboardPage() {
               </section>
 
               {/* TAB 6: FILE IMPACT RISK MAP */}
-              <section id="tab-files" className="tab-content" hidden>
+              <section id="tab-files" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-files" hidden>
                 <div className="panel">
                   <div className="panel-head">
                     <h2>Code Impact & File Risk Map</h2>
@@ -255,7 +285,7 @@ export default async function TeamDashboardPage() {
               </section>
 
               {/* TAB 7: SESSION ACTIVITY LOGS */}
-              <section id="tab-logs" className="tab-content" hidden>
+              <section id="tab-logs" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-logs" hidden>
                 <div className="panel">
                   <div className="panel-head">
                     <h2>Recent Token & Ingest Activity Logs</h2>
@@ -266,7 +296,7 @@ export default async function TeamDashboardPage() {
               </section>
 
               {/* TAB 8: MODEL PRICING RATES */}
-              <section id="tab-pricing" className="tab-content" hidden>
+              <section id="tab-pricing" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-pricing" hidden>
                 <div className="panel">
                   <div className="panel-head">
                     <h2>💲 Custom Model Pricing & Cost Configuration</h2>
@@ -293,7 +323,7 @@ export default async function TeamDashboardPage() {
               </section>
 
               {/* TAB 9: SETTINGS & MEMBER KEYS */}
-              <section id="tab-settings" className="tab-content" hidden>
+              <section id="tab-settings" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-settings" hidden>
                 <section className="panel">
                   <div className="panel-head">
                     <h2>Team Members & API Ingest Keys</h2>
@@ -391,6 +421,7 @@ export default async function TeamDashboardPage() {
         </form>
       </dialog>
 
+      <Script src="/toast.js" strategy="afterInteractive" />
       <Script src="/team/app.js" strategy="afterInteractive" />
     </div>
   );

@@ -130,16 +130,28 @@ function setLoginBusy(on) {
   btn.textContent = on ? 'Signing in…' : 'Sign in';
 }
 
+function hideBootLoading() {
+  const el = document.getElementById('boot-loading');
+  if (el) el.hidden = true;
+}
+
 function showLogin() {
+  hideBootLoading();
   document.getElementById('login-screen').hidden = false;
   document.getElementById('app').hidden = true;
   setLoading(false);
 }
 
 function showDashboard() {
+  hideBootLoading();
   document.getElementById('login-screen').hidden = true;
   document.getElementById('app').hidden = false;
   setLoading(false);
+}
+
+/** Consistent, reusable "nothing to show" placeholder for any panel/table. */
+function emptyState(message) {
+  return `<div class="table-empty"><span class="table-empty-icon" aria-hidden="true">\u25CC</span><p>${message}</p></div>`;
 }
 
 function fmt(n) {
@@ -216,7 +228,7 @@ function statsQuery() {
 function renderBars(containerId, rows, labelKey, valueKey) {
   const el = document.getElementById(containerId);
   if (!el) return;
-  if (!rows?.length) { el.innerHTML = '<p class="muted">No data matching active filters</p>'; return; }
+  if (!rows?.length) { el.innerHTML = emptyState('No data matching active filters'); return; }
   const max = Math.max(...rows.map((r) => r[valueKey]), 1);
   el.innerHTML = rows.map((r) => `
     <div class="bar-row">
@@ -242,7 +254,7 @@ function renderTotals(t) {
 function renderLeaderboard(rows) {
   const el = document.getElementById('leaderboard');
   if (!el) return;
-  if (!rows?.length) { el.innerHTML = '<p class="muted">No member data matching active filters</p>'; return; }
+  if (!rows?.length) { el.innerHTML = emptyState('No member data matching active filters'); return; }
   el.innerHTML = `<table><thead><tr>
     <th>Member</th><th>Sessions</th><th>Input Tokens</th><th>Output Tokens</th><th>Edits</th><th>Lines Diff</th><th>Est. Cost</th>
   </tr></thead><tbody>${rows.map((r) => `<tr>
@@ -259,7 +271,7 @@ function renderLeaderboard(rows) {
 function renderTokenLeaderboard(rows) {
   const el = document.getElementById('token-leaderboard-table');
   if (!el) return;
-  if (!rows?.length) { el.innerHTML = '<p class="muted">No token records matching active filters</p>'; return; }
+  if (!rows?.length) { el.innerHTML = emptyState('No token records matching active filters'); return; }
   const maxTokens = rows[0]?.total_tokens || 1;
 
   el.innerHTML = `<table><thead><tr>
@@ -284,7 +296,7 @@ function renderTokenLeaderboard(rows) {
 function renderHeadToHead(rows) {
   const el = document.getElementById('head-to-head-table');
   if (!el) return;
-  if (!rows?.length) { el.innerHTML = '<p class="muted">No efficiency data available</p>'; return; }
+  if (!rows?.length) { el.innerHTML = emptyState('No efficiency data available'); return; }
   el.innerHTML = `<table><thead><tr>
     <th>Member</th><th>Edits / Session</th><th>Tokens / Edit</th><th>Tool Error Rate</th><th>Cache Efficiency</th><th>Cost / Edit</th><th>Cost / 100 Lines</th>
   </tr></thead><tbody>${rows.map((r) => `<tr>
@@ -313,7 +325,7 @@ function renderMemberDrilldown(membersData) {
   const filtered = selectedId === 'all' ? membersData : membersData.filter((m) => m.member_id === selectedId);
 
   if (!filtered.length) {
-    container.innerHTML = '<p class="muted">No member data matching filters.</p>';
+    container.innerHTML = emptyState('No member data matching filters');
     return;
   }
 
@@ -325,7 +337,7 @@ function renderMemberDrilldown(membersData) {
           <div class="track"><div class="fill" style="width:${Math.min(100, (s.tokens_in / Math.max(1, m.tokens_in)) * 100)}%"></div></div>
           <span class="val">${fmt(s.tokens_in)} in / ${fmtCost(s.api_cost)}</span>
         </div>`).join('')
-      : '<p class="muted">No source breakdown</p>';
+      : emptyState('No source breakdown');
 
     const projectsHtml = m.projects?.length
       ? `<div class="table-wrap"><table><thead><tr><th>Project / Workspace</th><th>Source</th><th>Sessions</th><th>Tokens</th><th>Cost</th></tr></thead><tbody>` +
@@ -336,7 +348,7 @@ function renderMemberDrilldown(membersData) {
           <td>${fmt(p.tokens_in)} in</td>
           <td>${fmtCost(p.api_cost)}</td>
         </tr>`).join('') + `</tbody></table></div>`
-      : '<p class="muted">No projects logged yet</p>';
+      : emptyState('No projects logged yet');
 
     const modelsHtml = m.models?.length
       ? `<div class="table-wrap"><table><thead><tr><th>LLM Model Used</th><th>Source</th><th>Sessions</th><th>Tokens (In/Out)</th><th>Est. Cost</th></tr></thead><tbody>` +
@@ -347,7 +359,7 @@ function renderMemberDrilldown(membersData) {
           <td>${fmt(mod.tokens_in)} / ${fmt(mod.tokens_out)}</td>
           <td><strong>${fmtCost(mod.api_cost)}</strong></td>
         </tr>`).join('') + `</tbody></table></div>`
-      : '<p class="muted">No model usage logged yet</p>';
+      : emptyState('No model usage logged yet');
 
     const filesHtml = m.topFiles?.length
       ? `<div class="table-wrap"><table><thead><tr><th>File Path</th><th>Edits</th><th>Diff (+ / −)</th></tr></thead><tbody>` +
@@ -356,7 +368,7 @@ function renderMemberDrilldown(membersData) {
           <td>${fmt(f.edits)}</td>
           <td><span class="diff-add">+${fmt(f.additions)}</span> <span class="diff-del">−${fmt(f.deletions)}</span></td>
         </tr>`).join('') + `</tbody></table></div>`
-      : '<p class="muted">No code edit payloads found</p>';
+      : emptyState('No code edit payloads found');
 
     return `
       <details class="member-card" open id="member-card-${m.member_id}">
@@ -410,7 +422,7 @@ function renderProjects(projectsData) {
   const el = document.getElementById('projects-table');
   if (!el) return;
   if (!projectsData?.length) {
-    el.innerHTML = '<p class="muted">No project activity matching filters.</p>';
+    el.innerHTML = emptyState('No project activity matching filters');
     return;
   }
   el.innerHTML = `<table><thead><tr>
@@ -434,7 +446,7 @@ function renderTopFiles(filesData) {
   const el = document.getElementById('top-files');
   if (!el) return;
   if (!filesData?.length) {
-    el.innerHTML = '<p class="muted">No code modification payloads matching filters.</p>';
+    el.innerHTML = emptyState('No code modification payloads matching filters');
     return;
   }
   el.innerHTML = `<table><thead><tr>
@@ -453,7 +465,7 @@ function renderSessionLogs(logs) {
   const el = document.getElementById('session-logs-table');
   if (!el) return;
   if (!logs?.length) {
-    el.innerHTML = '<p class="muted">No activity logs matching filters.</p>';
+    el.innerHTML = emptyState('No activity logs matching filters');
     return;
   }
   el.innerHTML = `<table><thead><tr>
@@ -501,7 +513,7 @@ function renderMemberModelsTable(memberModels) {
   const el = document.getElementById('member-models-table');
   if (!el) return;
   if (!memberModels?.length) {
-    el.innerHTML = '<p class="muted">No member model usage recorded matching filters.</p>';
+    el.innerHTML = emptyState('No member model usage recorded matching filters');
     return;
   }
   el.innerHTML = `<table><thead><tr>
@@ -523,8 +535,9 @@ window.deletePricingRule = async function (id) {
   try {
     await api(`/api/v1/team/pricing?id=${id}&teamId=${teamId}`, { method: 'DELETE' });
     await loadStats();
+    window.showToast('Pricing rule removed and costs recalculated.', { type: 'success' });
   } catch (err) {
-    alert(formatError(err.message));
+    window.showToast(formatError(err.message), { type: 'error' });
   } finally {
     hideRecalculationLoader();
   }
@@ -542,7 +555,7 @@ function renderMembersTable(rows) {
 
   const el = document.getElementById('members');
   if (!el) return;
-  if (!rows?.length) { el.innerHTML = '<p class="muted">No members registered</p>'; return; }
+  if (!rows?.length) { el.innerHTML = emptyState('No members registered'); return; }
   const host = window.location.origin;
 
   el.innerHTML = `<table><thead><tr>
@@ -573,7 +586,7 @@ function renderMembersTable(rows) {
 window.copyInstallCmd = function (encodedCmd, osName) {
   const cmd = decodeURIComponent(encodedCmd);
   navigator.clipboard.writeText(cmd).then(() => {
-    alert(`📋 ${osName} Install Command copied to clipboard!\n\nTeam member can paste this in their ${osName === 'Mac' ? 'Mac Terminal' : 'Windows PowerShell'}:\n\n` + cmd);
+    window.showToast(`${osName} install command copied to clipboard.`, { type: 'success' });
   }).catch(() => {
     prompt(`Copy ${osName} Install Command:`, cmd);
   });
@@ -596,8 +609,9 @@ window.confirmDeleteMember = async function (id, encodedName) {
     await api(`/api/v1/team/members?id=${id}&teamId=${teamId}`, { method: 'DELETE' });
     loadMembers();
     loadStats();
+    window.showToast(`Member "${name}" deleted.`, { type: 'success' });
   } catch (err) {
-    alert(formatError(err.message));
+    window.showToast(formatError(err.message), { type: 'error' });
   }
 };
 
@@ -681,10 +695,16 @@ function setupTabs() {
   if (!tabsNav) return;
   tabsNav.querySelectorAll('.tab-btn').forEach((btn) => {
     btn.onclick = () => {
-      tabsNav.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+      tabsNav.querySelectorAll('.tab-btn').forEach((b) => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+        b.tabIndex = -1;
+      });
       document.querySelectorAll('.tab-content').forEach((tc) => { tc.hidden = true; tc.classList.remove('active'); });
 
       btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+      btn.tabIndex = 0;
       const targetId = btn.dataset.tab;
       const targetEl = document.getElementById(targetId);
       if (targetEl) {
@@ -825,9 +845,9 @@ document.getElementById('recalculate-costs-btn')?.addEventListener('click', asyn
       body: JSON.stringify({ teamId }),
     });
     await loadStats();
-    alert(`✓ Successfully recalculated costs across ${res.updatedCount || res.totalSessions || 0} sessions using latest model rates!`);
+    window.showToast(`Recalculated costs across ${res.updatedCount || res.totalSessions || 0} sessions using the latest model rates.`, { type: 'success' });
   } catch (err) {
-    alert(formatError(err.message));
+    window.showToast(formatError(err.message), { type: 'error' });
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
@@ -883,8 +903,9 @@ document.getElementById('link-member-form').addEventListener('submit', async (e)
     document.getElementById('link-member-dialog').close();
     loadMembers();
     loadStats();
+    window.showToast('Member linked to team.', { type: 'success' });
   } catch (err) {
-    alert(formatError(err.message));
+    window.showToast(formatError(err.message), { type: 'error' });
   }
 });
 
@@ -922,8 +943,9 @@ document.getElementById('add-member-form').addEventListener('submit', async (e) 
 
     loadMembers();
     loadStats();
+    window.showToast(`Member "${member.display_name}" created.`, { type: 'success' });
   } catch (err) {
-    alert(formatError(err.message));
+    window.showToast(formatError(err.message), { type: 'error' });
   }
 });
 
@@ -942,8 +964,9 @@ document.getElementById('edit-member-form').addEventListener('submit', async (e)
     document.getElementById('edit-member-dialog').close();
     loadMembers();
     loadStats();
+    window.showToast(`Member "${name}" updated.`, { type: 'success' });
   } catch (err) {
-    alert(formatError(err.message));
+    window.showToast(formatError(err.message), { type: 'error' });
   }
 });
 
@@ -982,8 +1005,9 @@ document.getElementById('add-pricing-form')?.addEventListener('submit', async (e
     document.getElementById('pricing-cost-out').value = '';
     document.getElementById('pricing-cost-cache').value = '';
     await loadStats();
+    window.showToast('Pricing rule saved and costs recalculated.', { type: 'success' });
   } catch (err) {
-    alert(formatError(err.message));
+    window.showToast(formatError(err.message), { type: 'error' });
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -1002,17 +1026,11 @@ window.triggerMemberSync = async function (memberId = 'all', name = 'all members
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId, memberId }),
     });
-    alert(
-      `⚡ Sync Request Broadcasted!\n\n` +
-      `Server sent instant sync request to ${memberName}.\n` +
-      `The background sync agent will perform an instant log rescan.\n\n` +
-      `Optional: To force instant execution from Mac Terminal right now, run:\n` +
-      `launchctl kickstart -k gui/$(id -u)/com.token-tracer.daemon`
-    );
+    window.showToast(`Sync request broadcast to ${memberName}.`, { type: 'success' });
     await loadMembers();
     await loadStats();
   } catch (err) {
-    alert(formatError(err.message));
+    window.showToast(formatError(err.message), { type: 'error' });
   } finally {
     const banner = document.querySelector('.cost-calc-banner');
     if (banner) banner.remove();

@@ -48,10 +48,29 @@ export default async function PersonalDashboardPage() {
         <button id="refresh" className="hbtn" title="Rescan session files">↻ Refresh</button>
       </header>
       <div className="layout">
-        <nav id="tree" aria-label="Session spawn tree" suppressHydrationWarning />
-        <main id="main" suppressHydrationWarning />
+        <nav id="tree" aria-label="Session spawn tree" suppressHydrationWarning>
+          <div className="skeleton skeleton-tree-item" style={{ width: '85%' }} />
+          <div className="skeleton skeleton-tree-item" style={{ width: '70%' }} />
+          <div className="skeleton skeleton-tree-item" style={{ width: '78%' }} />
+          <div className="skeleton skeleton-tree-item" style={{ width: '60%' }} />
+          <div className="skeleton skeleton-tree-item" style={{ width: '72%' }} />
+        </nav>
+        <main id="main" aria-busy="true" suppressHydrationWarning>
+          <div className="skeleton-cards" aria-hidden="true">
+            <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+            <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+            <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+            <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+          </div>
+          <div className="skeleton-panel" aria-hidden="true">
+            <div className="skeleton skeleton-title" />
+            <div className="skeleton skeleton-row" style={{ height: '160px' }} />
+          </div>
+          <span className="visually-hidden">Loading your dashboard…</span>
+        </main>
       </div>
       <div id="tooltip" role="presentation" />
+      <Script src="/toast.js" strategy="afterInteractive" />
       <Script src="/app.js" strategy="afterInteractive" />
     </div>
   );

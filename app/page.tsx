@@ -61,7 +61,7 @@ export default async function LoginPage() {
             <button type="submit" className="hbtn primary" id="login-submit">
               Sign in
             </button>
-            <p id="login-error" className="error" hidden />
+            <p id="login-error" className="error" role="alert" aria-live="assertive" hidden />
           </form>
         </div>
       </div>

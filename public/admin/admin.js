@@ -22,6 +22,8 @@ async function loadSession() {
   const userEl = $('#admin-user-name');
   if (userEl) userEl.textContent = session.displayName || session.username;
 
+  const boot = $('#boot-loading');
+  if (boot) boot.hidden = true;
   $('#admin-app').hidden = false;
 }
 
@@ -50,7 +52,7 @@ async function loadData() {
     populateMemberDropdown();
     populateTeamDropdown();
   } catch (err) {
-    alert(err.message);
+    window.showToast(err.message, { type: 'error' });
   }
 }
 
@@ -281,6 +283,8 @@ async function handleFormSubmit(e) {
         val.innerHTML = msg;
         banner.hidden = false;
       }
+    } else {
+      window.showToast(id ? `User "${displayName}" updated.` : `User "${displayName}" created.`, { type: 'success' });
     }
 
     cancelForm();
@@ -310,8 +314,9 @@ async function resetPassword(id, username) {
       val.textContent = `Temporary password for ${username}: ${data.newPassword}`;
       banner.hidden = false;
     }
+    window.showToast(`Password reset for "${username}".`, { type: 'success' });
   } catch (err) {
-    alert(err.message);
+    window.showToast(err.message, { type: 'error' });
   }
 }
 
@@ -327,8 +332,9 @@ async function deleteUser(id, username) {
     if (!res.ok) throw new Error(data.error || 'Delete failed');
     
     await loadData();
+    window.showToast(`User "${username}" deleted.`, { type: 'success' });
   } catch (err) {
-    alert(err.message);
+    window.showToast(err.message, { type: 'error' });
   }
 }
 
@@ -336,7 +342,10 @@ async function deleteUser(id, username) {
 function switchTab(tabId) {
   currentTab = tabId;
   document.querySelectorAll('.admin-sidebar-nav button').forEach(b => {
-    b.classList.toggle('active', b.dataset.tab === tabId);
+    const active = b.dataset.tab === tabId;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-selected', String(active));
+    b.tabIndex = active ? 0 : -1;
   });
   document.querySelectorAll('.admin-tab').forEach(t => {
     t.hidden = t.id !== tabId;
@@ -389,11 +398,11 @@ function closeMobileNav() {
       const res = await fetch('/api/admin/migrate', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Migration failed');
-      alert('Migration successful! Database table has been initialized.');
+      window.showToast('Migration successful — database table initialized.', { type: 'success' });
       btn.style.display = 'none';
       await loadData();
     } catch (err) {
-      alert(err.message);
+      window.showToast(err.message, { type: 'error' });
       btn.disabled = false;
       btn.textContent = '⚠️ Run Database Migration';
     }

@@ -19,6 +19,11 @@ export default async function AdminPage() {
 
   return (
     <div suppressHydrationWarning>
+      <div id="boot-loading" className="boot-loading" aria-busy="true" suppressHydrationWarning>
+        <div className="boot-spinner" aria-hidden="true" />
+        <span className="visually-hidden">Loading Admin…</span>
+      </div>
+
       <div id="admin-app" className="admin-app" hidden>
         {/* Mobile-only topbar: shown under 880px, hosts the hamburger toggle */}
         <div className="mobile-topbar">
@@ -39,12 +44,12 @@ export default async function AdminPage() {
               <span className="eyebrow">Superadmin</span>
             </div>
           </div>
-          <nav className="admin-sidebar-nav">
-            <button type="button" className="tab-btn active" data-tab="tab-users">
-              <span className="nav-icon">👥</span> Users
+          <nav className="admin-sidebar-nav" role="tablist" aria-label="Admin sections">
+            <button type="button" id="tabbtn-users" className="tab-btn active" data-tab="tab-users" role="tab" aria-selected="true" aria-controls="tab-users" tabIndex={0}>
+              <span className="nav-icon" aria-hidden="true">👥</span> Users
             </button>
-            <button type="button" className="tab-btn" data-tab="tab-members">
-              <span className="nav-icon">🔗</span> Members
+            <button type="button" id="tabbtn-members" className="tab-btn" data-tab="tab-members" role="tab" aria-selected="false" aria-controls="tab-members" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">🔗</span> Members
             </button>
           </nav>
           <div className="sidebar-footer">
@@ -55,7 +60,7 @@ export default async function AdminPage() {
 
         <main className="admin-content">
           {/* Users tab */}
-          <div id="tab-users" className="admin-tab active-tab">
+          <div id="tab-users" className="admin-tab active-tab" role="tabpanel" aria-labelledby="tabbtn-users">
             <div className="admin-tab-header">
               <h2>Users</h2>
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -111,7 +116,7 @@ export default async function AdminPage() {
                 <div className="form-actions">
                   <button type="submit" className="hbtn primary" id="uf-submit">Save</button>
                   <button type="button" className="hbtn" id="uf-cancel">Cancel</button>
-                  <p id="uf-error" className="error" hidden />
+                  <p id="uf-error" className="error" role="alert" aria-live="assertive" hidden />
                 </div>
               </form>
             </div>
@@ -131,8 +136,14 @@ export default async function AdminPage() {
                     <th>Actions</th>
                   </tr>
                 </thead>
-                <tbody id="users-tbody">
-                  <tr><td colSpan={8} className="muted">Loading…</td></tr>
+                <tbody id="users-tbody" aria-busy="true">
+                  {[0, 1, 2, 3].map((i) => (
+                    <tr key={i} aria-hidden="true">
+                      {Array.from({ length: 8 }).map((_, j) => (
+                        <td key={j}><div className="skeleton" style={{ height: '14px', width: j === 0 ? '80%' : '60%' }} /></td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -148,7 +159,7 @@ export default async function AdminPage() {
           </div>
 
           {/* Members tab */}
-          <div id="tab-members" className="admin-tab" hidden>
+          <div id="tab-members" className="admin-tab" role="tabpanel" aria-labelledby="tabbtn-members" hidden>
             <div className="admin-tab-header">
               <h2>Members (unlinked to any user)</h2>
             </div>
@@ -157,8 +168,14 @@ export default async function AdminPage() {
                 <thead>
                   <tr><th>Display Name</th><th>Team</th><th>Status</th></tr>
                 </thead>
-                <tbody id="members-tbody">
-                  <tr><td colSpan={3} className="muted">Loading…</td></tr>
+                <tbody id="members-tbody" aria-busy="true">
+                  {[0, 1, 2].map((i) => (
+                    <tr key={i} aria-hidden="true">
+                      {Array.from({ length: 3 }).map((_, j) => (
+                        <td key={j}><div className="skeleton" style={{ height: '14px', width: j === 0 ? '80%' : '60%' }} /></td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -166,6 +183,7 @@ export default async function AdminPage() {
         </main>
       </div>
 
+      <Script src="/toast.js" strategy="afterInteractive" />
       <Script src="/admin/admin.js" strategy="afterInteractive" />
     </div>
   );
