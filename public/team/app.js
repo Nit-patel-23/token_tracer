@@ -642,7 +642,7 @@ async function loadTeams() {
 
 async function loadDashboardData() {
   renderPresets();
-  if (currentUser && currentUser.role === 'admin') {
+  if (currentUser && currentUser.role === 'admin' && currentUser.teamId) {
     teamId = currentUser.teamId;
     const selectDiv = document.querySelector('.sidebar-team-select');
     if (selectDiv) selectDiv.style.display = 'none';
@@ -986,11 +986,6 @@ setupTabs();
   const ok = await checkAuth();
   if (!ok) return;
 
-  // Hide the legacy inline login screen and show the app
-  const loginScr = document.getElementById('login-screen');
-  if (loginScr) loginScr.style.display = 'none';
-  const appScr = document.getElementById('app');
-  if (appScr) appScr.style.display = 'block';
 
   showApp().catch((err) => {
     console.error('Failed to load dashboard:', err);

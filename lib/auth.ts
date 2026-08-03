@@ -152,8 +152,8 @@ export function getAuthorizedTeamId(req: any, paramTeamId: string | null | undef
     if (session.role === 'superadmin') {
       return paramTeamId || null;
     }
-    if (session.role === 'admin' && session.teamId) {
-      return session.teamId;
+    if (session.role === 'admin') {
+      return session.teamId || paramTeamId || null;
     }
   }
 
