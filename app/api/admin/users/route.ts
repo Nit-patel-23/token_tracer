@@ -130,7 +130,20 @@ export async function POST(req: NextRequest) {
       RETURNING id, username, display_name, role, member_id, team_id, active, created_at
     `, [username, passwordHash, displayName, finalMemberId, finalTeamId, role, rawApiKey]);
 
-    return NextResponse.json({ user: rows[0], apiKey: rawApiKey }, { status: 201 });
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'https://token-tracer-three.vercel.app';
+    let installCommandMac = null;
+    let installCommandWin = null;
+    if (rawApiKey) {
+      installCommandMac = `curl -fsSL ${serverUrl}/install.sh | bash -s -- --key ${rawApiKey}`;
+      installCommandWin = `$ApiKey="${rawApiKey}"; iex (irm ${serverUrl}/install.ps1)`;
+    }
+
+    return NextResponse.json({
+      user: rows[0],
+      apiKey: rawApiKey,
+      installCommandMac,
+      installCommandWin
+    }, { status: 201 });
   } catch (err: any) {
     if (err?.code === '23505') {
       return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
@@ -180,10 +193,11 @@ export async function PUT(req: NextRequest) {
     // Self-healing: generate API key if missing and member is linked
     let rawApiKey: string | null = null;
     let apiKeyHash: string | null = null;
+    const { rows: keyCheck } = await query(`SELECT api_key FROM users WHERE id = $1`, [id]);
+    const existingApiKey = keyCheck[0]?.api_key || null;
 
     if (finalMemberId && finalMemberId !== 'new') {
-      const { rows: keyCheck } = await query(`SELECT api_key FROM users WHERE id = $1`, [id]);
-      if (!keyCheck[0]?.api_key) {
+      if (!existingApiKey) {
         const { generateApiKey, hashApiKey } = require('@/lib/team/auth');
         rawApiKey = generateApiKey();
         apiKeyHash = hashApiKey(rawApiKey);
@@ -210,7 +224,22 @@ export async function PUT(req: NextRequest) {
     `, [id, displayName ?? null, role ?? null, active ?? null, finalMemberId ?? null, finalTeamId ?? null, rawApiKey]);
 
     if (!rows[0]) return NextResponse.json({ error: 'user not found' }, { status: 404 });
-    return NextResponse.json({ user: rows[0] });
+
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'https://token-tracer-three.vercel.app';
+    const effectiveApiKey = rawApiKey || existingApiKey || null;
+    let installCommandMac = null;
+    let installCommandWin = null;
+    if (effectiveApiKey) {
+      installCommandMac = `curl -fsSL ${serverUrl}/install.sh | bash -s -- --key ${effectiveApiKey}`;
+      installCommandWin = `$ApiKey="${effectiveApiKey}"; iex (irm ${serverUrl}/install.ps1)`;
+    }
+
+    return NextResponse.json({
+      user: rows[0],
+      apiKey: effectiveApiKey,
+      installCommandMac,
+      installCommandWin
+    });
   } catch (err) {
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
   }

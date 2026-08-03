@@ -262,12 +262,23 @@ async function handleFormSubmit(e) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Request failed');
 
-    if (!id && data.apiKey) {
-      // If newly created user with member link, show the generated sync command details
+    if (data.apiKey) {
+      // Show the generated sync command details
       const banner = $('#new-password-banner');
       const val = $('#new-password-value');
       if (banner && val) {
-        val.textContent = `User: ${username} | Temp Password: ${password} | API Key: ${data.apiKey}`;
+        let msg = `<b>User:</b> ${username || data.user.username}<br>`;
+        if (password) {
+          msg += `<b>Temp Password:</b> ${password}<br>`;
+        }
+        msg += `<b>API Key:</b> <code>${data.apiKey}</code><br><br>`;
+        if (data.installCommandMac) {
+          msg += `<b>🍎 Mac Command:</b><br><pre style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; overflow-x: auto; font-family: monospace; font-size: 12px; margin: 4px 0 12px 0; user-select: all;">${data.installCommandMac}</pre>`;
+        }
+        if (data.installCommandWin) {
+          msg += `<b>🪟 Windows Command:</b><br><pre style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; overflow-x: auto; font-family: monospace; font-size: 12px; margin: 4px 0 12px 0; user-select: all;">${data.installCommandWin}</pre>`;
+        }
+        val.innerHTML = msg;
         banner.hidden = false;
       }
     }

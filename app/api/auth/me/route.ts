@@ -21,21 +21,35 @@ export async function GET(req: NextRequest) {
   let installCommandWin: string | null = null;
 
   let sessionCount = 0;
+  let memberId = session.memberId;
+  let teamId = session.teamId;
 
   if (session.role === 'user') {
     const { rows: userRows } = await query(
-      `SELECT u.api_key, u.member_id FROM users u WHERE u.id = $1`,
+      `SELECT u.api_key, u.member_id, u.team_id FROM users u WHERE u.id = $1`,
       [session.userId],
     );
     if (userRows[0]) {
       apiKey = userRows[0].api_key ?? null;
-      const memberId = userRows[0].member_id;
+      memberId = userRows[0].member_id ?? memberId;
+      teamId = userRows[0].team_id ?? teamId;
       if (memberId) {
         const { rows: countRows } = await query(
           `SELECT count(*)::int AS count FROM sync_sessions WHERE member_id = $1`,
           [memberId],
         );
         sessionCount = countRows[0]?.count || 0;
+      }
+    }
+
+    // Bypasses onboarding if running locally and local files exist
+    if (sessionCount === 0 && process.env.VERCEL !== '1') {
+      try {
+        const { scanSessions } = await import('@/lib/scan.mjs');
+        const local = scanSessions({});
+        sessionCount = local.sessions.length;
+      } catch (err) {
+        console.warn('Local scan fallback in auth/me failed:', err);
       }
     }
   }
@@ -51,8 +65,8 @@ export async function GET(req: NextRequest) {
     username: session.username,
     displayName: session.displayName,
     role: session.role,
-    memberId: session.memberId,
-    teamId: session.teamId,
+    memberId,
+    teamId,
     apiKey,
     installCommandMac,
     installCommandWin,

@@ -18,8 +18,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'not authenticated', redirect: '/login' }, { status: 401 });
   }
 
-  if (session.role !== 'user' || !session.memberId) {
+  if (session.role !== 'user') {
     return NextResponse.json({ error: 'personal stats are for regular users only' }, { status: 403 });
+  }
+
+  let memberId = session.memberId;
+  try {
+    const { rows: userRows } = await query('SELECT member_id FROM users WHERE id = $1', [session.userId]);
+    if (userRows[0]?.member_id) {
+      memberId = userRows[0].member_id;
+    }
+  } catch (err) {
+    console.warn('[stats route member lookup failed]', err);
+  }
+
+  if (!memberId) {
+    return NextResponse.json({ error: 'user account is not linked to any member profile' }, { status: 403 });
   }
 
   try {
@@ -32,7 +46,34 @@ export async function GET(req: NextRequest) {
     if (from && to && from > to) { const tmp = from; from = to; to = tmp; }
     const useAll = all || (!from && !to);
 
-    const params: unknown[] = [session.memberId];
+    // If running locally, check if local sessions exist
+    if (process.env.VERCEL !== '1') {
+      try {
+        const { scanSessions } = await import('@/lib/scan.mjs');
+        const { buildStats } = await import('@/lib/analytics.mjs');
+        const pricingData = (await import('@/lib/pricing.json')).default;
+        
+        const { sessions: localSessions } = scanSessions({ sources: src ? [src] : null });
+        if (localSessions.length > 0) {
+          let filtered = localSessions;
+          if (!useAll) {
+            filtered = localSessions.filter(s => {
+              const dt = new Date(s.endedAt || s.startedAt || Date.now());
+              const dateStr = dt.toISOString().slice(0, 10);
+              if (from && dateStr < from) return false;
+              if (to && dateStr > to) return false;
+              return true;
+            });
+          }
+          const localStats = buildStats(filtered, { from, to, pricing: pricingData });
+          return NextResponse.json(localStats);
+        }
+      } catch (err) {
+        console.warn('Local stats scan fallback failed:', err);
+      }
+    }
+
+    const params: unknown[] = [memberId];
     let dateFilter = '';
     if (!useAll) {
       if (from) { params.push(from); dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date >= $${params.length}::date`; }
@@ -109,6 +150,28 @@ export async function GET(req: NextRequest) {
       GROUP BY t.tool_name ORDER BY total_calls DESC LIMIT 20
     `, params);
 
+    const workflow = {
+      reworkLoops: totals?.rework_loops ?? 0,
+      abandoned: totals?.abandoned ?? 0,
+      corrections: totals?.corrections ?? 0,
+      medianTimeToFirstEditMs: null,
+      sessionsCorrected: 0,
+      sessionsWithRework: 0,
+    };
+
+    const impact = {
+      churnFiles: [],
+    };
+
+    const scoreboard = perSource.map((r: any) => ({
+      source: r.source,
+      reworkPerSession: 0,
+      abandonedRate: 0,
+      medianTimeToFirstEditMs: null,
+      edits: r.edits ?? 0,
+      sessions: r.sessions ?? 0,
+    }));
+
     return NextResponse.json({
       window: { from: from ?? null, to: to ?? null, all: useAll },
       totals: {
@@ -131,6 +194,9 @@ export async function GET(req: NextRequest) {
         total: totals?.api_cost ?? 0,
         currency: 'USD',
       },
+      workflow,
+      impact,
+      scoreboard,
       perDay: perDay.map((r: any) => ({
         date: String(r.date).slice(0, 10),
         sessions: r.sessions,

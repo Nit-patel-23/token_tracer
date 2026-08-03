@@ -791,6 +791,47 @@ document.getElementById('cancel-edit-member').addEventListener('click', () => {
   document.getElementById('edit-member-dialog').close();
 });
 
+document.getElementById('link-member-btn').addEventListener('click', async () => {
+  const sel = document.getElementById('link-member-select');
+  sel.innerHTML = '<option value="">Loading members…</option>';
+  document.getElementById('link-member-dialog').showModal();
+
+  try {
+    const { members } = await api(`/api/v1/team/members/link?teamId=${teamId}`);
+    if (!members || !members.length) {
+      sel.innerHTML = '<option value="">All members are already linked to this team.</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">— select member —</option>' + 
+      members.map(m => `<option value="${m.id}">${m.display_name} (${m.team_name || 'Independent'})</option>`).join('');
+  } catch (err) {
+    sel.innerHTML = `<option value="">Error loading members: ${err.message}</option>`;
+  }
+});
+
+document.getElementById('cancel-link-member').addEventListener('click', () => {
+  document.getElementById('link-member-dialog').close();
+});
+
+document.getElementById('link-member-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const memberId = document.getElementById('link-member-select').value;
+  if (!memberId || !teamId) return;
+
+  try {
+    await api('/api/v1/team/members/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId, memberId }),
+    });
+    document.getElementById('link-member-dialog').close();
+    loadMembers();
+    loadStats();
+  } catch (err) {
+    alert(formatError(err.message));
+  }
+});
+
 document.getElementById('add-pricing-btn')?.addEventListener('click', () => {
   document.getElementById('add-pricing-dialog').showModal();
 });

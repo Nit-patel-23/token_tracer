@@ -19,9 +19,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'not authenticated', redirect: '/login' }, { status: 401 });
   }
 
-  // Admin/superadmin don't have a personal dashboard in this endpoint
-  if (session.role !== 'user' || !session.memberId) {
+  if (session.role !== 'user') {
     return NextResponse.json({ error: 'personal dashboard is for regular users only' }, { status: 403 });
+  }
+
+  let memberId = session.memberId;
+  try {
+    const { rows: userRows } = await query('SELECT member_id FROM users WHERE id = $1', [session.userId]);
+    if (userRows[0]?.member_id) {
+      memberId = userRows[0].member_id;
+    }
+  } catch (err) {
+    console.warn('[state route member lookup failed]', err);
+  }
+
+  if (!memberId) {
+    return NextResponse.json({ error: 'user account is not linked to any member profile' }, { status: 403 });
   }
 
   try {
@@ -34,7 +47,60 @@ export async function GET(req: NextRequest) {
     if (from && to && from > to) { const tmp = from; from = to; to = tmp; }
     const useAll = all || (!from && !to);
 
-    const params: unknown[] = [session.memberId];
+    // If running locally, try to read from local filesystem first
+    if (process.env.VERCEL !== '1') {
+      try {
+        const { scanSessions } = await import('@/lib/scan.mjs');
+        const { roots, sessions: localSessions } = scanSessions({ sources: src ? [src] : null });
+        if (localSessions.length > 0) {
+          let filtered = localSessions;
+          if (!useAll) {
+            filtered = localSessions.filter(s => {
+              const dt = new Date(s.endedAt || s.startedAt || Date.now());
+              const dateStr = dt.toISOString().slice(0, 10);
+              if (from && dateStr < from) return false;
+              if (to && dateStr > to) return false;
+              return true;
+            });
+          }
+
+          // Count per source
+          const counts: Record<string, number> = {};
+          for (const s of filtered) counts[s.source] = (counts[s.source] || 0) + 1;
+          
+          // Map to expected shape
+          const sessionRows = filtered.map((s: any) => ({
+            id: s.id,
+            source: s.source,
+            agent: s.agent || 'unknown',
+            label: s.label || s.title || '(local session)',
+            model: s.model,
+            startedAt: s.startedAt || s.started_at,
+            endedAt: s.endedAt || s.ended_at,
+            eventCount: s.events?.length || 0,
+            intelligence: s.intelligence || {},
+            stats: s.stats || {},
+            children: s.children || [],
+            parent: s.parent || null,
+          }));
+
+          return NextResponse.json({
+            roots,
+            counts,
+            from: from ?? null,
+            to: to ?? null,
+            all: useAll,
+            generatedAt: new Date().toISOString(),
+            sessions: sessionRows,
+            sessionCount: filtered.length,
+          });
+        }
+      } catch (err) {
+        console.warn('Local state scan fallback failed:', err);
+      }
+    }
+
+    const params: unknown[] = [memberId];
     let dateFilter = '';
     if (!useAll) {
       if (from) { params.push(from); dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date >= $${params.length}::date`; }
@@ -88,6 +154,8 @@ export async function GET(req: NextRequest) {
         tokensCacheRead: Number(s.tokens_cache_read),
         tokensCacheWrite: Number(s.tokens_cache_write),
       },
+      children: [],
+      parent: null,
     }));
 
     return NextResponse.json({

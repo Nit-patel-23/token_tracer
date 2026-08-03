@@ -272,6 +272,7 @@ export default async function TeamDashboardPage() {
                       <button id="trigger-sync-all-btn" className="hbtn" style={{ borderColor: 'var(--brand)', color: 'var(--brand-hi)', fontWeight: 600 }}>
                         ⚡ Trigger Sync for All Members
                       </button>
+                      <button id="link-member-btn" className="hbtn primary">Link Existing Member</button>
                       <button id="add-member-btn" className="hbtn primary">+ Add member</button>
                     </div>
                   </div>
@@ -318,6 +319,22 @@ export default async function TeamDashboardPage() {
           <menu>
             <button type="button" id="cancel-edit-member" className="hbtn">Cancel</button>
             <button type="submit" className="hbtn primary">Save Changes</button>
+          </menu>
+        </form>
+      </dialog>
+
+      {/* Link Member Dialog */}
+      <dialog id="link-member-dialog">
+        <form method="dialog" id="link-member-form">
+          <h3>Link existing member</h3>
+          <label>Select Member
+            <select id="link-member-select" required>
+              <option value="">— select member —</option>
+            </select>
+          </label>
+          <menu>
+            <button type="button" id="cancel-link-member" className="hbtn">Cancel</button>
+            <button type="submit" className="hbtn primary">Link to Team</button>
           </menu>
         </form>
       </dialog>

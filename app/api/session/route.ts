@@ -18,8 +18,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'not authenticated', redirect: '/login' }, { status: 401 });
   }
 
-  if (appSession.role !== 'user' || !appSession.memberId) {
+  if (appSession.role !== 'user') {
     return NextResponse.json({ error: 'personal dashboard is for regular users only' }, { status: 403 });
+  }
+
+  let memberId = appSession.memberId;
+  try {
+    const { rows: userRows } = await query('SELECT member_id FROM users WHERE id = $1', [appSession.userId]);
+    if (userRows[0]?.member_id) {
+      memberId = userRows[0].member_id;
+    }
+  } catch (err) {
+    console.warn('[session route member lookup failed]', err);
+  }
+
+  if (!memberId) {
+    return NextResponse.json({ error: 'user account is not linked to any member profile' }, { status: 403 });
   }
 
   try {
@@ -52,7 +66,7 @@ export async function GET(req: NextRequest) {
       WHERE s.member_id = $1
         AND (lower(s.session_id) = $2 OR lower(s.id::text) = $2)
       LIMIT 1
-    `, [appSession.memberId, sessionId]);
+    `, [memberId, sessionId]);
 
     if (!row) {
       return NextResponse.json({ error: 'session not found' }, { status: 404 });
