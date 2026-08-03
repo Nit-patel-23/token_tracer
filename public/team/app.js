@@ -19,17 +19,17 @@ async function checkAuth() {
   try {
     const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
     if (!res.ok) {
-      window.location.href = '/login';
+      window.location.href = '/';
       return false;
     }
     currentUser = await res.json();
     if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin') {
-      window.location.href = '/login';
+      window.location.href = '/';
       return false;
     }
     return true;
   } catch {
-    window.location.href = '/login';
+    window.location.href = '/';
     return false;
   }
 }
@@ -936,7 +936,7 @@ document.getElementById('expand-all-members')?.addEventListener('click', () => {
 
 document.getElementById('team-logout-btn')?.addEventListener('click', async () => {
   await fetch('/api/auth/me', { method: 'POST', credentials: 'same-origin' });
-  window.location.href = '/login';
+  window.location.href = '/';
 });
 
 setupTabs();

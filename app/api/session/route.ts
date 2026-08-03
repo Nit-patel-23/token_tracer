@@ -28,6 +28,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'id parameter is required' }, { status: 400 });
     }
 
+    // If running locally, try to read from the local files first to get prompts and events!
+    if (process.env.VERCEL !== '1') {
+      try {
+        const { scanSessions } = await import('@/lib/scan.mjs');
+        const { sessionSummary } = await import('@/lib/analytics.mjs');
+        const pricingData = (await import('@/lib/pricing.json')).default;
+        
+        const { byId } = scanSessions({});
+        const localSession = byId.get(sessionId);
+        if (localSession) {
+          return NextResponse.json(sessionSummary(localSession, pricingData, true));
+        }
+      } catch (err) {
+        console.warn('[local session scan failed, falling back to DB]', err);
+      }
+    }
+
     // Look up by session_id OR the UUID id column, scoped to this member
     const { rows: [row] } = await query(`
       SELECT s.*

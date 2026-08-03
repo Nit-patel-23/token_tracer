@@ -14,7 +14,7 @@ export default async function AdminPage() {
   const session = getSessionFromCookie(cookieStore.toString());
 
   if (!session || session.role !== 'superadmin') {
-    redirect('/login');
+    redirect('/');
   }
 
   return (

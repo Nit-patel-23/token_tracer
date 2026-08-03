@@ -107,7 +107,14 @@ export async function POST(req: NextRequest) {
       issuedAt: Date.now(),
     };
 
-    const res = NextResponse.json({ ok: true, redirect: '/' });
+    let redirectUrl = '/dashboard';
+    if (user.role === 'admin') {
+      redirectUrl = '/team';
+    } else if (user.role === 'superadmin') {
+      redirectUrl = '/admin';
+    }
+
+    const res = NextResponse.json({ ok: true, redirect: redirectUrl });
     res.headers.set('Set-Cookie', buildSessionCookie(payload, secure));
     return res;
   } catch (err) {

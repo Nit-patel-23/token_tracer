@@ -11,12 +11,12 @@ const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 async function loadSession() {
   const res = await fetch('/api/auth/me');
   if (!res.ok) {
-    window.location.href = '/login';
+    window.location.href = '/';
     return;
   }
   const session = await res.json();
   if (session.role !== 'superadmin') {
-    window.location.href = '/login';
+    window.location.href = '/';
     return;
   }
   const userEl = $('#admin-user-name');
@@ -392,7 +392,7 @@ function switchTab(tabId) {
   // Logout
   $('#admin-logout-btn')?.addEventListener('click', async () => {
     await fetch('/api/auth/me', { method: 'POST' });
-    window.location.href = '/login';
+    window.location.href = '/';
   });
 
   // Password banner close

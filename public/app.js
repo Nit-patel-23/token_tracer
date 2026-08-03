@@ -7,7 +7,7 @@ async function bootAuth() {
   try {
     const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
     if (!res.ok) {
-      window.location.href = '/login';
+      window.location.href = '/';
       return false;
     }
     currentUser = await res.json();
@@ -20,13 +20,13 @@ async function bootAuth() {
     if (logoutBtn) {
       logoutBtn.addEventListener('click', async () => {
         await fetch('/api/auth/me', { method: 'POST', credentials: 'same-origin' });
-        window.location.href = '/login';
+        window.location.href = '/';
       });
     }
 
     return true;
   } catch {
-    window.location.href = '/login';
+    window.location.href = '/';
     return false;
   }
 }
