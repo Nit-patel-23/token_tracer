@@ -906,6 +906,11 @@ document.getElementById('expand-all-members')?.addEventListener('click', () => {
   document.querySelectorAll('#member-drilldown-cards details.member-card').forEach((el) => el.setAttribute('open', ''));
 });
 
+document.getElementById('team-logout-btn')?.addEventListener('click', async () => {
+  await fetch('/api/auth/me', { method: 'POST', credentials: 'same-origin' });
+  window.location.href = '/login';
+});
+
 setupTabs();
 
 if (adminToken) {

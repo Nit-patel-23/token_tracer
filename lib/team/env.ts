@@ -49,6 +49,11 @@ export function adminPassword(): string | null {
   return process.env.ADMIN_PASSWORD || null;
 }
 
+export function superadminPassword(): string | null {
+  loadEnv();
+  return process.env.SUPERADMIN_PASSWORD || null;
+}
+
 export function sessionSecret(): string {
   loadEnv();
   return process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'dev-insecure-change-me';

@@ -1,0 +1,63 @@
+/**
+ * GET  /api/auth/me   → returns current session info (200) or 401
+ * POST /api/auth/logout → clears session cookie
+ */
+import { NextRequest, NextResponse } from 'next/server';
+import { getSessionFromCookie, clearSessionCookie } from '@/lib/auth';
+import { query } from '@/lib/team/db';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest) {
+  const session = getSessionFromCookie(req.headers.get('cookie'));
+  if (!session) {
+    return NextResponse.json({ error: 'not authenticated' }, { status: 401 });
+  }
+
+  // For regular users, also fetch their raw API key (stored in member_keys).
+  // We only expose the key label + creation date, not the hash.
+  let apiKey: string | null = null;
+  let installCommandMac: string | null = null;
+  let installCommandWin: string | null = null;
+
+  if (session.role === 'user' && session.memberId) {
+    const { rows } = await query(
+      `SELECT k.id, k.label, k.created_at, k.last_used_at
+       FROM member_keys k
+       WHERE k.member_id = $1 AND k.revoked_at IS NULL
+       ORDER BY k.created_at ASC LIMIT 1`,
+      [session.memberId],
+    );
+    if (rows[0]) {
+      const { rows: rawRows } = await query(
+        `SELECT u.api_key FROM users u WHERE u.id = $1`,
+        [session.userId],
+      );
+      apiKey = rawRows[0]?.api_key ?? null;
+    }
+  }
+
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'https://token-tracer-three.vercel.app';
+  if (apiKey) {
+    installCommandMac = `curl -fsSL ${serverUrl}/install.sh | bash -s -- --key ${apiKey}`;
+    installCommandWin = `$ApiKey="${apiKey}"; iex (irm ${serverUrl}/install.ps1)`;
+  }
+
+  return NextResponse.json({
+    userId: session.userId,
+    username: session.username,
+    displayName: session.displayName,
+    role: session.role,
+    memberId: session.memberId,
+    teamId: session.teamId,
+    apiKey,
+    installCommandMac,
+    installCommandWin,
+  });
+}
+
+export async function POST(req: NextRequest) {
+  const res = NextResponse.json({ ok: true });
+  res.headers.set('Set-Cookie', clearSessionCookie());
+  return res;
+}

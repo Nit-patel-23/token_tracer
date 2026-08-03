@@ -6,13 +6,23 @@
  */
 import type { Metadata } from 'next';
 import Script from 'next/script';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { getSessionFromCookie } from '@/lib/auth';
 
 export const metadata: Metadata = {
   title: 'Team Analytics — Visualisation Dashboard',
   description: 'Comprehensive team agent analytics — member token logs, custom model pricing, API cost recalculation, and scorecards.',
 };
 
-export default function TeamDashboardPage() {
+export default async function TeamDashboardPage() {
+  const cookieStore = await cookies();
+  const session = getSessionFromCookie(cookieStore.toString());
+
+  if (!session || (session.role !== 'admin' && session.role !== 'superadmin')) {
+    redirect('/login');
+  }
+
   return (
     <div suppressHydrationWarning>
       <div id="login-screen" className="team-login">
@@ -75,6 +85,7 @@ export default function TeamDashboardPage() {
 
           <div className="sidebar-footer">
             <a href="/" className="sidebar-link">← Personal Dashboard</a>
+            <button id="team-logout-btn" className="hbtn" style={{ marginTop: '8px', width: '100%' }}>Sign out</button>
           </div>
         </aside>
 

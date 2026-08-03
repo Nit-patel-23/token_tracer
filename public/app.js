@@ -1,4 +1,83 @@
 /* Visualisation Dashboard frontend — intelligence, trajectories, and Wrapped. */
+
+// ── Auth boot ────────────────────────────────────────────────────────────────
+let currentUser = null;
+
+async function bootAuth() {
+  try {
+    const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    if (!res.ok) {
+      window.location.href = '/login';
+      return false;
+    }
+    currentUser = await res.json();
+
+    // Show user name + logout button
+    const nameEl = document.getElementById('user-name');
+    if (nameEl) nameEl.textContent = currentUser.displayName || currentUser.username || '';
+
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async () => {
+        await fetch('/api/auth/me', { method: 'POST', credentials: 'same-origin' });
+        window.location.href = '/login';
+      });
+    }
+
+    return true;
+  } catch {
+    window.location.href = '/login';
+    return false;
+  }
+}
+
+function showOnboarding() {
+  const panel = document.getElementById('onboarding');
+  if (!panel || !currentUser) return;
+  panel.hidden = false;
+
+  // Populate commands
+  const macEl = document.getElementById('cmd-mac-text');
+  const winEl = document.getElementById('cmd-win-text');
+  if (macEl) macEl.textContent = currentUser.installCommandMac || 'No API key available — contact your admin.';
+  if (winEl) winEl.textContent = currentUser.installCommandWin || 'No API key available — contact your admin.';
+
+  // OS picker
+  const osBtns = document.querySelectorAll('.os-btn');
+  const cmdMac = document.getElementById('cmd-mac');
+  const cmdWin = document.getElementById('cmd-win');
+
+  function switchOs(os) {
+    osBtns.forEach(b => {
+      const sel = b.dataset.os === os;
+      b.classList.toggle('active', sel);
+      b.setAttribute('aria-selected', sel);
+    });
+    if (cmdMac) cmdMac.hidden = os !== 'mac';
+    if (cmdWin) cmdWin.hidden = os !== 'win';
+  }
+  osBtns.forEach(b => b.addEventListener('click', () => switchOs(b.dataset.os)));
+  switchOs('mac'); // default to mac
+
+  // Copy buttons
+  function setupCopy(btnId, textId) {
+    const btn = document.getElementById(btnId);
+    const txt = document.getElementById(textId);
+    if (!btn || !txt) return;
+    btn.addEventListener('click', async () => {
+      const cmd = txt.textContent || '';
+      try {
+        await navigator.clipboard.writeText(cmd);
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      } catch {
+        btn.textContent = 'Error';
+      }
+    });
+  }
+  setupCopy('copy-mac', 'cmd-mac-text');
+  setupCopy('copy-win', 'cmd-win-text');
+}
 let state = { sessions: [], roots: [], counts: {} };
 let stats = null;
 let selected = null;
@@ -1075,8 +1154,8 @@ function animateCounts(scope) {
 }
 
 // ── boot ─────────────────────────────────────────────────────────
-$('#refresh').addEventListener('click', () => loadState(true));
-$('#wrapped-btn').addEventListener('click', openWrapped);
+$('#refresh')?.addEventListener('click', () => loadState(true));
+$('#wrapped-btn')?.addEventListener('click', openWrapped);
 $('#range-from')?.addEventListener('change', onRangeInputChange);
 $('#range-to')?.addEventListener('change', onRangeInputChange);
 
@@ -1089,6 +1168,19 @@ addEventListener('resize', () => {
   }, 160);
 });
 
-renderRange();
-setInterval(() => loadState(), 10_000);
-loadState();
+// Auth-gated boot: check session before loading any data
+(async () => {
+  const ok = await bootAuth();
+  if (!ok) return;
+
+  renderRange();
+  await loadState();
+
+  // Show onboarding if user has never synced
+  if (state.sessions.length === 0 && currentUser?.role === 'user') {
+    showOnboarding();
+  }
+
+  setInterval(() => loadState(), 10_000);
+})();
+

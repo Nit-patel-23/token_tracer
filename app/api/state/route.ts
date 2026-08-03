@@ -1,27 +1,27 @@
 /**
- * Personal dashboard state endpoint.
- * Returns session list + summaries for the sidebar tree.
- *
+ * Personal dashboard state endpoint — DB-backed.
  * GET /api/state?from=YYYY-MM-DD&to=YYYY-MM-DD&source=cursor&all=1
  *
- * Returns 503 on Vercel (no local filesystem access).
+ * Requires valid app_session cookie. Returns session list for the logged-in member.
+ * Falls back to local filesystem scan if no session (backward compat for local-only mode).
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { scanSessions } from '@/lib/scan.mjs';
-import { normalizeDateParam, sessionInDateRange, sessionSummary } from '@/lib/analytics.mjs';
-import pricingData from '@/lib/pricing.json';
+import { getSessionFromCookie } from '@/lib/auth';
+import { query } from '@/lib/team/db';
+import { normalizeDateParam } from '@/lib/analytics.mjs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
-  if (process.env.VERCEL === '1') {
-    return NextResponse.json({
-      roots: [], counts: {}, sessions: [], from: null, to: null, all: true,
-      generatedAt: new Date().toISOString(),
-      error: 'Personal dashboard is not available on Vercel. Run `npm run dev` locally.',
-      vercel: true,
-    }, { status: 503 });
+  const session = getSessionFromCookie(req.headers.get('cookie'));
+  if (!session) {
+    return NextResponse.json({ error: 'not authenticated', redirect: '/login' }, { status: 401 });
+  }
+
+  // Admin/superadmin don't have a personal dashboard in this endpoint
+  if (session.role !== 'user' || !session.memberId) {
+    return NextResponse.json({ error: 'personal dashboard is for regular users only' }, { status: 403 });
   }
 
   try {
@@ -32,28 +32,73 @@ export async function GET(req: NextRequest) {
     let from = normalizeDateParam(url.searchParams.get('from'));
     let to = normalizeDateParam(url.searchParams.get('to'));
     if (from && to && from > to) { const tmp = from; from = to; to = tmp; }
-
     const useAll = all || (!from && !to);
-    const { roots, sessions: allSessions } = scanSessions({});
 
-    let dated: SessionObj[] = allSessions as SessionObj[];
+    const params: unknown[] = [session.memberId];
+    let dateFilter = '';
     if (!useAll) {
-      dated = dated.filter((s) => sessionInDateRange(s, from, to));
+      if (from) { params.push(from); dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date >= $${params.length}::date`; }
+      if (to)   { params.push(to);   dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date <= $${params.length}::date`; }
     }
+    if (src && src !== 'all') { params.push(src); dateFilter += ` AND s.source = $${params.length}`; }
 
+    const { rows: sessions } = await query(`
+      SELECT s.id, s.session_id, s.source, s.agent, s.label, s.model,
+             s.started_at, s.ended_at, s.synced_at,
+             s.tokens_in, s.tokens_out, s.tokens_cache_read, s.tokens_cache_write,
+             s.api_cost, s.edits, s.additions, s.deletions, s.changed_lines,
+             s.files_touched, s.tool_calls, s.tool_errors, s.rework_loops,
+             s.corrections, s.abandoned
+      FROM sync_sessions s
+      WHERE s.member_id = $1 ${dateFilter}
+      ORDER BY COALESCE(s.ended_at, s.started_at, s.synced_at) DESC
+      LIMIT 500
+    `, params);
+
+    // Count per source
     const counts: Record<string, number> = {};
-    for (const s of dated) counts[s.source] = (counts[s.source] || 0) + 1;
+    for (const s of sessions) counts[s.source] = (counts[s.source] || 0) + 1;
 
-    const filtered = src && src !== 'all' ? dated.filter((s) => s.source === src) : dated;
+    // Map to shape expected by app.js (sessionSummary-compatible)
+    const sessionRows = sessions.map((s: any) => ({
+      id: s.session_id || s.id,
+      source: s.source,
+      agent: s.agent || 'unknown',
+      label: s.label || '(synced session)',
+      model: s.model,
+      startedAt: s.started_at,
+      endedAt: s.ended_at,
+      eventCount: s.tool_calls + (s.edits || 0),
+      intelligence: {
+        edits: s.edits,
+        additions: s.additions,
+        deletions: s.deletions,
+        changedLines: s.changed_lines,
+        filesTouched: s.files_touched,
+        toolCalls: s.tool_calls,
+        toolErrors: s.tool_errors,
+        reworkLoops: s.rework_loops,
+        corrections: s.corrections,
+        abandoned: s.abandoned,
+        apiCost: s.api_cost,
+      },
+      stats: {
+        tokensIn: Number(s.tokens_in),
+        tokensOut: Number(s.tokens_out),
+        tokensCacheRead: Number(s.tokens_cache_read),
+        tokensCacheWrite: Number(s.tokens_cache_write),
+      },
+    }));
 
     return NextResponse.json({
-      roots,
+      roots: [`DB: ${session.displayName}`],
       counts,
       from: from ?? null,
       to: to ?? null,
       all: useAll,
       generatedAt: new Date().toISOString(),
-      sessions: filtered.map((s) => sessionSummary(s, pricingData)),
+      sessions: sessionRows,
+      sessionCount: sessions.length,
     });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

@@ -84,6 +84,24 @@ CREATE TABLE IF NOT EXISTS ingest_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- User accounts for dashboard login
+CREATE TABLE IF NOT EXISTS users (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username      TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  display_name  TEXT NOT NULL,
+  member_id     UUID REFERENCES members(id) ON DELETE SET NULL,
+  team_id       UUID REFERENCES teams(id) ON DELETE SET NULL,
+  role          TEXT NOT NULL DEFAULT 'user'
+                  CHECK (role IN ('user', 'admin', 'superadmin')),
+  active        BOOLEAN NOT NULL DEFAULT true,
+  last_login_at TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_sync_sessions_team_member ON sync_sessions(team_id, member_id);
 CREATE INDEX IF NOT EXISTS idx_sync_sessions_ended ON sync_sessions(ended_at);
 CREATE INDEX IF NOT EXISTS idx_ingest_events_member ON ingest_events(member_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_member ON users(member_id);
