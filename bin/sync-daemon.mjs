@@ -5,6 +5,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { scanSessions } from '../lib/scan.mjs';
@@ -12,9 +13,9 @@ import { sanitizeForTeamSync } from '../lib/team/sanitize.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
-const DEFAULT_CONFIG = path.join(process.env.HOME || '', '.devmetrics', 'config.json');
-const DEFAULT_STATE = path.join(process.env.HOME || '', '.devmetrics', 'sync-state.json');
-const DEFAULT_LOG = path.join(process.env.HOME || '', '.devmetrics', 'sync.log');
+const DEFAULT_CONFIG = path.join(os.homedir(), '.devmetrics', 'config.json');
+const DEFAULT_STATE = path.join(os.homedir(), '.devmetrics', 'sync-state.json');
+const DEFAULT_LOG = path.join(os.homedir(), '.devmetrics', 'sync.log');
 const BATCH_SIZE = 100;
 const MAX_LOG_BYTES = 256 * 1024;
 

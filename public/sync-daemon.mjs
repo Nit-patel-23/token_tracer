@@ -538,7 +538,11 @@ function getCursorDatabaseSync() {
   return _cachedDatabaseSync;
 }
 function cursorStateDbPath() {
-  return process.env.CURSOR_STATE_DB ?? path.join(os.homedir(), "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb");
+  if (process.env.CURSOR_STATE_DB) return process.env.CURSOR_STATE_DB;
+  if (process.platform === "win32") {
+    return path.join(process.env.APPDATA || os.homedir(), "Cursor", "User", "globalStorage", "state.vscdb");
+  }
+  return path.join(os.homedir(), "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb");
 }
 function enrichCursorSessionFromDb(session, composerId, DatabaseSync = getCursorDatabaseSync(), dbPath = cursorStateDbPath(), db = null) {
   if (!composerId) return;
@@ -732,7 +736,7 @@ function makeAdapters({ explicitDir = null, sources = null } = {}) {
 
 // lib/scan.mjs
 function shortPath(p) {
-  const home = process.env.HOME;
+  const home = os.homedir();
   return home && p.startsWith(home) ? "~" + p.slice(home.length) : p;
 }
 function scanSessions({ explicitDir = null, sources = null, cache = /* @__PURE__ */ new Map() } = {}) {
@@ -1077,9 +1081,10 @@ var FORBIDDEN_KEYS = /* @__PURE__ */ new Set([
 function sanitizePath(filePath) {
   if (typeof filePath !== "string" || !filePath) return "";
   let p = filePath.replaceAll("\\", "/");
-  const home = process.env.HOME;
+  const home = os.homedir().replaceAll("\\", "/");
   if (home && p.startsWith(home)) p = p.slice(home.length);
-  p = p.replace(/^\/Users\/[^/]+/, "");
+  // Strip macOS /Users/<name> or Windows /C/Users/<name> patterns that may remain
+  p = p.replace(/^\/Users\/[^/]+/, "").replace(/^\/[A-Za-z]\/Users\/[^/]+/, "");
   return p.startsWith("/") ? p.slice(1) : p;
 }
 function stablePayloadHash(payload) {
@@ -1142,9 +1147,9 @@ function sanitizeForTeamSync(session, pricing) {
 // bin/sync-daemon.mjs
 var __dirname = path4.dirname(fileURLToPath(import.meta.url));
 var ROOT = path4.join(__dirname, "..");
-var DEFAULT_CONFIG = path4.join(process.env.HOME || "", ".devmetrics", "config.json");
-var DEFAULT_STATE = path4.join(process.env.HOME || "", ".devmetrics", "sync-state.json");
-var DEFAULT_LOG = path4.join(process.env.HOME || "", ".devmetrics", "sync.log");
+var DEFAULT_CONFIG = path4.join(os.homedir(), ".devmetrics", "config.json");
+var DEFAULT_STATE = path4.join(os.homedir(), ".devmetrics", "sync-state.json");
+var DEFAULT_LOG = path4.join(os.homedir(), ".devmetrics", "sync.log");
 var BATCH_SIZE = 100;
 var MAX_LOG_BYTES = 256 * 1024;
 var args = process.argv.slice(2);
