@@ -713,8 +713,11 @@ function setupTabs() {
         targetEl.classList.add('active');
       }
       if (titleEl) {
-        const label = btn.textContent.trim();
-        titleEl.textContent = label;
+        // Prefer explicit title; fall back to button label without leading emoji/icon.
+        const label = (btn.dataset.title || btn.textContent || '')
+          .replace(/^[\p{Extended_Pictographic}\uFE0F\u200D]+\s*/u, '')
+          .trim();
+        titleEl.textContent = label || 'Team Analytics';
       }
       closeMobileNav();
     };

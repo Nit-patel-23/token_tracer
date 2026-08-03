@@ -74,31 +74,31 @@ export default async function TeamDashboardPage() {
           </div>
 
           <nav className="team-sidebar-nav" id="team-tabs" role="tablist" aria-label="Team analytics sections">
-            <button type="button" id="tabbtn-overview" className="tab-btn active" data-tab="tab-overview" role="tab" aria-selected="true" aria-controls="tab-overview" tabIndex={0}>
+            <button type="button" id="tabbtn-overview" className="tab-btn active" data-tab="tab-overview" data-title="Overview & Stats" role="tab" aria-selected="true" aria-controls="tab-overview" tabIndex={0}>
               <span className="nav-icon" aria-hidden="true">📊</span> Overview & Stats
             </button>
-            <button type="button" id="tabbtn-token-leaderboard" className="tab-btn" data-tab="tab-token-leaderboard" role="tab" aria-selected="false" aria-controls="tab-token-leaderboard" tabIndex={-1}>
+            <button type="button" id="tabbtn-token-leaderboard" className="tab-btn" data-tab="tab-token-leaderboard" data-title="Token Leaderboard" role="tab" aria-selected="false" aria-controls="tab-token-leaderboard" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">🏆</span> Token Leaderboard
             </button>
-            <button type="button" id="tabbtn-head-to-head" className="tab-btn" data-tab="tab-head-to-head" role="tab" aria-selected="false" aria-controls="tab-head-to-head" tabIndex={-1}>
+            <button type="button" id="tabbtn-head-to-head" className="tab-btn" data-tab="tab-head-to-head" data-title="Head-to-Head" role="tab" aria-selected="false" aria-controls="tab-head-to-head" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">⚔️</span> Head-to-Head
             </button>
-            <button type="button" id="tabbtn-members" className="tab-btn" data-tab="tab-members" role="tab" aria-selected="false" aria-controls="tab-members" tabIndex={-1}>
+            <button type="button" id="tabbtn-members" className="tab-btn" data-tab="tab-members" data-title="Member Token Logs" role="tab" aria-selected="false" aria-controls="tab-members" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">👥</span> Member Token Logs
             </button>
-            <button type="button" id="tabbtn-projects" className="tab-btn" data-tab="tab-projects" role="tab" aria-selected="false" aria-controls="tab-projects" tabIndex={-1}>
+            <button type="button" id="tabbtn-projects" className="tab-btn" data-tab="tab-projects" data-title="Projects & Repos" role="tab" aria-selected="false" aria-controls="tab-projects" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">📁</span> Projects & Repos
             </button>
-            <button type="button" id="tabbtn-files" className="tab-btn" data-tab="tab-files" role="tab" aria-selected="false" aria-controls="tab-files" tabIndex={-1}>
+            <button type="button" id="tabbtn-files" className="tab-btn" data-tab="tab-files" data-title="Code Impact Map" role="tab" aria-selected="false" aria-controls="tab-files" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">📄</span> Code Impact Map
             </button>
-            <button type="button" id="tabbtn-logs" className="tab-btn" data-tab="tab-logs" role="tab" aria-selected="false" aria-controls="tab-logs" tabIndex={-1}>
+            <button type="button" id="tabbtn-logs" className="tab-btn" data-tab="tab-logs" data-title="Session Logs" role="tab" aria-selected="false" aria-controls="tab-logs" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">📜</span> Session Logs
             </button>
-            <button type="button" id="tabbtn-pricing" className="tab-btn" data-tab="tab-pricing" role="tab" aria-selected="false" aria-controls="tab-pricing" tabIndex={-1}>
+            <button type="button" id="tabbtn-pricing" className="tab-btn" data-tab="tab-pricing" data-title="Model Pricing" role="tab" aria-selected="false" aria-controls="tab-pricing" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">💲</span> Model Pricing Rates
             </button>
-            <button type="button" id="tabbtn-settings" className="tab-btn" data-tab="tab-settings" role="tab" aria-selected="false" aria-controls="tab-settings" tabIndex={-1}>
+            <button type="button" id="tabbtn-settings" className="tab-btn" data-tab="tab-settings" data-title="Manage Members" role="tab" aria-selected="false" aria-controls="tab-settings" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">⚙️</span> Manage Members
             </button>
           </nav>
@@ -114,7 +114,7 @@ export default async function TeamDashboardPage() {
           {/* Header Controls & Filters */}
           <header className="team-header">
             <div className="team-header-top">
-              <h1 id="team-page-title" className="team-page-title">📊 Overview &amp; Stats</h1>
+              <h1 id="team-page-title" className="team-page-title">Overview &amp; Stats</h1>
             </div>
             <div className="header-filters-row">
               {/* Date Presets */}
@@ -229,8 +229,10 @@ export default async function TeamDashboardPage() {
               <section id="tab-token-leaderboard" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-token-leaderboard" hidden>
                 <div className="panel">
                   <div className="panel-head">
-                    <h2>🏆 Token Consumption Leaderboard</h2>
-                    <span className="muted">Ranked by total tokens exchanged (Input + Output + Cache)</span>
+                    <div>
+                      <h2>Token Consumption Leaderboard</h2>
+                      <span className="muted">Ranked by total tokens exchanged (input + output + cache)</span>
+                    </div>
                   </div>
                   <div id="token-leaderboard-table" className="table-wrap"></div>
                 </div>
@@ -240,8 +242,10 @@ export default async function TeamDashboardPage() {
               <section id="tab-head-to-head" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-head-to-head" hidden>
                 <div className="panel">
                   <div className="panel-head">
-                    <h2>⚔️ Member Head-to-Head Scoreboard</h2>
-                    <span className="muted">Normalized efficiency metrics across team members</span>
+                    <div>
+                      <h2>Member Head-to-Head</h2>
+                      <span className="muted">Normalized efficiency metrics across team members</span>
+                    </div>
                   </div>
                   <div id="head-to-head-table" className="table-wrap"></div>
                 </div>
@@ -250,16 +254,19 @@ export default async function TeamDashboardPage() {
               {/* TAB 4: MEMBER DEEP DIVE & FILES */}
               <section id="tab-members" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-members" hidden>
                 <div className="panel-head">
-                  <h2>Per-Member Token & Activity Drilldown</h2>
+                  <div>
+                    <h2>Per-Member Drilldown</h2>
+                    <span className="muted">Token, project, model, and edit activity by member</span>
+                  </div>
                   <div className="filter-group">
                     <button type="button" id="collapse-all-members" className="hbtn hbtn-sm">
-                      ▶ Collapse All
+                      Collapse all
                     </button>
                     <button type="button" id="expand-all-members" className="hbtn hbtn-sm">
-                      ▼ Expand All
+                      Expand all
                     </button>
-                    <label className="member-filter-label">Member Filter: </label>
-                    <select id="member-filter-select"></select>
+                    <label className="member-filter-label" htmlFor="member-filter-select">Member</label>
+                    <select id="member-filter-select" aria-label="Filter by member"></select>
                   </div>
                 </div>
                 <div id="member-drilldown-cards"></div>
@@ -269,8 +276,10 @@ export default async function TeamDashboardPage() {
               <section id="tab-projects" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-projects" hidden>
                 <div className="panel">
                   <div className="panel-head">
-                    <h2>Projects & Workspace Intelligence</h2>
-                    <span className="muted">Which Cursor accounts & team members worked on which repositories</span>
+                    <div>
+                      <h2>Projects & Workspaces</h2>
+                      <span className="muted">Which accounts and members worked on which repositories</span>
+                    </div>
                   </div>
                   <div id="projects-table" className="table-wrap"></div>
                 </div>
@@ -280,8 +289,10 @@ export default async function TeamDashboardPage() {
               <section id="tab-files" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-files" hidden>
                 <div className="panel">
                   <div className="panel-head">
-                    <h2>Code Impact & File Risk Map</h2>
-                    <span className="muted">Most-modified codebase paths, line diffs (+ / −), and contributor counts</span>
+                    <div>
+                      <h2>Code Impact Map</h2>
+                      <span className="muted">Most-modified paths, line diffs, and contributor counts</span>
+                    </div>
                   </div>
                   <div id="top-files" className="table-wrap"></div>
                 </div>
@@ -291,8 +302,10 @@ export default async function TeamDashboardPage() {
               <section id="tab-logs" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-logs" hidden>
                 <div className="panel">
                   <div className="panel-head">
-                    <h2>Recent Token & Ingest Activity Logs</h2>
-                    <span className="muted">Detailed log of recent agent sessions across the team</span>
+                    <div>
+                      <h2>Session Activity Logs</h2>
+                      <span className="muted">Recent agent sessions across the team</span>
+                    </div>
                   </div>
                   <div id="session-logs-table" className="table-wrap"></div>
                 </div>
@@ -302,23 +315,28 @@ export default async function TeamDashboardPage() {
               <section id="tab-pricing" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-pricing" hidden>
                 <div className="panel">
                   <div className="panel-head">
-                    <h2>💲 Custom Model Pricing & Cost Configuration</h2>
+                    <div>
+                      <h2>Model Pricing</h2>
+                      <span className="muted">Custom LLM rates in $ per million tokens</span>
+                    </div>
                     <div className="inline-actions">
                       <button id="recalculate-costs-btn" className="hbtn hbtn-accent">
-                        ⚡ Recalculate All Session Costs
+                        Recalculate costs
                       </button>
-                      <button id="add-pricing-btn" className="hbtn primary">+ Add Model Pricing Rule</button>
+                      <button id="add-pricing-btn" className="hbtn primary">+ Add pricing rule</button>
                     </div>
                   </div>
-                  <p className="muted panel-intro">
-                    Configure custom LLM pricing rules ($ per Million Tokens). Click <strong>Recalculate All Session Costs</strong> to update total costs across all member sessions!
+                  <p className="panel-intro">
+                    Configure pricing rules, then recalculate to refresh estimated costs across member sessions.
                   </p>
                   <div id="model-pricing-table" className="table-wrap"></div>
 
                   <div className="panel-subsection">
                     <div className="panel-head panel-head-tight">
-                      <h2>🤖 Member Model Usage & Spend Breakdown</h2>
-                      <span className="muted">Breakdown of LLM models used by each team member</span>
+                      <div>
+                        <h2>Member Model Usage</h2>
+                        <span className="muted">Spend breakdown by model for each team member</span>
+                      </div>
                     </div>
                     <div id="member-models-table" className="table-wrap"></div>
                   </div>
@@ -329,12 +347,15 @@ export default async function TeamDashboardPage() {
               <section id="tab-settings" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-settings" hidden>
                 <section className="panel">
                   <div className="panel-head">
-                    <h2>Team Members & API Ingest Keys</h2>
+                    <div>
+                      <h2>Team Members & API Keys</h2>
+                      <span className="muted">Manage members, roles, and ingest keys</span>
+                    </div>
                     <div className="inline-actions">
                       <button id="trigger-sync-all-btn" className="hbtn hbtn-accent">
-                        ⚡ Trigger Sync for All Members
+                        Sync all members
                       </button>
-                      <button id="link-member-btn" className="hbtn primary">Link Existing Member</button>
+                      <button id="link-member-btn" className="hbtn">Link existing</button>
                       <button id="add-member-btn" className="hbtn primary">+ Add member</button>
                     </div>
                   </div>

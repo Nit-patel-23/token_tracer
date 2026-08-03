@@ -62,10 +62,13 @@ export default async function AdminPage() {
           {/* Users tab */}
           <div id="tab-users" className="admin-tab active-tab" role="tabpanel" aria-labelledby="tabbtn-users">
             <div className="admin-tab-header">
-              <h2>Users</h2>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="button" className="hbtn primary" id="migrate-btn" style={{ background: '#e27355', display: 'none' }}>⚠️ Run Database Migration</button>
-                <button type="button" className="hbtn primary" id="create-user-btn">+ Add User</button>
+              <div>
+                <h2>Users</h2>
+                <span className="admin-tab-sub">Accounts, roles, and member links</span>
+              </div>
+              <div className="admin-header-actions">
+                <button type="button" className="hbtn migrate-btn" id="migrate-btn" hidden>Run database migration</button>
+                <button type="button" className="hbtn primary" id="create-user-btn">+ Add user</button>
               </div>
             </div>
 
@@ -101,14 +104,14 @@ export default async function AdminPage() {
                       <option value="">— none (Independent) —</option>
                     </select>
                   </div>
-                  <div className="form-field" id="field-uf-team">
+                  <div className="form-field" id="field-uf-team" hidden>
                     <label htmlFor="uf-team">Linked Team (for Admins)</label>
                     <select id="uf-team">
                       <option value="">— none —</option>
                       <option value="new">— create new team —</option>
                     </select>
                   </div>
-                  <div className="form-field" id="field-uf-new-team" style={{ display: 'none' }}>
+                  <div className="form-field" id="field-uf-new-team" hidden>
                     <label htmlFor="uf-new-team">New Team Name</label>
                     <input id="uf-new-team" type="text" placeholder="e.g. India Developers" />
                   </div>
@@ -161,7 +164,10 @@ export default async function AdminPage() {
           {/* Members tab */}
           <div id="tab-members" className="admin-tab" role="tabpanel" aria-labelledby="tabbtn-members" hidden>
             <div className="admin-tab-header">
-              <h2>Members (unlinked to any user)</h2>
+              <div>
+                <h2>Unlinked Members</h2>
+                <span className="admin-tab-sub">Members not yet connected to a user account</span>
+              </div>
             </div>
             <div className="admin-table-wrap">
               <table className="admin-table">

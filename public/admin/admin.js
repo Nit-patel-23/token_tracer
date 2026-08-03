@@ -35,13 +35,13 @@ async function loadData() {
     
     if (data.needsMigration) {
       const btn = $('#migrate-btn');
-      if (btn) btn.style.display = 'block';
+      if (btn) btn.hidden = false;
       const tbody = $('#users-tbody');
-      if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="error text-center" style="padding: 20px;">⚠️ Users table does not exist in the database. Please click the "Run Database Migration" button above to initialize it.</td></tr>`;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="error admin-empty">Users table does not exist. Run database migration to initialize it.</td></tr>`;
       return;
     } else {
       const btn = $('#migrate-btn');
-      if (btn) btn.style.display = 'none';
+      if (btn) btn.hidden = true;
     }
 
     users = data.users || [];
@@ -72,7 +72,7 @@ function renderUsers() {
   const tbody = $('#users-tbody');
   if (!tbody) return;
   if (!users.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="muted text-center">No users found. Create one above!</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="muted admin-empty">No users yet. Create one to get started.</td></tr>`;
     return;
   }
 
@@ -114,7 +114,7 @@ function renderMembers() {
   const tbody = $('#members-tbody');
   if (!tbody) return;
   if (!unlinkedMembers.length) {
-    tbody.innerHTML = `<tr><td colspan="3" class="muted text-center">All members are linked to user accounts.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="3" class="muted admin-empty">All members are linked to user accounts.</td></tr>`;
     return;
   }
 
@@ -155,13 +155,13 @@ function editUser(id) {
   
   // Show team dropdown only for admins
   if (user.role === 'admin') {
-    $('#field-uf-team').style.display = 'block';
+    $('#field-uf-team').hidden = false;
     $('#uf-team').value = user.team_id || '';
   } else {
-    $('#field-uf-team').style.display = 'none';
+    $('#field-uf-team').hidden = true;
     $('#uf-team').value = '';
   }
-  $('#field-uf-new-team').style.display = 'none';
+  $('#field-uf-new-team').hidden = true;
   $('#uf-new-team').value = '';
 
   // Temporarily add their own linked member to dropdown option list if they have one
@@ -195,8 +195,8 @@ function cancelForm() {
   $('#uf-member').value = '';
   $('#uf-team').value = '';
   $('#uf-new-team').value = '';
-  $('#field-uf-team').style.display = 'none';
-  $('#field-uf-new-team').style.display = 'none';
+  $('#field-uf-team').hidden = true;
+  $('#field-uf-new-team').hidden = true;
   $('#user-form-wrap').hidden = true;
   $('#uf-error').hidden = true;
   populateMemberDropdown();
@@ -399,12 +399,12 @@ function closeMobileNav() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Migration failed');
       window.showToast('Migration successful — database table initialized.', { type: 'success' });
-      btn.style.display = 'none';
+      btn.hidden = true;
       await loadData();
     } catch (err) {
       window.showToast(err.message, { type: 'error' });
       btn.disabled = false;
-      btn.textContent = '⚠️ Run Database Migration';
+      btn.textContent = 'Run database migration';
     }
   });
 
@@ -420,17 +420,17 @@ function closeMobileNav() {
   // Form change toggles
   $('#uf-role')?.addEventListener('change', (e) => {
     const showTeam = e.target.value === 'admin';
-    $('#field-uf-team').style.display = showTeam ? 'block' : 'none';
+    $('#field-uf-team').hidden = !showTeam;
     if (!showTeam) {
       $('#uf-team').value = '';
-      $('#field-uf-new-team').style.display = 'none';
+      $('#field-uf-new-team').hidden = true;
       $('#uf-new-team').value = '';
     }
   });
 
   $('#uf-team')?.addEventListener('change', (e) => {
     const showNewTeam = e.target.value === 'new';
-    $('#field-uf-new-team').style.display = showNewTeam ? 'block' : 'none';
+    $('#field-uf-new-team').hidden = !showNewTeam;
     if (!showNewTeam) {
       $('#uf-new-team').value = '';
     }
