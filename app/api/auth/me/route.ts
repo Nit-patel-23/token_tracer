@@ -22,26 +22,21 @@ export async function GET(req: NextRequest) {
 
   let sessionCount = 0;
 
-  if (session.role === 'user' && session.memberId) {
-    const { rows: countRows } = await query(
-      `SELECT count(*)::int AS count FROM sync_sessions WHERE member_id = $1`,
-      [session.memberId],
+  if (session.role === 'user') {
+    const { rows: userRows } = await query(
+      `SELECT u.api_key, u.member_id FROM users u WHERE u.id = $1`,
+      [session.userId],
     );
-    sessionCount = countRows[0]?.count || 0;
-
-    const { rows } = await query(
-      `SELECT k.id, k.label, k.created_at, k.last_used_at
-       FROM member_keys k
-       WHERE k.member_id = $1 AND k.revoked_at IS NULL
-       ORDER BY k.created_at ASC LIMIT 1`,
-      [session.memberId],
-    );
-    if (rows[0]) {
-      const { rows: rawRows } = await query(
-        `SELECT u.api_key FROM users u WHERE u.id = $1`,
-        [session.userId],
-      );
-      apiKey = rawRows[0]?.api_key ?? null;
+    if (userRows[0]) {
+      apiKey = userRows[0].api_key ?? null;
+      const memberId = userRows[0].member_id;
+      if (memberId) {
+        const { rows: countRows } = await query(
+          `SELECT count(*)::int AS count FROM sync_sessions WHERE member_id = $1`,
+          [memberId],
+        );
+        sessionCount = countRows[0]?.count || 0;
+      }
     }
   }
 

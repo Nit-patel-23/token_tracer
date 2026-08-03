@@ -177,6 +177,25 @@ export async function PUT(req: NextRequest) {
       finalMemberId = memberRes.rows[0].id;
     }
 
+    // Self-healing: generate API key if missing and member is linked
+    let rawApiKey: string | null = null;
+    let apiKeyHash: string | null = null;
+
+    if (finalMemberId && finalMemberId !== 'new') {
+      const { rows: keyCheck } = await query(`SELECT api_key FROM users WHERE id = $1`, [id]);
+      if (!keyCheck[0]?.api_key) {
+        const { generateApiKey, hashApiKey } = require('@/lib/team/auth');
+        rawApiKey = generateApiKey();
+        apiKeyHash = hashApiKey(rawApiKey);
+        await query(
+          `INSERT INTO member_keys (member_id, key_hash, label)
+           VALUES ($1, $2, 'default')
+           ON CONFLICT (key_hash) DO NOTHING`,
+          [finalMemberId, apiKeyHash],
+        );
+      }
+    }
+
     const { rows } = await query(`
       UPDATE users SET
         display_name = COALESCE($2, display_name),
@@ -184,10 +203,11 @@ export async function PUT(req: NextRequest) {
         active       = COALESCE($4, active),
         member_id    = $5,
         team_id      = COALESCE($6, team_id),
+        api_key      = COALESCE($7, api_key),
         updated_at   = now()
       WHERE id = $1
       RETURNING id, username, display_name, role, active, member_id, team_id, updated_at
-    `, [id, displayName ?? null, role ?? null, active ?? null, finalMemberId ?? null, finalTeamId ?? null]);
+    `, [id, displayName ?? null, role ?? null, active ?? null, finalMemberId ?? null, finalTeamId ?? null, rawApiKey]);
 
     if (!rows[0]) return NextResponse.json({ error: 'user not found' }, { status: 404 });
     return NextResponse.json({ user: rows[0] });
