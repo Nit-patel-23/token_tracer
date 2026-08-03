@@ -85,7 +85,7 @@ async function api(path, opts = {}) {
   return data;
 }
 
-function showRecalculationLoader(msg = 'Updating token cost calculations...') {
+function showRecalculationLoader(msg = 'Updating token cost calculations…') {
   let loader = document.getElementById('cost-calculation-loader');
   if (!loader) {
     loader = document.createElement('div');
@@ -93,13 +93,16 @@ function showRecalculationLoader(msg = 'Updating token cost calculations...') {
     loader.className = 'cost-calc-banner';
     document.body.appendChild(loader);
   }
-  loader.innerHTML = `<div class="spinner"></div> <span>${msg}</span>`;
-  loader.style.display = 'flex';
+  const html = typeof window.ttLoaderHtml === 'function'
+    ? window.ttLoaderHtml(msg, { inline: true })
+    : `<span>${msg}</span>`;
+  loader.innerHTML = html;
+  loader.hidden = false;
 }
 
 function hideRecalculationLoader() {
   const loader = document.getElementById('cost-calculation-loader');
-  if (loader) loader.style.display = 'none';
+  if (loader) loader.hidden = true;
 }
 
 function setLoginError(msg) {
@@ -119,8 +122,18 @@ function setAppError(msg) {
 function setLoading(on) {
   const loading = document.getElementById('app-loading');
   const content = document.getElementById('app-content');
+  const soft = document.getElementById('data-loading');
   if (loading) loading.hidden = !on;
   if (content) content.hidden = on;
+  // Never stack soft overlay on top of the full-page loader.
+  if (on && soft) soft.hidden = true;
+  if (on && typeof window.resetDataLoading === 'function') window.resetDataLoading();
+}
+
+function softLoading(on, label) {
+  if (typeof window.setDataLoading === 'function') {
+    window.setDataLoading(on, label || 'Tracing tokens…');
+  }
 }
 
 function setLoginBusy(on) {
@@ -140,13 +153,13 @@ function showLogin() {
   document.getElementById('login-screen').hidden = false;
   document.getElementById('app').hidden = true;
   setLoading(false);
+  if (typeof window.resetDataLoading === 'function') window.resetDataLoading();
 }
 
-function showDashboard() {
+function showDashboardShell() {
   hideBootLoading();
   document.getElementById('login-screen').hidden = true;
   document.getElementById('app').hidden = false;
-  setLoading(false);
 }
 
 /** Consistent, reusable "nothing to show" placeholder for any panel/table. */
@@ -615,24 +628,35 @@ window.confirmDeleteMember = async function (id, encodedName) {
   }
 };
 
-async function loadStats() {
-  if (!teamId) return;
-  const stats = await api(`/api/v1/team/stats?${statsQuery()}`);
-  currentStatsData = stats;
+let statsLoadGen = 0;
 
-  renderTotals(stats.totals);
-  renderLeaderboard(stats.leaderboard);
-  renderTokenLeaderboard(stats.tokenLeaderboard);
-  renderHeadToHead(stats.scoreboard);
-  renderMemberDrilldown(stats.leaderboard);
-  renderProjects(stats.projects);
-  renderBars('by-source', stats.bySource, 'source', 'api_cost');
-  renderBars('by-day', stats.byDay, 'date', 'tokens_in');
-  renderBars('top-tools', stats.topTools, 'name', 'count');
-  renderTopFiles(stats.topFiles);
-  renderSessionLogs(stats.recentLogs);
-  renderModelPricingTable(stats.modelPricing);
-  renderMemberModelsTable(stats.memberModels);
+async function loadStats({ soft = true } = {}) {
+  if (!teamId) return;
+  const gen = ++statsLoadGen;
+  const fullLoading = document.getElementById('app-loading') && !document.getElementById('app-loading').hidden;
+  const useSoft = soft && !fullLoading;
+  if (useSoft) softLoading(true, 'Tracing tokens…');
+  try {
+    const stats = await api(`/api/v1/team/stats?${statsQuery()}`);
+    if (gen !== statsLoadGen) return;
+    currentStatsData = stats;
+
+    renderTotals(stats.totals);
+    renderLeaderboard(stats.leaderboard);
+    renderTokenLeaderboard(stats.tokenLeaderboard);
+    renderHeadToHead(stats.scoreboard);
+    renderMemberDrilldown(stats.leaderboard);
+    renderProjects(stats.projects);
+    renderBars('by-source', stats.bySource, 'source', 'api_cost');
+    renderBars('by-day', stats.byDay, 'date', 'tokens_in');
+    renderBars('top-tools', stats.topTools, 'name', 'count');
+    renderTopFiles(stats.topFiles);
+    renderSessionLogs(stats.recentLogs);
+    renderModelPricingTable(stats.modelPricing);
+    renderMemberModelsTable(stats.memberModels);
+  } finally {
+    if (useSoft) softLoading(false);
+  }
 }
 
 async function loadMembers() {
@@ -666,20 +690,21 @@ async function loadDashboardData() {
     if (selectDiv) selectDiv.style.display = 'flex';
     await loadTeams();
   }
-  await Promise.all([loadStats(), loadMembers()]);
+  await Promise.all([loadStats({ soft: false }), loadMembers()]);
 }
 
 async function showApp() {
   setAppError('');
-  showDashboard();
+  showDashboardShell();
   setLoading(true);
   try {
     await loadDashboardData();
-    setLoading(false);
   } catch (err) {
     showLogin();
     setLoginError(formatError(err.message));
     throw err;
+  } finally {
+    setLoading(false);
   }
 }
 
@@ -835,7 +860,10 @@ document.getElementById('global-min-tokens-filter')?.addEventListener('change', 
 
 document.getElementById('refresh').addEventListener('click', () => {
   setAppError('');
-  Promise.all([loadStats(), loadMembers()]).catch((err) => setAppError(formatError(err.message)));
+  softLoading(true, 'Refreshing analytics…');
+  Promise.all([loadStats({ soft: false }), loadMembers()])
+    .catch((err) => setAppError(formatError(err.message)))
+    .finally(() => softLoading(false));
 });
 
 document.getElementById('recalculate-costs-btn')?.addEventListener('click', async () => {

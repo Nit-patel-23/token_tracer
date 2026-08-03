@@ -189,30 +189,44 @@ const DOW_FULL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', '
 
 // ── data loading ─────────────────────────────────────────────────
 let lastFingerprint = '';
-async function loadState(force = false) {
-  const q = rangeQuery();
-  const [stateRes, statsRes] = await Promise.all([fetch(`/api/state${q}`), fetch(`/api/stats${q}`)]);
-  state = await stateRes.json();
-  stats = await statsRes.json();
-  $('#roots').textContent = state.roots.length
-    ? state.roots.join('  ·  ')
-    : 'no agent state directories found';
-  renderSeg();
-  renderRange();
-  // skip re-render (which collapses expanded cards) when nothing changed
-  const fp = [
-    sourceFilter,
-    dateRange.all ? 'all' : `${dateRange.from}:${dateRange.to}`,
-    stats?.window?.from,
-    stats?.window?.to,
-    stats?.totals?.sessions,
-    stats?.totals?.edits,
-    state.sessions.map((s) => s.id + s.eventCount + (s.endedAt || '')).join('|'),
-  ].join('||');
-  if (!force && fp === lastFingerprint) return;
-  lastFingerprint = fp;
-  renderTree();
-  renderMain();
+let hasLoadedOnce = false;
+let stateLoadGen = 0;
+
+async function loadState(force = false, { soft = true } = {}) {
+  const gen = ++stateLoadGen;
+  const showSoft = soft && hasLoadedOnce && typeof window.setDataLoading === 'function';
+  if (showSoft) window.setDataLoading(true, force ? 'Refreshing sessions…' : 'Tracing tokens…');
+  try {
+    const q = rangeQuery();
+    const [stateRes, statsRes] = await Promise.all([fetch(`/api/state${q}`), fetch(`/api/stats${q}`)]);
+    state = await stateRes.json();
+    stats = await statsRes.json();
+    if (gen !== stateLoadGen) return;
+    $('#roots').textContent = state.roots.length
+      ? state.roots.join('  ·  ')
+      : 'no agent state directories found';
+    renderSeg();
+    renderRange();
+    // skip re-render (which collapses expanded cards) when nothing changed
+    const fp = [
+      sourceFilter,
+      dateRange.all ? 'all' : `${dateRange.from}:${dateRange.to}`,
+      stats?.window?.from,
+      stats?.window?.to,
+      stats?.totals?.sessions,
+      stats?.totals?.edits,
+      state.sessions.map((s) => s.id + s.eventCount + (s.endedAt || '')).join('|'),
+    ].join('||');
+    if (!force && fp === lastFingerprint) return;
+    lastFingerprint = fp;
+    renderTree();
+    renderMain();
+    hasLoadedOnce = true;
+    const main = document.getElementById('main');
+    if (main) main.removeAttribute('aria-busy');
+  } finally {
+    if (showSoft) window.setDataLoading(false);
+  }
 }
 
 // ── source switcher ──────────────────────────────────────────────
@@ -1140,7 +1154,7 @@ addEventListener('resize', () => {
   if (!ok) return;
 
   renderRange();
-  await loadState();
-  setInterval(() => loadState(), 10_000);
+  await loadState(true, { soft: false });
+  setInterval(() => loadState(false, { soft: false }), 10_000);
 })();
 

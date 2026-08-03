@@ -48,14 +48,46 @@ export default async function PersonalDashboardPage() {
         <button id="refresh" className="hbtn" title="Rescan session files">↻ Refresh</button>
       </header>
       <div className="layout">
+        <div id="data-loading" className="data-loading" hidden aria-busy="true"></div>
         <nav id="tree" aria-label="Session spawn tree" suppressHydrationWarning>
+          <div className="app-loading-hero" style={{ margin: '8px', minHeight: '120px', padding: '18px 12px' }}>
+            <div className="tt-loader tt-loader--sm" role="status">
+              <div className="tt-loader-orbit" aria-hidden="true">
+                <div className="tt-loader-ring" />
+                <div className="tt-loader-ring tt-loader-ring--inner" />
+                <div className="tt-loader-core">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+                    <circle cx="12" cy="12" r="4" />
+                  </svg>
+                </div>
+              </div>
+              <p className="tt-loader-label">Scanning…</p>
+            </div>
+          </div>
           <div className="skeleton skeleton-tree-item" style={{ width: '85%' }} />
           <div className="skeleton skeleton-tree-item" style={{ width: '70%' }} />
           <div className="skeleton skeleton-tree-item" style={{ width: '78%' }} />
-          <div className="skeleton skeleton-tree-item" style={{ width: '60%' }} />
-          <div className="skeleton skeleton-tree-item" style={{ width: '72%' }} />
         </nav>
         <main id="main" aria-busy="true" suppressHydrationWarning>
+          <div className="app-loading-hero">
+            <div className="tt-loader" role="status">
+              <div className="tt-loader-orbit" aria-hidden="true">
+                <div className="tt-loader-ring" />
+                <div className="tt-loader-ring tt-loader-ring--inner" />
+                <div className="tt-loader-core">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+                    <circle cx="12" cy="12" r="4" />
+                  </svg>
+                </div>
+                <i className="tt-loader-token t1" />
+                <i className="tt-loader-token t2" />
+                <i className="tt-loader-token t3" />
+              </div>
+              <p className="tt-loader-label">Tracing <em>your</em> tokens…</p>
+            </div>
+          </div>
           <div className="skeleton-cards" aria-hidden="true">
             <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
             <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
@@ -71,6 +103,7 @@ export default async function PersonalDashboardPage() {
       </div>
       <div id="tooltip" role="presentation" />
       <Script src="/toast.js" strategy="afterInteractive" />
+      <Script src="/loader.js" strategy="afterInteractive" />
       <Script src="/app.js" strategy="afterInteractive" />
     </div>
   );

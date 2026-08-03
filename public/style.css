@@ -222,7 +222,11 @@ header {
 }
 #wrapped-btn:hover { filter: brightness(1.06); background: linear-gradient(160deg, var(--brand-hi), var(--brand)); color: var(--brand-ink); }
 
-.layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); }
+.layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+}
 
 /* ── sidebar: spawn tree ────────────────────────────────────────── */
 nav {
@@ -780,6 +784,165 @@ details pre {
   *, *::before, *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
 }
 
+/* ── Branded Token Tracer loader ───────────────────────────────────
+   Copper orbit + tracer mark — used for boot, full-page, and soft refresh. */
+.tt-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+  color: var(--ink-2);
+}
+.tt-loader-orbit {
+  position: relative;
+  width: 72px;
+  height: 72px;
+}
+.tt-loader-ring,
+.tt-loader-ring--inner {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--brand);
+  border-right-color: color-mix(in srgb, var(--brand) 35%, transparent);
+  animation: tt-orbit 1.15s linear infinite;
+}
+.tt-loader-ring--inner {
+  inset: 10px;
+  border-top-color: var(--brand-hi);
+  border-right-color: transparent;
+  border-bottom-color: color-mix(in srgb, var(--brand) 40%, transparent);
+  animation-duration: 1.7s;
+  animation-direction: reverse;
+}
+.tt-loader-core {
+  position: absolute;
+  inset: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(160deg, var(--brand-hi), var(--brand));
+  color: var(--brand-ink);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent),
+    0 8px 22px rgba(226, 163, 85, 0.28);
+  animation: tt-core-pulse 1.6s var(--ease, ease) infinite;
+}
+.tt-loader-core svg { display: block; }
+.tt-loader-token {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px;
+  border-radius: 50%;
+  background: var(--brand-hi);
+  box-shadow: 0 0 10px rgba(226, 163, 85, 0.75);
+  animation: tt-token-orbit 2.4s linear infinite;
+}
+.tt-loader-token.t2 { animation-delay: -0.8s; width: 5px; height: 5px; margin: -2.5px; opacity: 0.85; }
+.tt-loader-token.t3 { animation-delay: -1.6s; width: 4px; height: 4px; margin: -2px; opacity: 0.7; }
+.tt-loader-label {
+  margin: 0;
+  font: 500 12px/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.tt-loader-label em {
+  font-style: normal;
+  color: var(--brand-hi);
+}
+.tt-loader--sm .tt-loader-orbit { width: 44px; height: 44px; }
+.tt-loader--sm .tt-loader-ring--inner { inset: 7px; }
+.tt-loader--sm .tt-loader-core { inset: 11px; border-radius: 9px; }
+.tt-loader--sm .tt-loader-core svg { width: 14px; height: 14px; }
+.tt-loader--sm .tt-loader-label { font-size: 11px; }
+.tt-loader--inline {
+  flex-direction: row;
+  gap: 12px;
+  text-align: left;
+}
+.tt-loader--inline .tt-loader-orbit { width: 28px; height: 28px; flex-shrink: 0; }
+.tt-loader--inline .tt-loader-ring--inner { inset: 5px; }
+.tt-loader--inline .tt-loader-core { inset: 7px; border-radius: 6px; }
+.tt-loader--inline .tt-loader-core svg { width: 10px; height: 10px; }
+.tt-loader--inline .tt-loader-token { display: none; }
+.tt-loader--inline .tt-loader-label {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font: 500 13px/1.35 var(--font-body);
+  color: var(--ink-2);
+}
+
+@keyframes tt-orbit { to { transform: rotate(360deg); } }
+@keyframes tt-core-pulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(0.96); filter: brightness(1.08); }
+}
+@keyframes tt-token-orbit {
+  0%   { transform: rotate(0deg) translateX(33px) scale(1); opacity: 1; }
+  50%  { transform: rotate(180deg) translateX(33px) scale(0.7); opacity: 0.55; }
+  100% { transform: rotate(360deg) translateX(33px) scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tt-loader-ring,
+  .tt-loader-ring--inner,
+  .tt-loader-core,
+  .tt-loader-token { animation-duration: 2.8s; }
+}
+
+/* Soft refresh overlay — keeps content visible underneath.
+   Sticky viewport pin keeps the branded loader on-screen even when
+   the host panel is taller than the window. */
+.data-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  padding: 0;
+  background:
+    radial-gradient(420px 280px at 50% 30%, rgba(226, 163, 85, 0.1), transparent 70%),
+    color-mix(in srgb, var(--page) 72%, transparent);
+  backdrop-filter: blur(3px);
+  animation: data-loading-in 0.18s var(--ease, ease);
+}
+.data-loading[hidden] { display: none !important; }
+.data-loading .tt-loader {
+  position: sticky;
+  top: 36vh;
+  width: fit-content;
+  margin: 0 auto;
+  padding: 22px 26px;
+  border-radius: var(--radius-lg, 14px);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: var(--shadow-lg, 0 18px 48px rgba(0, 0, 0, 0.45));
+}
+@keyframes data-loading-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.is-refreshing > *:not(.data-loading) { pointer-events: none; }
+
+/* Shared hero block used by team + personal initial load */
+.app-loading-hero {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  margin-bottom: 18px;
+  padding: 28px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 14px);
+  background:
+    radial-gradient(120% 120% at 50% 0%, rgba(226, 163, 85, 0.07), transparent 70%),
+    var(--surface);
+  box-shadow: var(--shadow-md, 0 4px 16px rgba(0, 0, 0, 0.28));
+}
+
 /* ── skeleton loading states ──────────────────────────────────────── */
 .skeleton {
   position: relative;
@@ -894,42 +1057,26 @@ details pre {
   .toast-viewport { left: 12px; right: 12px; top: 12px; max-width: none; }
 }
 
-/* ── cost calculation loader ────────────────────────────────────────── */
+/* ── cost / action banner (branded mini loader) ───────────────────── */
 .cost-calc-banner {
   position: fixed;
   bottom: 24px;
   right: 24px;
   z-index: 99999;
-  background: var(--card, #1a1c23);
-  color: var(--ink, #ffffff);
-  border: 1px solid var(--brand, #6366f1);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  padding: 12px 20px;
-  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--border));
+  box-shadow: var(--shadow-lg, 0 18px 48px rgba(0, 0, 0, 0.45));
+  padding: 14px 18px;
+  border-radius: var(--radius-md, 9px);
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 13px;
-  font-weight: 500;
-  font-family: var(--font-sans, system-ui, sans-serif);
-  backdrop-filter: blur(8px);
+  max-width: min(360px, calc(100vw - 32px));
+  backdrop-filter: blur(10px);
   animation: calcBannerSlide 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
-
-.cost-calc-banner .spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: var(--brand, #6366f1);
-  border-radius: 50%;
-  animation: calcSpin 0.75s linear infinite;
-  flex-shrink: 0;
-}
-
-@keyframes calcSpin {
-  to { transform: rotate(360deg); }
-}
-
+.cost-calc-banner[hidden] { display: none !important; }
 @keyframes calcBannerSlide {
   from { opacity: 0; transform: translateY(12px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }

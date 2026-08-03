@@ -6,6 +6,7 @@
 #app-loading[hidden],
 #app-error[hidden],
 #app-content[hidden],
+#data-loading[hidden],
 .tab-content[hidden],
 .admin-tab[hidden],
 .form-field[hidden],
@@ -19,8 +20,11 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: var(--page);
+  background:
+    radial-gradient(560px 360px at 50% 40%, rgba(226, 163, 85, 0.1), transparent 65%),
+    var(--page);
 }
+/* Legacy spinner kept for any leftover markup */
 .boot-spinner {
   width: 28px;
   height: 28px;
@@ -295,6 +299,7 @@
 .range-presets button.active { background: var(--brand-dim); border-color: var(--brand); color: var(--brand-hi); font-weight: 500; }
 
 .team-main {
+  position: relative;
   padding: 28px;
   max-width: var(--content-max);
   width: 100%;
@@ -953,6 +958,7 @@ dialog input:focus-visible, dialog select:focus-visible {
   gap: 10px;
 }
 .admin-content {
+  position: relative;
   flex: 1;
   padding: var(--space-6);
   overflow-y: auto;

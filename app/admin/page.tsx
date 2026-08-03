@@ -20,8 +20,22 @@ export default async function AdminPage() {
   return (
     <div suppressHydrationWarning>
       <div id="boot-loading" className="boot-loading" aria-busy="true" suppressHydrationWarning>
-        <div className="boot-spinner" aria-hidden="true" />
-        <span className="visually-hidden">Loading Admin…</span>
+        <div className="tt-loader" role="status">
+          <div className="tt-loader-orbit" aria-hidden="true">
+            <div className="tt-loader-ring" />
+            <div className="tt-loader-ring tt-loader-ring--inner" />
+            <div className="tt-loader-core">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+                <circle cx="12" cy="12" r="4" />
+              </svg>
+            </div>
+            <i className="tt-loader-token t1" />
+            <i className="tt-loader-token t2" />
+            <i className="tt-loader-token t3" />
+          </div>
+          <p className="tt-loader-label">Loading <em>admin</em>…</p>
+        </div>
       </div>
 
       <div id="admin-app" className="admin-app" hidden>
@@ -59,6 +73,7 @@ export default async function AdminPage() {
         </aside>
 
         <main className="admin-content">
+          <div id="data-loading" className="data-loading" hidden aria-busy="true"></div>
           {/* Users tab */}
           <div id="tab-users" className="admin-tab active-tab" role="tabpanel" aria-labelledby="tabbtn-users">
             <div className="admin-tab-header">
@@ -190,6 +205,7 @@ export default async function AdminPage() {
       </div>
 
       <Script src="/toast.js" strategy="afterInteractive" />
+      <Script src="/loader.js" strategy="afterInteractive" />
       <Script src="/admin/admin.js" strategy="afterInteractive" />
     </div>
   );

@@ -28,6 +28,9 @@ async function loadSession() {
 }
 
 async function loadData() {
+  if (typeof window.setDataLoading === 'function') {
+    window.setDataLoading(true, 'Loading accounts…');
+  }
   try {
     const res = await fetch('/api/admin/users');
     if (!res.ok) throw new Error('Failed to load user list');
@@ -53,6 +56,10 @@ async function loadData() {
     populateTeamDropdown();
   } catch (err) {
     window.showToast(err.message, { type: 'error' });
+  } finally {
+    if (typeof window.setDataLoading === 'function') {
+      window.setDataLoading(false);
+    }
   }
 }
 

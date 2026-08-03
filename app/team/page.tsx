@@ -29,8 +29,22 @@ export default async function TeamDashboardPage() {
           network never flashes the legacy password-login screen below
           in front of an already-authenticated user. */}
       <div id="boot-loading" className="boot-loading" aria-busy="true" suppressHydrationWarning>
-        <div className="boot-spinner" aria-hidden="true" />
-        <span className="visually-hidden">Loading Team Analytics…</span>
+        <div className="tt-loader" role="status">
+          <div className="tt-loader-orbit" aria-hidden="true">
+            <div className="tt-loader-ring" />
+            <div className="tt-loader-ring tt-loader-ring--inner" />
+            <div className="tt-loader-core">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+                <circle cx="12" cy="12" r="4" />
+              </svg>
+            </div>
+            <i className="tt-loader-token t1" />
+            <i className="tt-loader-token t2" />
+            <i className="tt-loader-token t3" />
+          </div>
+          <p className="tt-loader-label">Tracing <em>team</em> tokens…</p>
+        </div>
       </div>
 
       <div id="login-screen" className="team-login" hidden suppressHydrationWarning>
@@ -173,7 +187,26 @@ export default async function TeamDashboardPage() {
 
           <main className="team-main">
             <div id="app-error" className="app-error" role="alert" aria-live="assertive" hidden></div>
+            <div id="data-loading" className="data-loading" hidden aria-busy="true"></div>
             <div id="app-loading" className="app-loading" hidden aria-busy="true">
+              <div className="app-loading-hero">
+                <div className="tt-loader" role="status">
+                  <div className="tt-loader-orbit" aria-hidden="true">
+                    <div className="tt-loader-ring" />
+                    <div className="tt-loader-ring tt-loader-ring--inner" />
+                    <div className="tt-loader-core">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+                        <circle cx="12" cy="12" r="4" />
+                      </svg>
+                    </div>
+                    <i className="tt-loader-token t1" />
+                    <i className="tt-loader-token t2" />
+                    <i className="tt-loader-token t3" />
+                  </div>
+                  <p className="tt-loader-label">Gathering <em>analytics</em>…</p>
+                </div>
+              </div>
               <div className="skeleton-cards" aria-hidden="true">
                 <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
                 <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
@@ -446,6 +479,7 @@ export default async function TeamDashboardPage() {
       </dialog>
 
       <Script src="/toast.js" strategy="afterInteractive" />
+      <Script src="/loader.js" strategy="afterInteractive" />
       <Script src="/team/app.js" strategy="afterInteractive" />
     </div>
   );
