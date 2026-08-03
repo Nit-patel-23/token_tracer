@@ -27,12 +27,14 @@ export default async function LoginPage() {
   return (
     <div suppressHydrationWarning>
       <div className="login-page" id="login-page">
+        <div className="login-glow" aria-hidden="true" />
         <div className="login-card" id="login-card">
           <div className="login-brand">
+            <div className="login-mark" aria-hidden="true">◈</div>
             <div className="wordmark">
               <h1>token<span>tracer</span></h1>
-              <span className="eyebrow">Sign In</span>
             </div>
+            <p className="login-tagline">Sign in to your analytics workspace</p>
           </div>
 
           <form id="login-form" autoComplete="on" noValidate>
@@ -45,25 +47,42 @@ export default async function LoginPage() {
                 autoComplete="username"
                 placeholder="your username"
                 required
+                autoFocus
               />
             </div>
             <div className="login-field">
               <label htmlFor="login-password">Password</label>
-              <input
-                id="login-password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                required
-              />
+              <div className="login-password-wrap">
+                <input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  required
+                />
+                <button
+                  type="button"
+                  id="login-password-toggle"
+                  className="login-password-toggle"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                >
+                  👁
+                </button>
+              </div>
             </div>
-            <button type="submit" className="hbtn primary" id="login-submit">
-              Sign in
+            <button type="submit" className="login-submit" id="login-submit">
+              <span className="login-submit-spinner" aria-hidden="true" />
+              <span className="login-submit-label">Sign in</span>
             </button>
-            <p id="login-error" className="error" role="alert" aria-live="assertive" hidden />
+            <div id="login-error" className="login-error" role="alert" aria-live="assertive" hidden>
+              <span aria-hidden="true">⚠</span>
+              <span id="login-error-text"></span>
+            </div>
           </form>
         </div>
+        <p className="login-footer">Token usage analytics for AI coding agents</p>
       </div>
 
       {/* Inline login script — runs before React hydration to avoid flash */}
@@ -71,16 +90,34 @@ export default async function LoginPage() {
         (function() {
           var form = document.getElementById('login-form');
           var errEl = document.getElementById('login-error');
+          var errText = document.getElementById('login-error-text');
           var btn = document.getElementById('login-submit');
+          var pwInput = document.getElementById('login-password');
+          var pwToggle = document.getElementById('login-password-toggle');
           if (!form) return;
+
+          if (pwToggle) {
+            pwToggle.addEventListener('click', function() {
+              var show = pwInput.type === 'password';
+              pwInput.type = show ? 'text' : 'password';
+              pwToggle.setAttribute('aria-pressed', String(show));
+              pwToggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+              pwToggle.textContent = show ? '🙈' : '👁';
+            });
+          }
+
+          function setBusy(busy) {
+            btn.disabled = busy;
+            btn.classList.toggle('is-busy', busy);
+          }
+
           form.addEventListener('submit', async function(e) {
             e.preventDefault();
             errEl.hidden = true;
-            btn.disabled = true;
-            btn.textContent = 'Signing in…';
+            setBusy(true);
             try {
               var username = document.getElementById('login-username').value.trim();
-              var password = document.getElementById('login-password').value;
+              var password = pwInput.value;
               var res = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -91,16 +128,14 @@ export default async function LoginPage() {
               if (res.ok && data.redirect) {
                 window.location.href = data.redirect;
               } else {
-                errEl.textContent = data.error || 'Sign in failed. Please try again.';
+                errText.textContent = data.error || 'Sign in failed. Please try again.';
                 errEl.hidden = false;
-                btn.disabled = false;
-                btn.textContent = 'Sign in';
+                setBusy(false);
               }
             } catch (err) {
-              errEl.textContent = 'Network error. Please try again.';
+              errText.textContent = 'Network error. Please try again.';
               errEl.hidden = false;
-              btn.disabled = false;
-              btn.textContent = 'Sign in';
+              setBusy(false);
             }
           });
         })();

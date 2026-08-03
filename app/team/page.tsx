@@ -105,7 +105,7 @@ export default async function TeamDashboardPage() {
 
           <div className="sidebar-footer">
             <a href="/" className="sidebar-link">← Personal Dashboard</a>
-            <button id="team-logout-btn" className="hbtn" style={{ marginTop: '8px', width: '100%' }}>Sign out</button>
+            <button id="team-logout-btn" className="hbtn sidebar-logout-btn">Sign out</button>
           </div>
         </aside>
 
@@ -113,6 +113,9 @@ export default async function TeamDashboardPage() {
         <div className="team-main-wrapper">
           {/* Header Controls & Filters */}
           <header className="team-header">
+            <div className="team-header-top">
+              <h1 id="team-page-title" className="team-page-title">📊 Overview &amp; Stats</h1>
+            </div>
             <div className="header-filters-row">
               {/* Date Presets */}
               <div id="range-presets" className="range-presets" role="tablist"></div>
@@ -248,14 +251,14 @@ export default async function TeamDashboardPage() {
               <section id="tab-members" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-members" hidden>
                 <div className="panel-head">
                   <h2>Per-Member Token & Activity Drilldown</h2>
-                  <div className="filter-group" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <button type="button" id="collapse-all-members" className="hbtn" style={{ fontSize: '11px', padding: '4px 10px' }}>
+                  <div className="filter-group">
+                    <button type="button" id="collapse-all-members" className="hbtn hbtn-sm">
                       ▶ Collapse All
                     </button>
-                    <button type="button" id="expand-all-members" className="hbtn" style={{ fontSize: '11px', padding: '4px 10px' }}>
+                    <button type="button" id="expand-all-members" className="hbtn hbtn-sm">
                       ▼ Expand All
                     </button>
-                    <label style={{ marginLeft: '6px' }}>Member Filter: </label>
+                    <label className="member-filter-label">Member Filter: </label>
                     <select id="member-filter-select"></select>
                   </div>
                 </div>
@@ -300,20 +303,20 @@ export default async function TeamDashboardPage() {
                 <div className="panel">
                   <div className="panel-head">
                     <h2>💲 Custom Model Pricing & Cost Configuration</h2>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button id="recalculate-costs-btn" className="hbtn" style={{ borderColor: 'var(--brand)', color: 'var(--brand-hi)', fontWeight: 600 }}>
+                    <div className="inline-actions">
+                      <button id="recalculate-costs-btn" className="hbtn hbtn-accent">
                         ⚡ Recalculate All Session Costs
                       </button>
                       <button id="add-pricing-btn" className="hbtn primary">+ Add Model Pricing Rule</button>
                     </div>
                   </div>
-                  <p className="muted" style={{ marginBottom: '16px' }}>
+                  <p className="muted panel-intro">
                     Configure custom LLM pricing rules ($ per Million Tokens). Click <strong>Recalculate All Session Costs</strong> to update total costs across all member sessions!
                   </p>
                   <div id="model-pricing-table" className="table-wrap"></div>
 
-                  <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--grid)' }}>
-                    <div className="panel-head" style={{ marginBottom: '12px' }}>
+                  <div className="panel-subsection">
+                    <div className="panel-head panel-head-tight">
                       <h2>🤖 Member Model Usage & Spend Breakdown</h2>
                       <span className="muted">Breakdown of LLM models used by each team member</span>
                     </div>
@@ -327,8 +330,8 @@ export default async function TeamDashboardPage() {
                 <section className="panel">
                   <div className="panel-head">
                     <h2>Team Members & API Ingest Keys</h2>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button id="trigger-sync-all-btn" className="hbtn" style={{ borderColor: 'var(--brand)', color: 'var(--brand-hi)', fontWeight: 600 }}>
+                    <div className="inline-actions">
+                      <button id="trigger-sync-all-btn" className="hbtn hbtn-accent">
                         ⚡ Trigger Sync for All Members
                       </button>
                       <button id="link-member-btn" className="hbtn primary">Link Existing Member</button>

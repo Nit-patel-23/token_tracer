@@ -692,6 +692,7 @@ function formatError(msg) {
 
 function setupTabs() {
   const tabsNav = document.getElementById('team-tabs');
+  const titleEl = document.getElementById('team-page-title');
   if (!tabsNav) return;
   tabsNav.querySelectorAll('.tab-btn').forEach((btn) => {
     btn.onclick = () => {
@@ -710,6 +711,10 @@ function setupTabs() {
       if (targetEl) {
         targetEl.hidden = false;
         targetEl.classList.add('active');
+      }
+      if (titleEl) {
+        const label = btn.textContent.trim();
+        titleEl.textContent = label;
       }
       closeMobileNav();
     };

@@ -193,17 +193,7 @@ header {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.hbtn {
-  border: 1px solid var(--border);
-  background: transparent;
-  border-radius: 999px;
-  padding: 5px 13px;
-  cursor: pointer;
-  font-size: 12.5px;
-  color: var(--ink-2);
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.hbtn:hover { background: var(--wash); color: var(--ink); }
+/* .hbtn base styling lives in team.css (shared across the whole app). */
 #wrapped-btn {
   border: 0;
   background: linear-gradient(160deg, var(--brand-hi), var(--brand));
@@ -466,8 +456,20 @@ main { padding: 26px 28px 80px; min-width: 0; }
 .pricing-table > * { padding: 5px 7px; background: var(--page); color: var(--ink-2); font: 10px/1.35 var(--font-mono); }
 .pricing-table > :nth-child(-n+5) { color: var(--muted); text-transform: uppercase; letter-spacing: 0.7px; font-size: 9px; }
 
-dialog { color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 24px 80px rgba(0,0,0,.55); padding: 0; }
+/* Canonical <dialog> base — shared by every modal across personal, team, and admin.
+   Individual dialogs (e.g. #plan-dialog) that need custom sizing override padding/max-width by ID. */
+dialog {
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.55);
+  padding: 24px;
+  max-width: 440px;
+  width: 100%;
+}
 dialog::backdrop { background: rgba(0,0,0,.58); backdrop-filter: blur(3px); }
+#plan-dialog { padding: 0; max-width: none; width: fit-content; }
 .plan-form { display: grid; gap: 14px; width: min(520px, calc(100vw - 36px)); padding: 22px; }
 .plan-form h2 { margin: 2px 0 0; font: 600 27px/1.1 var(--font-display); }
 .form-eyebrow { color: var(--brand); font: 9.5px/1 var(--font-mono); text-transform: uppercase; letter-spacing: 1.5px; }
