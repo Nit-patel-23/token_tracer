@@ -25,53 +25,7 @@ export default async function PersonalDashboardPage() {
 
   return (
     <div suppressHydrationWarning>
-      {/* ── Onboarding overlay (shown when user has 0 sessions) ── */}
-      <div id="onboarding" className="onboarding-overlay" hidden>
-        <div className="onboarding-card">
-          <div className="onboarding-header">
-            <div className="wordmark">
-              <h2>Welcome!</h2>
-              <span className="eyebrow">Set up your sync agent</span>
-            </div>
-          </div>
-          <p className="onboarding-intro">
-            To see your AI usage stats here, install the background sync agent on your computer.
-            It runs silently and sends only anonymised aggregates — no prompts or code ever leave your machine.
-          </p>
 
-          {/* OS picker */}
-          <div id="os-picker" className="os-picker" role="tablist" aria-label="Operating system">
-            <button type="button" id="os-mac" className="os-btn active" data-os="mac" role="tab" aria-selected="true">
-              🍎 Mac
-            </button>
-            <button type="button" id="os-win" className="os-btn" data-os="win" role="tab" aria-selected="false">
-              🪟 Windows
-            </button>
-          </div>
-
-          {/* Mac command */}
-          <div id="cmd-mac" className="cmd-block">
-            <label className="cmd-label">Run this in Terminal:</label>
-            <div className="cmd-row">
-              <code id="cmd-mac-text" className="cmd-text">Loading…</code>
-              <button type="button" className="copy-btn" id="copy-mac" title="Copy command">Copy</button>
-            </div>
-          </div>
-
-          {/* Windows command */}
-          <div id="cmd-win" className="cmd-block" hidden>
-            <label className="cmd-label">Run this in PowerShell:</label>
-            <div className="cmd-row">
-              <code id="cmd-win-text" className="cmd-text">Loading…</code>
-              <button type="button" className="copy-btn" id="copy-win" title="Copy command">Copy</button>
-            </div>
-          </div>
-
-          <p className="onboarding-footer muted">
-            Once installed, refresh this page in a few minutes and your sessions will appear.
-          </p>
-        </div>
-      </div>
 
       {/* ── Main dashboard ── */}
       <header>
