@@ -189,6 +189,7 @@ function renderPresets() {
       document.getElementById('range-from').value = dateRange.from;
       document.getElementById('range-to').value = dateRange.to;
       renderPresets();
+      updateFiltersBadge();
       loadStats().catch((err) => setAppError(formatError(err.message)));
     };
     el.appendChild(btn);
@@ -720,6 +721,30 @@ function closeMobileNav() {
   toggle?.setAttribute('aria-expanded', 'false');
 }
 
+/** Collapsible "Filters" panel on narrow (mobile) viewports, plus an
+ * active-filter count badge on the trigger button. */
+function setupFiltersToggle() {
+  const toggle = document.getElementById('filters-toggle');
+  const panel = document.getElementById('filters-more');
+  if (!toggle || !panel) return;
+  toggle.addEventListener('click', () => {
+    const isOpen = panel.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', String(isOpen));
+  });
+}
+
+function updateFiltersBadge() {
+  const badge = document.getElementById('filters-badge');
+  if (!badge) return;
+  let count = 0;
+  if (!dateRange.all) count++;
+  if (document.getElementById('global-member-filter')?.value !== 'all') count++;
+  if (document.getElementById('global-source-filter')?.value !== 'all') count++;
+  if (Number(document.getElementById('global-min-tokens-filter')?.value) > 0) count++;
+  badge.textContent = String(count);
+  badge.hidden = count === 0;
+}
+
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   setLoginError('');
@@ -754,6 +779,7 @@ document.getElementById('range-from').addEventListener('change', (e) => {
   dateRange.from = e.target.value;
   dateRange.all = !dateRange.from && !dateRange.to;
   renderPresets();
+  updateFiltersBadge();
   loadStats().catch((err) => setAppError(formatError(err.message)));
 });
 
@@ -761,17 +787,21 @@ document.getElementById('range-to').addEventListener('change', (e) => {
   dateRange.to = e.target.value;
   dateRange.all = !dateRange.from && !dateRange.to;
   renderPresets();
+  updateFiltersBadge();
   loadStats().catch((err) => setAppError(formatError(err.message)));
 });
 
 // Event listeners for global header filters
 document.getElementById('global-member-filter')?.addEventListener('change', () => {
+  updateFiltersBadge();
   loadStats().catch((err) => setAppError(formatError(err.message)));
 });
 document.getElementById('global-source-filter')?.addEventListener('change', () => {
+  updateFiltersBadge();
   loadStats().catch((err) => setAppError(formatError(err.message)));
 });
 document.getElementById('global-min-tokens-filter')?.addEventListener('change', () => {
+  updateFiltersBadge();
   loadStats().catch((err) => setAppError(formatError(err.message)));
 });
 
@@ -1008,6 +1038,8 @@ document.getElementById('team-logout-btn')?.addEventListener('click', async () =
 
 setupTabs();
 setupMobileNav();
+setupFiltersToggle();
+updateFiltersBadge();
 
 (async () => {
   const ok = await checkAuth();

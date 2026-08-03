@@ -108,38 +108,55 @@ export default async function TeamDashboardPage() {
             <div className="header-filters-row">
               {/* Date Presets */}
               <div id="range-presets" className="range-presets" role="tablist"></div>
-              <label className="filter-label">From <input id="range-from" type="date" /></label>
-              <label className="filter-label">To <input id="range-to" type="date" /></label>
 
-              {/* Member Filter */}
-              <label className="filter-label">Member
-                <select id="global-member-filter">
-                  <option value="all">All Members</option>
-                </select>
-              </label>
+              {/* Mobile-only collapsible trigger for the remaining filters */}
+              <button
+                type="button"
+                id="filters-toggle"
+                className="hbtn filters-toggle-btn"
+                aria-expanded="false"
+                aria-controls="filters-more"
+              >
+                <span aria-hidden="true">⚙️</span> Filters
+                <span id="filters-badge" className="filters-badge" hidden>0</span>
+              </button>
 
-              {/* Source Filter */}
-              <label className="filter-label">AI Tool
-                <select id="global-source-filter">
-                  <option value="all">All Tools</option>
-                  <option value="cursor">Cursor</option>
-                  <option value="claude-code">Claude Code</option>
-                  <option value="codex">Codex</option>
-                </select>
-              </label>
+              <div id="filters-more" className="filters-more">
+                <div className="filters-more-grid">
+                  <label className="filter-label">From <input id="range-from" type="date" /></label>
+                  <label className="filter-label">To <input id="range-to" type="date" /></label>
 
-              {/* Token Usage Range Filter */}
-              <label className="filter-label">Min Tokens
-                <select id="global-min-tokens-filter">
-                  <option value="0">All Usage (0+)</option>
-                  <option value="10000">&gt; 10k Tokens</option>
-                  <option value="100000">&gt; 100k Tokens</option>
-                  <option value="1000000">&gt; 1M Tokens</option>
-                  <option value="10000000">&gt; 10M Tokens</option>
-                </select>
-              </label>
+                  {/* Member Filter */}
+                  <label className="filter-label">Member
+                    <select id="global-member-filter">
+                      <option value="all">All Members</option>
+                    </select>
+                  </label>
 
-              <button id="refresh" className="hbtn primary" title="Refresh stats">↻ Apply Filters</button>
+                  {/* Source Filter */}
+                  <label className="filter-label">AI Tool
+                    <select id="global-source-filter">
+                      <option value="all">All Tools</option>
+                      <option value="cursor">Cursor</option>
+                      <option value="claude-code">Claude Code</option>
+                      <option value="codex">Codex</option>
+                    </select>
+                  </label>
+
+                  {/* Token Usage Range Filter */}
+                  <label className="filter-label filter-label-wide">Min Tokens
+                    <select id="global-min-tokens-filter">
+                      <option value="0">All Usage (0+)</option>
+                      <option value="10000">&gt; 10k Tokens</option>
+                      <option value="100000">&gt; 100k Tokens</option>
+                      <option value="1000000">&gt; 1M Tokens</option>
+                      <option value="10000000">&gt; 10M Tokens</option>
+                    </select>
+                  </label>
+                </div>
+
+                <button id="refresh" className="hbtn primary" title="Refresh stats">↻ Apply Filters</button>
+              </div>
             </div>
           </header>
 
