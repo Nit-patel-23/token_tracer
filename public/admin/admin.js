@@ -52,8 +52,10 @@ async function loadData() {
     teams = data.teams || [];
     renderUsers();
     renderMembers();
+    renderTeams();
     populateMemberDropdown();
     populateTeamDropdown();
+    populateMemberFormTeamDropdown();
   } catch (err) {
     window.showToast(err.message, { type: 'error' });
   } finally {
@@ -70,6 +72,15 @@ function populateTeamDropdown() {
     <option value="">— none —</option>
     <option value="new">— create new team —</option>
   `;
+  teams.forEach(t => {
+    select.innerHTML += `<option value="${t.id}">${esc(t.name)}</option>`;
+  });
+}
+
+function populateMemberFormTeamDropdown() {
+  const select = $('#mf-team');
+  if (!select) return;
+  select.innerHTML = '';
   teams.forEach(t => {
     select.innerHTML += `<option value="${t.id}">${esc(t.name)}</option>`;
   });
@@ -121,7 +132,7 @@ function renderMembers() {
   const tbody = $('#members-tbody');
   if (!tbody) return;
   if (!unlinkedMembers.length) {
-    tbody.innerHTML = `<tr><td colspan="3" class="muted admin-empty">All members are linked to user accounts.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="muted admin-empty">All members are linked to user accounts.</td></tr>`;
     return;
   }
 
@@ -130,8 +141,45 @@ function renderMembers() {
       <td><strong>${esc(m.display_name)}</strong></td>
       <td>${esc(m.team_name)}</td>
       <td><span class="muted">Needs User Account</span></td>
+      <td>
+        <div class="actions-cell">
+          <button class="hbtn small-btn edit-member-btn" data-id="${m.id}">Edit</button>
+          <button class="hbtn small-btn danger-btn delete-member-btn" data-id="${m.id}" data-name="${esc(m.display_name)}">Delete</button>
+        </div>
+      </td>
     </tr>
   `).join('');
+
+  tbody.querySelectorAll('.edit-member-btn').forEach(b => b.addEventListener('click', () => editMember(b.dataset.id)));
+  tbody.querySelectorAll('.delete-member-btn').forEach(b => b.addEventListener('click', () => deleteMember(b.dataset.id, b.dataset.name)));
+}
+
+function renderTeams() {
+  const tbody = $('#teams-tbody');
+  if (!tbody) return;
+  if (!teams.length) {
+    tbody.innerHTML = `<tr><td colspan="3" class="muted admin-empty">No teams found.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = teams.map(t => {
+    const memberCount = t.member_count || 0;
+    return `
+      <tr>
+        <td><strong>${esc(t.name)}</strong></td>
+        <td>${memberCount} member(s)</td>
+        <td>
+          <div class="actions-cell">
+            <button class="hbtn small-btn edit-team-btn" data-id="${t.id}">Edit</button>
+            <button class="hbtn small-btn danger-btn delete-team-btn" data-id="${t.id}" data-name="${esc(t.name)}">Delete</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.querySelectorAll('.edit-team-btn').forEach(b => b.addEventListener('click', () => editTeam(b.dataset.id)));
+  tbody.querySelectorAll('.delete-team-btn').forEach(b => b.addEventListener('click', () => deleteTeam(b.dataset.id, b.dataset.name)));
 }
 
 function populateMemberDropdown() {
@@ -345,6 +393,153 @@ async function deleteUser(id, username) {
   }
 }
 
+// Members CRUD
+function editMember(id) {
+  const member = unlinkedMembers.find(m => m.id === id);
+  if (!member) return;
+
+  cancelMemberForm();
+  $('#mf-id').value = member.id;
+  $('#mf-displayname').value = member.display_name;
+  $('#mf-team').value = member.team_id || '';
+  $('#member-form-title').textContent = 'Edit Member';
+  $('#member-form-wrap').hidden = false;
+  $('#mf-displayname').focus();
+}
+
+function cancelMemberForm() {
+  $('#mf-id').value = '';
+  $('#mf-displayname').value = '';
+  $('#mf-team').value = '';
+  $('#member-form-wrap').hidden = true;
+  $('#mf-error').hidden = true;
+}
+
+async function handleMemberFormSubmit(e) {
+  e.preventDefault();
+  const errorEl = $('#mf-error');
+  errorEl.hidden = true;
+
+  const id = $('#mf-id').value;
+  const displayName = $('#mf-displayname').value.trim();
+  const teamId = $('#mf-team').value;
+
+  if (!displayName || !teamId) {
+    errorEl.textContent = 'Please fill out all required fields';
+    errorEl.hidden = false;
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/members', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, displayName, teamId })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Update failed');
+
+    window.showToast(`Member "${displayName}" updated.`, { type: 'success' });
+    cancelMemberForm();
+    await loadData();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.hidden = false;
+  }
+}
+
+async function deleteMember(id, name) {
+  if (!confirm(`Are you sure you want to permanently delete member "${name}"?\nThis will cascade delete any associated API keys and session logs.`)) return;
+
+  try {
+    const res = await fetch(`/api/admin/members?id=${id}`, {
+      method: 'DELETE'
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Delete failed');
+
+    await loadData();
+    window.showToast(`Member "${name}" deleted.`, { type: 'success' });
+  } catch (err) {
+    window.showToast(err.message, { type: 'error' });
+  }
+}
+
+// Teams CRUD
+function editTeam(id) {
+  const team = teams.find(t => t.id === id);
+  if (!team) return;
+
+  cancelTeamForm();
+  $('#tf-id').value = team.id;
+  $('#tf-name').value = team.name;
+  $('#team-form-title').textContent = 'Edit Team';
+  $('#team-form-wrap').hidden = false;
+  $('#tf-name').focus();
+}
+
+function cancelTeamForm() {
+  $('#tf-id').value = '';
+  $('#tf-name').value = '';
+  $('#team-form-wrap').hidden = true;
+  $('#tf-error').hidden = true;
+}
+
+async function handleTeamFormSubmit(e) {
+  e.preventDefault();
+  const errorEl = $('#tf-error');
+  errorEl.hidden = true;
+
+  const id = $('#tf-id').value;
+  const name = $('#tf-name').value.trim();
+
+  if (!name) {
+    errorEl.textContent = 'Team name is required';
+    errorEl.hidden = false;
+    return;
+  }
+
+  const method = id ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch('/api/admin/teams', {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(id ? { id, name } : { name })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+
+    window.showToast(id ? `Team "${name}" updated.` : `Team "${name}" created.`, { type: 'success' });
+    cancelTeamForm();
+    await loadData();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.hidden = false;
+  }
+}
+
+async function deleteTeam(id, name) {
+  if (!confirm(`Are you sure you want to permanently delete team "${name}"?\nWarning: This will cascade delete all members of this team, their API keys, and their session logs!`)) return;
+
+  try {
+    const res = await fetch(`/api/admin/teams?id=${id}`, {
+      method: 'DELETE'
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Delete failed');
+
+    await loadData();
+    window.showToast(`Team "${name}" deleted.`, { type: 'success' });
+  } catch (err) {
+    window.showToast(err.message, { type: 'error' });
+  }
+}
+
 // Tabs
 function switchTab(tabId) {
   currentTab = tabId;
@@ -442,6 +637,20 @@ function closeMobileNav() {
       $('#uf-new-team').value = '';
     }
   });
+
+  // Member form listeners
+  $('#mf-cancel')?.addEventListener('click', cancelMemberForm);
+  $('#member-form')?.addEventListener('submit', handleMemberFormSubmit);
+
+  // Team form listeners
+  $('#create-team-btn')?.addEventListener('click', () => {
+    cancelTeamForm();
+    $('#team-form-title').textContent = 'Add Team';
+    $('#team-form-wrap').hidden = false;
+    $('#tf-name').focus();
+  });
+  $('#tf-cancel')?.addEventListener('click', cancelTeamForm);
+  $('#team-form')?.addEventListener('submit', handleTeamFormSubmit);
 
   // Logout
   $('#admin-logout-btn')?.addEventListener('click', async () => {

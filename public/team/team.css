@@ -1,18 +1,5 @@
 /* Hidden attribute must win over layout display rules */
-#boot-loading[hidden],
-#login-screen[hidden],
-#app[hidden],
-#admin-app[hidden],
-#app-loading[hidden],
-#app-error[hidden],
-#app-content[hidden],
-#data-loading[hidden],
-.tab-content[hidden],
-.admin-tab[hidden],
-.form-field[hidden],
-.user-form-wrap[hidden],
-.hbtn[hidden],
-#migrate-btn[hidden] {
+*[hidden] {
   display: none !important;
 }
 

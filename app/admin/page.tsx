@@ -65,6 +65,9 @@ export default async function AdminPage() {
             <button type="button" id="tabbtn-members" className="tab-btn" data-tab="tab-members" role="tab" aria-selected="false" aria-controls="tab-members" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">🔗</span> Members
             </button>
+            <button type="button" id="tabbtn-teams" className="tab-btn" data-tab="tab-teams" role="tab" aria-selected="false" aria-controls="tab-teams" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">🛡️</span> Teams
+            </button>
           </nav>
           <div className="sidebar-footer">
             <span id="admin-user-name" className="muted" />
@@ -184,12 +187,91 @@ export default async function AdminPage() {
                 <span className="admin-tab-sub">Members not yet connected to a user account</span>
               </div>
             </div>
+
+            {/* Edit member form */}
+            <div id="member-form-wrap" className="user-form-wrap" hidden>
+              <form id="member-form" className="user-form" noValidate>
+                <h3 id="member-form-title">Edit Member</h3>
+                <input type="hidden" id="mf-id" />
+                <div className="form-grid">
+                  <div className="form-field">
+                    <label htmlFor="mf-displayname">Display Name</label>
+                    <input id="mf-displayname" type="text" placeholder="e.g. John Doe" required />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="mf-team">Team</label>
+                    <select id="mf-team">
+                      {/* populated dynamically */}
+                    </select>
+                  </div>
+                </div>
+                <div className="form-actions">
+                  <button type="submit" className="hbtn primary" id="mf-submit">Save</button>
+                  <button type="button" className="hbtn" id="mf-cancel">Cancel</button>
+                  <p id="mf-error" className="error" role="alert" aria-live="assertive" hidden />
+                </div>
+              </form>
+            </div>
+
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
-                  <tr><th>Display Name</th><th>Team</th><th>Status</th></tr>
+                  <tr><th>Display Name</th><th>Team</th><th>Status</th><th>Actions</th></tr>
                 </thead>
                 <tbody id="members-tbody" aria-busy="true">
+                  {[0, 1, 2].map((i) => (
+                    <tr key={i} aria-hidden="true">
+                      {Array.from({ length: 4 }).map((_, j) => (
+                        <td key={j}><div className="skeleton" style={{ height: '14px', width: j === 0 ? '80%' : '60%' }} /></td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Teams tab */}
+          <div id="tab-teams" className="admin-tab" role="tabpanel" aria-labelledby="tabbtn-teams" hidden>
+            <div className="admin-tab-header">
+              <div>
+                <h2>Teams</h2>
+                <span className="admin-tab-sub">Manage team names and organizations</span>
+              </div>
+              <div className="admin-header-actions">
+                <button type="button" className="hbtn primary" id="create-team-btn">+ Add team</button>
+              </div>
+            </div>
+
+            {/* Create / Edit team form */}
+            <div id="team-form-wrap" className="user-form-wrap" hidden>
+              <form id="team-form" className="user-form" noValidate>
+                <h3 id="team-form-title">Add Team</h3>
+                <input type="hidden" id="tf-id" />
+                <div className="form-grid">
+                  <div className="form-field">
+                    <label htmlFor="tf-name">Team Name</label>
+                    <input id="tf-name" type="text" placeholder="e.g. India Developers" required />
+                  </div>
+                </div>
+                <div className="form-actions">
+                  <button type="submit" className="hbtn primary" id="tf-submit">Save</button>
+                  <button type="button" className="hbtn" id="tf-cancel">Cancel</button>
+                  <p id="tf-error" className="error" role="alert" aria-live="assertive" hidden />
+                </div>
+              </form>
+            </div>
+
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Team Name</th>
+                    <th>Members Count</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="teams-tbody" aria-busy="true">
                   {[0, 1, 2].map((i) => (
                     <tr key={i} aria-hidden="true">
                       {Array.from({ length: 3 }).map((_, j) => (

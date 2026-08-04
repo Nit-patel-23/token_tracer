@@ -47,7 +47,9 @@ export async function GET(req: NextRequest) {
 
     // Also fetch all teams
     const { rows: teams } = await query(`
-      SELECT id, name FROM teams ORDER BY name
+      SELECT t.id, t.name, (SELECT count(*)::int FROM members m WHERE m.team_id = t.id) AS member_count
+      FROM teams t
+      ORDER BY t.name
     `);
 
     return NextResponse.json({ users: rows, unlinkedMembers, teams });
