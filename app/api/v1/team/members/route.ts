@@ -11,8 +11,15 @@ export async function GET(req: NextRequest) {
     const teamId = getAuthorizedTeamId(req, rawTeamId);
     if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+    const isUuid = (val: string | null | undefined): boolean =>
+      Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
+    if (!isUuid(teamId)) {
+      return NextResponse.json({ members: [] });
+    }
+
     const { rows: members } = await query(
-      `SELECT m.id, m.display_name, m.role, m.created_at, m.sync_requested_at,
+      `SELECT m.id, m.display_name, tm.role, m.created_at, m.sync_requested_at,
               GREATEST(
                 (SELECT max(created_at) FROM ingest_events e WHERE e.member_id = m.id),
                 (SELECT max(COALESCE(s.ended_at, s.started_at, s.synced_at)) FROM sync_sessions s WHERE s.member_id = m.id),
@@ -21,7 +28,10 @@ export async function GET(req: NextRequest) {
               (SELECT count(*) FROM sync_sessions s WHERE s.member_id = m.id)::int AS session_count,
               (SELECT coalesce(sum(s.tokens_in + s.tokens_out), 0) FROM sync_sessions s WHERE s.member_id = m.id)::bigint AS total_tokens,
               (SELECT coalesce(sum(s.api_cost), 0) FROM sync_sessions s WHERE s.member_id = m.id)::float AS total_cost
-       FROM members m WHERE m.team_id = $1 ORDER BY m.display_name`,
+       FROM team_members tm
+       JOIN members m ON m.id = tm.member_id
+       WHERE tm.team_id = $1
+       ORDER BY m.display_name`,
       [teamId],
     );
     return NextResponse.json({ members });

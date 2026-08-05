@@ -52,11 +52,41 @@ export async function POST(req: NextRequest) {
       )
     `);
 
+    // Create team_members junction table for multi-team support
+    await query(`
+      CREATE TABLE IF NOT EXISTS team_members (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        team_id     UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        member_id   UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        role        TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (team_id, member_id)
+      )
+    `);
+
+    await query(`CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_team_members_member ON team_members(member_id)`);
+
+    // Backfill team_members from existing members.team_id
+    await query(`
+      INSERT INTO team_members (team_id, member_id, role, created_at)
+      SELECT m.team_id, m.id, m.role, m.created_at
+      FROM members m
+      WHERE m.team_id IS NOT NULL
+      ON CONFLICT (team_id, member_id) DO NOTHING
+    `).catch((err) => console.warn('team_members backfill note:', err.message));
+
+    // Ensure case-insensitive unique index on users.username
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (LOWER(username))`).catch((err) => console.warn('idx_users_username_lower note:', err.message));
+
+    // Ensure sync_requested_at exists on members
+    await query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS sync_requested_at TIMESTAMPTZ`).catch(() => {});
+
     // Alter tables to allow nullable team_id for independent personal dashboards
     await query(`ALTER TABLE members ALTER COLUMN team_id DROP NOT NULL`).catch(() => {});
     await query(`ALTER TABLE sync_sessions ALTER COLUMN team_id DROP NOT NULL`).catch(() => {});
 
-    return NextResponse.json({ ok: true, message: 'Migration complete. Users table is ready.' });
+    return NextResponse.json({ ok: true, message: 'Migration complete. Users table and multi-team memberships are ready.' });
   } catch (err) {
     console.error('[admin/migrate error]', err);
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });

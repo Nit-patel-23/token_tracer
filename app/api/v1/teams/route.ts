@@ -22,6 +22,26 @@ function requireAdmin(req: NextRequest): boolean {
 export async function GET(req: NextRequest) {
   try {
     if (!requireAdmin(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    const session = getSessionFromCookie(req.headers.get('cookie'));
+    const isUuid = (val: string | null | undefined): boolean =>
+      Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
+    if (session && session.role === 'admin') {
+      const hasTeam = isUuid(session.teamId);
+      const hasUser = isUuid(session.userId);
+      if (hasTeam || hasUser) {
+        const { rows } = await query(
+          `SELECT DISTINCT t.id, t.name, t.created_at
+           FROM teams t
+           WHERE ($1::uuid IS NOT NULL AND t.id = $1::uuid)
+              OR ($2::uuid IS NOT NULL AND t.id IN (SELECT tm.team_id FROM team_members tm JOIN users u ON u.member_id = tm.member_id WHERE u.id = $2::uuid))
+           ORDER BY t.created_at DESC`,
+          [hasTeam ? session.teamId : null, hasUser ? session.userId : null],
+        );
+        return NextResponse.json({ teams: rows });
+      }
+    }
+
     const { rows } = await query('SELECT id, name, created_at FROM teams ORDER BY created_at DESC');
     return NextResponse.json({ teams: rows });
   } catch (err) {

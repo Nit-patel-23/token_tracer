@@ -133,6 +133,12 @@ export default async function AdminPage() {
                     <label htmlFor="uf-new-team">New Team Name</label>
                     <input id="uf-new-team" type="text" placeholder="e.g. India Developers" />
                   </div>
+                  <div className="form-field full-width" id="field-uf-teams" style={{ gridColumn: '1 / -1' }}>
+                    <label>Assigned Teams (Multi-Team Membership)</label>
+                    <div id="uf-teams-checkboxes" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px', marginTop: '6px', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      {/* Populated dynamically */}
+                    </div>
+                  </div>
                 </div>
                 <div className="form-actions">
                   <button type="submit" className="hbtn primary" id="uf-submit">Save</button>
@@ -150,6 +156,7 @@ export default async function AdminPage() {
                     <th>Username</th>
                     <th>Display Name</th>
                     <th>Role</th>
+                    <th>Teams</th>
                     <th>Member</th>
                     <th>Sessions</th>
                     <th>Last Login</th>
@@ -160,7 +167,7 @@ export default async function AdminPage() {
                 <tbody id="users-tbody" aria-busy="true">
                   {[0, 1, 2, 3].map((i) => (
                     <tr key={i} aria-hidden="true">
-                      {Array.from({ length: 8 }).map((_, j) => (
+                      {Array.from({ length: 9 }).map((_, j) => (
                         <td key={j}><div className="skeleton" style={{ height: '14px', width: j === 0 ? '80%' : '60%' }} /></td>
                       ))}
                     </tr>
@@ -198,11 +205,11 @@ export default async function AdminPage() {
                     <label htmlFor="mf-displayname">Display Name</label>
                     <input id="mf-displayname" type="text" placeholder="e.g. John Doe" required />
                   </div>
-                  <div className="form-field">
-                    <label htmlFor="mf-team">Team</label>
-                    <select id="mf-team">
-                      {/* populated dynamically */}
-                    </select>
+                  <div className="form-field full-width" id="field-mf-teams" style={{ gridColumn: '1 / -1' }}>
+                    <label>Assigned Teams</label>
+                    <div id="mf-teams-checkboxes" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px', marginTop: '6px', background: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      {/* Populated dynamically */}
+                    </div>
                   </div>
                 </div>
                 <div className="form-actions">
@@ -216,7 +223,7 @@ export default async function AdminPage() {
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
-                  <tr><th>Display Name</th><th>Team</th><th>Status</th><th>Actions</th></tr>
+                  <tr><th>Display Name</th><th>Teams</th><th>Status</th><th>Actions</th></tr>
                 </thead>
                 <tbody id="members-tbody" aria-busy="true">
                   {[0, 1, 2].map((i) => (

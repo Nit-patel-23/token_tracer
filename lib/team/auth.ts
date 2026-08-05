@@ -25,7 +25,12 @@ export async function memberFromAuthHeader(authHeader: string | undefined | null
   if (!key) return null;
   const keyHash = hashApiKey(key);
   const { rows } = await query(
-    `SELECT m.id AS member_id, m.team_id, m.display_name, m.role
+    `SELECT m.id AS member_id,
+            COALESCE(
+              (SELECT tm.team_id FROM team_members tm WHERE tm.member_id = m.id ORDER BY tm.created_at ASC LIMIT 1),
+              m.team_id
+            ) AS team_id,
+            m.display_name, m.role
      FROM member_keys k
      JOIN members m ON m.id = k.member_id
      WHERE k.key_hash = $1 AND k.revoked_at IS NULL`,

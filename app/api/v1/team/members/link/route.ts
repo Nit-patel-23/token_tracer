@@ -12,10 +12,18 @@ export async function GET(req: NextRequest) {
 
     // Find members that do not belong to the current team
     const { rows: members } = await query(
-      `SELECT m.id, m.display_name, t.name AS team_name
+      `SELECT m.id, m.display_name,
+              COALESCE(
+                (SELECT string_agg(t.name, ', ')
+                 FROM team_members tm
+                 JOIN teams t ON t.id = tm.team_id
+                 WHERE tm.member_id = m.id),
+                'Independent'
+              ) AS existing_teams
        FROM members m
-       LEFT JOIN teams t ON t.id = m.team_id
-       WHERE m.team_id IS NULL OR m.team_id != $1
+       WHERE m.id NOT IN (
+         SELECT member_id FROM team_members WHERE team_id = $1
+       )
        ORDER BY m.display_name`,
       [teamId],
     );
@@ -43,21 +51,17 @@ export async function POST(req: NextRequest) {
     const memberId = body.memberId ? String(body.memberId) : null;
     if (!memberId) return NextResponse.json({ error: 'memberId required' }, { status: 400 });
 
-    // 1. Update the member's team_id
+    // Link the member into the new team via team_members junction table
     await query(
-      'UPDATE members SET team_id = $1 WHERE id = $2',
+      `INSERT INTO team_members (team_id, member_id, role)
+       VALUES ($1, $2, 'member')
+       ON CONFLICT (team_id, member_id) DO NOTHING`,
       [teamId, memberId],
     );
 
-    // 2. Update their existing sync sessions to belong to the new team
+    // If members.team_id is unset, populate it
     await query(
-      'UPDATE sync_sessions SET team_id = $1 WHERE member_id = $2',
-      [teamId, memberId],
-    );
-
-    // 3. Update their ingest events to belong to the new team
-    await query(
-      'UPDATE ingest_events SET team_id = $1 WHERE member_id = $2',
+      `UPDATE members SET team_id = COALESCE(team_id, $1) WHERE id = $2`,
       [teamId, memberId],
     );
 

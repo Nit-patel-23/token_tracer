@@ -114,10 +114,12 @@ export interface DbUser {
 }
 
 export async function findUserByUsername(username: string): Promise<DbUser | null> {
+  const norm = String(username || '').trim().toLowerCase();
+  if (!norm) return null;
   const { rows } = await query<DbUser>(
     `SELECT id, username, password_hash, display_name, member_id, team_id, role, active
-     FROM users WHERE username = $1`,
-    [username],
+     FROM users WHERE LOWER(username) = $1`,
+    [norm],
   );
   return rows[0] || null;
 }

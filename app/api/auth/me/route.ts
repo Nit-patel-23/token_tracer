@@ -24,7 +24,12 @@ export async function GET(req: NextRequest) {
   let memberId = session.memberId;
   let teamId = session.teamId;
 
-  if (session.role === 'user') {
+  let userTeams: Array<{ id: string; name: string; role: string }> = [];
+
+  const isUuid = (val: string | null | undefined): boolean =>
+    Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
+  if (isUuid(session.userId)) {
     const { rows: userRows } = await query(
       `SELECT u.api_key, u.member_id, u.team_id FROM users u WHERE u.id = $1`,
       [session.userId],
@@ -33,24 +38,39 @@ export async function GET(req: NextRequest) {
       apiKey = userRows[0].api_key ?? null;
       memberId = userRows[0].member_id ?? memberId;
       teamId = userRows[0].team_id ?? teamId;
-      if (memberId) {
-        const { rows: countRows } = await query(
-          `SELECT count(*)::int AS count FROM sync_sessions WHERE member_id = $1`,
-          [memberId],
-        );
-        sessionCount = countRows[0]?.count || 0;
-      }
     }
+  }
 
-    // Bypasses onboarding if running locally and local files exist
-    if (sessionCount === 0 && process.env.VERCEL !== '1') {
-      try {
-        const { scanSessions } = await import('@/lib/scan.mjs');
-        const local = scanSessions({});
-        sessionCount = local.sessions.length;
-      } catch (err) {
-        console.warn('Local scan fallback in auth/me failed:', err);
-      }
+  if (isUuid(memberId)) {
+    const { rows: countRows } = await query(
+      `SELECT count(*)::int AS count FROM sync_sessions WHERE member_id = $1`,
+      [memberId],
+    );
+    sessionCount = countRows[0]?.count || 0;
+
+    // Fetch all teams this member belongs to
+    const { rows: teamRows } = await query<{ id: string; name: string; role: string }>(
+      `SELECT t.id, t.name, tm.role
+       FROM team_members tm
+       JOIN teams t ON t.id = tm.team_id
+       WHERE tm.member_id = $1
+       ORDER BY t.name`,
+      [memberId],
+    );
+    userTeams = teamRows;
+    if (!teamId && userTeams.length > 0) {
+      teamId = userTeams[0].id;
+    }
+  }
+
+  // Bypasses onboarding if running locally and local files exist
+  if (sessionCount === 0 && process.env.VERCEL !== '1') {
+    try {
+      const { scanSessions } = await import('@/lib/scan.mjs');
+      const local = scanSessions({});
+      sessionCount = local.sessions.length;
+    } catch (err) {
+      console.warn('Local scan fallback in auth/me failed:', err);
     }
   }
 
@@ -67,6 +87,7 @@ export async function GET(req: NextRequest) {
     role: session.role,
     memberId,
     teamId,
+    teams: userTeams,
     apiKey,
     installCommandMac,
     installCommandWin,

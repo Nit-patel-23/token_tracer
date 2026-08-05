@@ -28,10 +28,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'invalid role' }, { status: 400 });
     }
 
-    // Check if username already exists
-    const { rows: existingUsers } = await query('SELECT id FROM users WHERE username = $1', [username]);
+    // Validate username format
+    if (username.length < 2) {
+      return NextResponse.json({ error: 'Username must be at least 2 characters long' }, { status: 400 });
+    }
+    if (!/^[a-z0-9_.-]+$/.test(username)) {
+      return NextResponse.json({ error: 'Username can only contain letters, numbers, dots, hyphens, and underscores' }, { status: 400 });
+    }
+
+    // Reserved usernames check
+    const reservedUsernames = ['team', 'superadmin', 'admin', 'root', 'api', 'system', 'dashboard'];
+    if (reservedUsernames.includes(username)) {
+      return NextResponse.json({ error: 'This username is reserved. Please choose another username.' }, { status: 409 });
+    }
+
+    // Check if username already exists (case-insensitive)
+    const { rows: existingUsers } = await query('SELECT id FROM users WHERE LOWER(username) = $1', [username]);
     if (existingUsers.length > 0) {
-      return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
+      return NextResponse.json({ error: 'Username already exists. Please choose a different username.' }, { status: 409 });
     }
 
     const passwordHash = await hashPassword(password);
@@ -57,12 +71,20 @@ export async function POST(req: NextRequest) {
         independentTeamId = newTeamRes.rows[0].id;
       }
 
-      // Member signup: team_id is linked to Independent team
+      // Member signup: create member record
       const { rows: memberRows } = await query(
         "INSERT INTO members (team_id, display_name, role) VALUES ($1, $2, 'member') RETURNING id",
         [independentTeamId, displayName]
       );
       finalMemberId = memberRows[0].id;
+
+      // Associate in team_members junction table
+      await query(
+        `INSERT INTO team_members (team_id, member_id, role)
+         VALUES ($1, $2, 'member')
+         ON CONFLICT (team_id, member_id) DO NOTHING`,
+        [independentTeamId, finalMemberId]
+      );
 
       // Generate API key for Member
       rawApiKey = generateApiKey();

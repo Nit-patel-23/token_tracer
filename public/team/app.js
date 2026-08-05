@@ -328,9 +328,12 @@ function renderMemberDrilldown(membersData) {
   const container = document.getElementById('member-drilldown-cards');
   if (!container || !membersData) return;
 
-  if (select && select.children.length <= 1) {
+  if (select) {
+    const currentVal = select.value;
     select.innerHTML = '<option value="all">All Members</option>' +
       membersData.map((m) => `<option value="${m.member_id}">${m.display_name}</option>`).join('');
+    if (currentVal && membersData.some((m) => m.member_id === currentVal)) select.value = currentVal;
+    else select.value = 'all';
     select.onchange = () => renderMemberDrilldown(membersData);
   }
 
@@ -557,13 +560,14 @@ window.deletePricingRule = async function (id) {
 };
 
 function renderMembersTable(rows) {
-  currentMembersList = rows;
+  currentMembersList = rows || [];
   const select = document.getElementById('global-member-filter');
-  if (select && rows?.length) {
+  if (select) {
     const currentVal = select.value;
     select.innerHTML = '<option value="all">All Members</option>' +
-      rows.map((m) => `<option value="${m.id}">${m.display_name}</option>`).join('');
-    if (currentVal && rows.some((m) => m.id === currentVal)) select.value = currentVal;
+      (rows || []).map((m) => `<option value="${m.id}">${m.display_name}</option>`).join('');
+    if (currentVal && rows && rows.some((m) => m.id === currentVal)) select.value = currentVal;
+    else select.value = 'all';
   }
 
   const el = document.getElementById('members');
@@ -615,14 +619,14 @@ window.openEditMember = function (id, encodedName, role) {
 
 window.confirmDeleteMember = async function (id, encodedName) {
   const name = decodeURIComponent(encodedName);
-  if (!confirm(`Are you sure you want to delete member "${name}" and all their synced session data? This cannot be undone.`)) {
+  if (!confirm(`Are you sure you want to remove "${name}" from this team?`)) {
     return;
   }
   try {
     await api(`/api/v1/team/members?id=${id}&teamId=${teamId}`, { method: 'DELETE' });
     loadMembers();
     loadStats();
-    window.showToast(`Member "${name}" deleted.`, { type: 'success' });
+    window.showToast(`Member "${name}" removed from this team.`, { type: 'success' });
   } catch (err) {
     window.showToast(formatError(err.message), { type: 'error' });
   }
@@ -681,14 +685,22 @@ async function loadTeams() {
 
 async function loadDashboardData() {
   renderPresets();
-  if (currentUser && currentUser.role === 'admin' && currentUser.teamId) {
-    teamId = currentUser.teamId;
-    const selectDiv = document.querySelector('.sidebar-team-select');
-    if (selectDiv) selectDiv.style.display = 'none';
+  await loadTeams();
+  const selectDiv = document.querySelector('.sidebar-team-select');
+  if (currentUser && currentUser.role === 'admin') {
+    if (currentUser.teamId && teams.some((t) => t.id === currentUser.teamId)) {
+      if (!teamId || !teams.some((t) => t.id === teamId)) {
+        teamId = currentUser.teamId;
+      }
+    } else if (teams.length > 0 && (!teamId || !teams.some((t) => t.id === teamId))) {
+      teamId = teams[0].id;
+    }
+    localStorage.setItem('team-id', teamId);
+    const sel = document.getElementById('team-select');
+    if (sel) sel.value = teamId;
+    if (selectDiv) selectDiv.style.display = teams.length > 1 ? 'flex' : 'none';
   } else {
-    const selectDiv = document.querySelector('.sidebar-team-select');
     if (selectDiv) selectDiv.style.display = 'flex';
-    await loadTeams();
   }
   await Promise.all([loadStats({ soft: false }), loadMembers()]);
 }
@@ -824,8 +836,13 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 document.getElementById('team-select').addEventListener('change', (e) => {
   teamId = e.target.value;
   localStorage.setItem('team-id', teamId);
-  loadStats().catch((err) => setAppError(formatError(err.message)));
+  const mf = document.getElementById('global-member-filter');
+  if (mf) mf.value = 'all';
+  const mds = document.getElementById('member-filter-select');
+  if (mds) mds.value = 'all';
+  updateFiltersBadge();
   loadMembers().catch((err) => setAppError(formatError(err.message)));
+  loadStats().catch((err) => setAppError(formatError(err.message)));
 });
 
 document.getElementById('range-from').addEventListener('change', (e) => {
@@ -915,7 +932,7 @@ document.getElementById('link-member-btn').addEventListener('click', async () =>
       return;
     }
     sel.innerHTML = '<option value="">— select member —</option>' + 
-      members.map(m => `<option value="${m.id}">${m.display_name} (${m.team_name || 'Independent'})</option>`).join('');
+      members.map(m => `<option value="${m.id}">${m.display_name} (Teams: ${m.existing_teams || 'None'})</option>`).join('');
   } catch (err) {
     sel.innerHTML = `<option value="">Error loading members: ${err.message}</option>`;
   }

@@ -67,44 +67,74 @@ async function loadData() {
 
 function populateTeamDropdown() {
   const select = $('#uf-team');
-  if (!select) return;
-  select.innerHTML = `
-    <option value="">— none —</option>
-    <option value="new">— create new team —</option>
-  `;
-  teams.forEach(t => {
-    select.innerHTML += `<option value="${t.id}">${esc(t.name)}</option>`;
-  });
+  if (select) {
+    select.innerHTML = `
+      <option value="">— none —</option>
+      <option value="new">— create new team —</option>
+    `;
+    teams.forEach(t => {
+      select.innerHTML += `<option value="${t.id}">${esc(t.name)}</option>`;
+    });
+  }
+
+  // Populate multi-team checkboxes for user form
+  const ufBoxes = $('#uf-teams-checkboxes');
+  if (ufBoxes) {
+    if (!teams.length) {
+      ufBoxes.innerHTML = '<span class="muted">No teams created yet.</span>';
+    } else {
+      ufBoxes.innerHTML = teams.map(t => `
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <input type="checkbox" name="uf-team-cb" value="${t.id}" />
+          <span>🛡️ ${esc(t.name)}</span>
+        </label>
+      `).join('');
+    }
+  }
+
+  // Populate multi-team checkboxes for member form
+  const mfBoxes = $('#mf-teams-checkboxes');
+  if (mfBoxes) {
+    if (!teams.length) {
+      mfBoxes.innerHTML = '<span class="muted">No teams created yet.</span>';
+    } else {
+      mfBoxes.innerHTML = teams.map(t => `
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <input type="checkbox" name="mf-team-cb" value="${t.id}" />
+          <span>🛡️ ${esc(t.name)}</span>
+        </label>
+      `).join('');
+    }
+  }
 }
 
 function populateMemberFormTeamDropdown() {
-  const select = $('#mf-team');
-  if (!select) return;
-  select.innerHTML = '';
-  teams.forEach(t => {
-    select.innerHTML += `<option value="${t.id}">${esc(t.name)}</option>`;
-  });
+  populateTeamDropdown();
 }
 
 function renderUsers() {
   const tbody = $('#users-tbody');
   if (!tbody) return;
   if (!users.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="muted admin-empty">No users yet. Create one to get started.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="muted admin-empty">No users yet. Create one to get started.</td></tr>`;
     return;
   }
 
   tbody.innerHTML = users.map(u => {
     const lastLogin = u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'Never';
-    const hasKey = u.has_api_key ? '✅ Active' : '❌ None';
     const status = u.active ? '<span class="status-badge active-badge">Active</span>' : '<span class="status-badge inactive-badge">Inactive</span>';
     const sessionCount = u.session_count || 0;
     
+    const teamBadges = (u.teams && u.teams.length > 0)
+      ? `<div style="display:flex; flex-wrap:wrap; gap:4px;">` + u.teams.map(t => `<span class="team-badge" style="background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; font-size:11px;">🛡️ ${esc(t.name)}</span>`).join('') + `</div>`
+      : (u.team_name && u.team_name !== '—' ? `<span class="team-badge" style="background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; font-size:11px;">🛡️ ${esc(u.team_name)}</span>` : '<span class="muted">—</span>');
+
     return `
       <tr>
         <td><strong>${esc(u.username)}</strong></td>
         <td>${esc(u.display_name)}</td>
         <td><code class="role-badge">${esc(u.role)}</code></td>
+        <td>${teamBadges}</td>
         <td>
           ${u.member_name ? `<span class="linked-member">👤 ${esc(u.member_name)}</span>` : '<span class="muted">—</span>'}
         </td>
@@ -136,19 +166,25 @@ function renderMembers() {
     return;
   }
 
-  tbody.innerHTML = unlinkedMembers.map(m => `
-    <tr>
-      <td><strong>${esc(m.display_name)}</strong></td>
-      <td>${esc(m.team_name)}</td>
-      <td><span class="muted">Needs User Account</span></td>
-      <td>
-        <div class="actions-cell">
-          <button class="hbtn small-btn edit-member-btn" data-id="${m.id}">Edit</button>
-          <button class="hbtn small-btn danger-btn delete-member-btn" data-id="${m.id}" data-name="${esc(m.display_name)}">Delete</button>
-        </div>
-      </td>
-    </tr>
-  `).join('');
+  tbody.innerHTML = unlinkedMembers.map(m => {
+    const teamBadges = (m.teams && m.teams.length > 0)
+      ? `<div style="display:flex; flex-wrap:wrap; gap:4px;">` + m.teams.map(t => `<span class="team-badge" style="background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; font-size:11px;">🛡️ ${esc(t.name)}</span>`).join('') + `</div>`
+      : `<span class="team-badge" style="background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; font-size:11px;">🛡️ ${esc(m.team_name || 'Independent')}</span>`;
+
+    return `
+      <tr>
+        <td><strong>${esc(m.display_name)}</strong></td>
+        <td>${teamBadges}</td>
+        <td><span class="muted">Needs User Account</span></td>
+        <td>
+          <div class="actions-cell">
+            <button class="hbtn small-btn edit-member-btn" data-id="${m.id}">Edit</button>
+            <button class="hbtn small-btn danger-btn delete-member-btn" data-id="${m.id}" data-name="${esc(m.display_name)}">Delete</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
 
   tbody.querySelectorAll('.edit-member-btn').forEach(b => b.addEventListener('click', () => editMember(b.dataset.id)));
   tbody.querySelectorAll('.delete-member-btn').forEach(b => b.addEventListener('click', () => deleteMember(b.dataset.id, b.dataset.name)));
@@ -203,7 +239,7 @@ function editUser(id) {
   editingUser = user;
   $('#uf-id').value = user.id;
   $('#uf-username').value = user.username;
-  $('#uf-username').disabled = true; // Cannot edit username
+  $('#uf-username').disabled = false;
   $('#uf-displayname').value = user.display_name;
   $('#uf-role').value = user.role;
   $('#uf-password').placeholder = 'Leave blank to keep current password';
@@ -218,6 +254,12 @@ function editUser(id) {
   }
   $('#field-uf-new-team').hidden = true;
   $('#uf-new-team').value = '';
+
+  // Select team checkboxes corresponding to user's teams
+  const userTeamIds = (user.teams || []).map(t => t.id);
+  document.querySelectorAll('input[name="uf-team-cb"]').forEach(cb => {
+    cb.checked = userTeamIds.includes(cb.value) || (user.team_id && user.team_id === cb.value);
+  });
 
   // Temporarily add their own linked member to dropdown option list if they have one
   const select = $('#uf-member');
@@ -254,6 +296,7 @@ function cancelForm() {
   $('#field-uf-new-team').hidden = true;
   $('#user-form-wrap').hidden = true;
   $('#uf-error').hidden = true;
+  document.querySelectorAll('input[name="uf-team-cb"]').forEach(cb => { cb.checked = false; });
   populateMemberDropdown();
   populateTeamDropdown();
 }
@@ -264,7 +307,7 @@ async function handleFormSubmit(e) {
   errorEl.hidden = true;
   
   const id = $('#uf-id').value;
-  const username = $('#uf-username').value.trim();
+  const username = $('#uf-username').value.trim().toLowerCase();
   const displayName = $('#uf-displayname').value.trim();
   const password = $('#uf-password').value;
   const role = $('#uf-role').value;
@@ -274,6 +317,20 @@ async function handleFormSubmit(e) {
     errorEl.textContent = 'Please fill out all required fields';
     errorEl.hidden = false;
     return;
+  }
+
+  // Username validation
+  if (username) {
+    if (username.length < 2) {
+      errorEl.textContent = 'Username must be at least 2 characters long';
+      errorEl.hidden = false;
+      return;
+    }
+    if (!/^[a-z0-9_.-]+$/.test(username)) {
+      errorEl.textContent = 'Username can only contain letters, numbers, dots, hyphens, and underscores';
+      errorEl.hidden = false;
+      return;
+    }
   }
 
   const teamVal = $('#uf-team').value;
@@ -297,13 +354,16 @@ async function handleFormSubmit(e) {
     }
   }
 
-  const payload = { displayName, role, memberId, teamId, newTeamName };
+  // Collect selected teamIds from checkboxes
+  const selectedTeamIds = Array.from(document.querySelectorAll('input[name="uf-team-cb"]:checked')).map(cb => cb.value);
+
+  const payload = { displayName, role, memberId, teamId, newTeamName, teamIds: selectedTeamIds };
   if (!id) {
     payload.username = username;
     payload.password = password;
-  } else if (password) {
-    // If updating password on edit
-    payload.password = password;
+  } else {
+    if (username) payload.username = username;
+    if (password) payload.password = password;
   }
 
   const url = '/api/admin/users';
@@ -401,7 +461,12 @@ function editMember(id) {
   cancelMemberForm();
   $('#mf-id').value = member.id;
   $('#mf-displayname').value = member.display_name;
-  $('#mf-team').value = member.team_id || '';
+  
+  const memberTeamIds = (member.teams || []).map(t => t.id);
+  document.querySelectorAll('input[name="mf-team-cb"]').forEach(cb => {
+    cb.checked = memberTeamIds.includes(cb.value) || (member.team_id && member.team_id === cb.value);
+  });
+
   $('#member-form-title').textContent = 'Edit Member';
   $('#member-form-wrap').hidden = false;
   $('#mf-displayname').focus();
@@ -410,7 +475,7 @@ function editMember(id) {
 function cancelMemberForm() {
   $('#mf-id').value = '';
   $('#mf-displayname').value = '';
-  $('#mf-team').value = '';
+  document.querySelectorAll('input[name="mf-team-cb"]').forEach(cb => { cb.checked = false; });
   $('#member-form-wrap').hidden = true;
   $('#mf-error').hidden = true;
 }
@@ -422,10 +487,10 @@ async function handleMemberFormSubmit(e) {
 
   const id = $('#mf-id').value;
   const displayName = $('#mf-displayname').value.trim();
-  const teamId = $('#mf-team').value;
+  const selectedTeamIds = Array.from(document.querySelectorAll('input[name="mf-team-cb"]:checked')).map(cb => cb.value);
 
-  if (!displayName || !teamId) {
-    errorEl.textContent = 'Please fill out all required fields';
+  if (!displayName) {
+    errorEl.textContent = 'Display name is required';
     errorEl.hidden = false;
     return;
   }
@@ -434,7 +499,7 @@ async function handleMemberFormSubmit(e) {
     const res = await fetch('/api/admin/members', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, displayName, teamId })
+      body: JSON.stringify({ id, displayName, teamIds: selectedTeamIds })
     });
 
     const data = await res.json();

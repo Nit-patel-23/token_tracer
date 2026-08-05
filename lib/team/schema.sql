@@ -8,10 +8,21 @@ CREATE TABLE IF NOT EXISTS teams (
 
 CREATE TABLE IF NOT EXISTS members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  team_id UUID REFERENCES teams(id) ON DELETE SET NULL,
   display_name TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  sync_requested_at TIMESTAMPTZ
+);
+
+-- Junction table for many-to-many relationship between teams and members
+CREATE TABLE IF NOT EXISTS team_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (team_id, member_id)
 );
 
 CREATE TABLE IF NOT EXISTS member_keys (
@@ -116,4 +127,8 @@ CREATE INDEX IF NOT EXISTS idx_sync_sessions_team_member ON sync_sessions(team_i
 CREATE INDEX IF NOT EXISTS idx_sync_sessions_ended ON sync_sessions(ended_at);
 CREATE INDEX IF NOT EXISTS idx_ingest_events_member ON ingest_events(member_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (LOWER(username));
 CREATE INDEX IF NOT EXISTS idx_users_member ON users(member_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_member ON team_members(member_id);
+

@@ -26,7 +26,21 @@ export async function GET(req: NextRequest) {
       SELECT u.id, u.username, u.display_name, u.role, u.active,
              u.member_id, u.team_id, u.last_login_at, u.created_at, u.updated_at,
              m.display_name AS member_name,
-             t.name AS team_name,
+             COALESCE(
+               (SELECT string_agg(t.name, ', ')
+                FROM team_members tm
+                JOIN teams t ON t.id = tm.team_id
+                WHERE tm.member_id = u.member_id),
+               t.name,
+               '—'
+             ) AS team_name,
+             COALESCE(
+               (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'role', tm.role))
+                FROM team_members tm
+                JOIN teams t ON t.id = tm.team_id
+                WHERE tm.member_id = u.member_id),
+               '[]'::json
+             ) AS teams,
              (u.api_key IS NOT NULL) AS has_api_key,
              (SELECT count(*)::int FROM sync_sessions s WHERE s.member_id = u.member_id) AS session_count,
              (SELECT max(COALESCE(s.ended_at, s.started_at)) FROM sync_sessions s WHERE s.member_id = u.member_id) AS last_session_at
@@ -38,16 +52,32 @@ export async function GET(req: NextRequest) {
 
     // Also fetch members that have no user account (to help with linking)
     const { rows: unlinkedMembers } = await query(`
-      SELECT m.id, m.display_name, m.team_id, t.name AS team_name
+      SELECT m.id, m.display_name, m.team_id,
+             COALESCE(
+               (SELECT string_agg(t.name, ', ')
+                FROM team_members tm
+                JOIN teams t ON t.id = tm.team_id
+                WHERE tm.member_id = m.id),
+               t.name,
+               'Independent'
+             ) AS team_name,
+             COALESCE(
+               (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'role', tm.role))
+                FROM team_members tm
+                JOIN teams t ON t.id = tm.team_id
+                WHERE tm.member_id = m.id),
+               '[]'::json
+             ) AS teams
       FROM members m
       LEFT JOIN teams t ON t.id = m.team_id
       WHERE m.id NOT IN (SELECT member_id FROM users WHERE member_id IS NOT NULL)
       ORDER BY m.display_name
     `);
 
-    // Also fetch all teams
+    // Also fetch all teams with accurate member counts
     const { rows: teams } = await query(`
-      SELECT t.id, t.name, (SELECT count(*)::int FROM members m WHERE m.team_id = t.id) AS member_count
+      SELECT t.id, t.name,
+             (SELECT count(DISTINCT tm.member_id)::int FROM team_members tm WHERE tm.team_id = t.id) AS member_count
       FROM teams t
       ORDER BY t.name
     `);
@@ -72,6 +102,7 @@ export async function POST(req: NextRequest) {
     const displayName = String(body.displayName || body.display_name || '').trim();
     const memberId = body.memberId || body.member_id || null;
     const teamId = body.teamId || body.team_id || null;
+    const teamIds: string[] = Array.isArray(body.teamIds) ? body.teamIds : (teamId ? [teamId] : []);
     const role = String(body.role || 'user');
     const newTeamName = String(body.newTeamName || '').trim();
 
@@ -80,6 +111,26 @@ export async function POST(req: NextRequest) {
     }
     if (!['user', 'admin', 'superadmin'].includes(role)) {
       return NextResponse.json({ error: 'invalid role' }, { status: 400 });
+    }
+
+    // Validate username format
+    if (username.length < 2) {
+      return NextResponse.json({ error: 'Username must be at least 2 characters long' }, { status: 400 });
+    }
+    if (!/^[a-z0-9_.-]+$/.test(username)) {
+      return NextResponse.json({ error: 'Username can only contain letters, numbers, dots, hyphens, and underscores' }, { status: 400 });
+    }
+
+    // Reserved usernames check
+    const reservedUsernames = ['team', 'superadmin', 'admin', 'root', 'api', 'system', 'dashboard'];
+    if (reservedUsernames.includes(username)) {
+      return NextResponse.json({ error: 'This username is reserved. Please choose another username.' }, { status: 409 });
+    }
+
+    // Check if username exists (case-insensitive)
+    const { rows: existing } = await query('SELECT id FROM users WHERE LOWER(username) = $1', [username]);
+    if (existing.length > 0) {
+      return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
     }
 
     const passwordHash = await hashPassword(password);
@@ -101,6 +152,13 @@ export async function POST(req: NextRequest) {
         [independentTeamId, displayName]
       );
       finalMemberId = memberRes.rows[0].id;
+
+      await query(
+        `INSERT INTO team_members (team_id, member_id, role)
+         VALUES ($1, $2, 'member')
+         ON CONFLICT (team_id, member_id) DO NOTHING`,
+        [independentTeamId, finalMemberId],
+      );
     }
 
     if (finalMemberId && finalMemberId !== 'new') {
@@ -113,6 +171,18 @@ export async function POST(req: NextRequest) {
          ON CONFLICT (key_hash) DO NOTHING`,
         [finalMemberId, apiKeyHash],
       );
+
+      // Link any selected teamIds into team_members
+      for (const tId of teamIds) {
+        if (tId && tId !== 'new') {
+          await query(
+            `INSERT INTO team_members (team_id, member_id, role)
+             VALUES ($1, $2, 'member')
+             ON CONFLICT (team_id, member_id) DO NOTHING`,
+            [tId, finalMemberId],
+          );
+        }
+      }
     }
 
     let finalTeamId = teamId;
@@ -161,8 +231,27 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     const { id, displayName, role, active, memberId, teamId } = body;
+    const teamIds: string[] | undefined = Array.isArray(body.teamIds) ? body.teamIds : undefined;
     const newTeamName = String(body.newTeamName || '').trim();
+    const username = body.username ? String(body.username).trim().toLowerCase() : undefined;
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+
+    if (username) {
+      if (username.length < 2) {
+        return NextResponse.json({ error: 'Username must be at least 2 characters long' }, { status: 400 });
+      }
+      if (!/^[a-z0-9_.-]+$/.test(username)) {
+        return NextResponse.json({ error: 'Username can only contain letters, numbers, dots, hyphens, and underscores' }, { status: 400 });
+      }
+      const reservedUsernames = ['team', 'superadmin', 'admin', 'root', 'api', 'system', 'dashboard'];
+      if (reservedUsernames.includes(username)) {
+        return NextResponse.json({ error: 'This username is reserved' }, { status: 409 });
+      }
+      const { rows: existing } = await query('SELECT id FROM users WHERE LOWER(username) = $1 AND id != $2', [username, id]);
+      if (existing.length > 0) {
+        return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
+      }
+    }
 
     let finalTeamId = teamId;
     if (role === 'admin' && newTeamName) {
@@ -190,6 +279,28 @@ export async function PUT(req: NextRequest) {
         [independentTeamId, displayName || 'Unnamed Member']
       );
       finalMemberId = memberRes.rows[0].id;
+
+      await query(
+        `INSERT INTO team_members (team_id, member_id, role)
+         VALUES ($1, $2, 'member')
+         ON CONFLICT (team_id, member_id) DO NOTHING`,
+        [independentTeamId, finalMemberId],
+      );
+    }
+
+    // Sync team_members if teamIds are provided
+    if (finalMemberId && teamIds) {
+      // Re-link teams
+      for (const tId of teamIds) {
+        if (tId && tId !== 'new') {
+          await query(
+            `INSERT INTO team_members (team_id, member_id, role)
+             VALUES ($1, $2, 'member')
+             ON CONFLICT (team_id, member_id) DO NOTHING`,
+            [tId, finalMemberId],
+          );
+        }
+      }
     }
 
     // Self-healing: generate API key if missing and member is linked
@@ -213,16 +324,17 @@ export async function PUT(req: NextRequest) {
 
     const { rows } = await query(`
       UPDATE users SET
-        display_name = COALESCE($2, display_name),
-        role         = COALESCE($3, role),
-        active       = COALESCE($4, active),
-        member_id    = $5,
-        team_id      = COALESCE($6, team_id),
-        api_key      = COALESCE($7, api_key),
+        username     = COALESCE($2, username),
+        display_name = COALESCE($3, display_name),
+        role         = COALESCE($4, role),
+        active       = COALESCE($5, active),
+        member_id    = $6,
+        team_id      = COALESCE($7, team_id),
+        api_key      = COALESCE($8, api_key),
         updated_at   = now()
       WHERE id = $1
       RETURNING id, username, display_name, role, active, member_id, team_id, updated_at
-    `, [id, displayName ?? null, role ?? null, active ?? null, finalMemberId ?? null, finalTeamId ?? null, rawApiKey]);
+    `, [id, username ?? null, displayName ?? null, role ?? null, active ?? null, finalMemberId ?? null, finalTeamId ?? null, rawApiKey]);
 
     if (!rows[0]) return NextResponse.json({ error: 'user not found' }, { status: 404 });
 

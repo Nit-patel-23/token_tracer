@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookie } from '@/lib/auth';
+import { getAuthorizedTeamId, getSessionFromCookie } from '@/lib/auth';
 import { verifyAdminToken, adminTokenFromCookie, memberFromAuthHeader } from '@/lib/team/auth';
 import { query } from '@/lib/team/db';
 
@@ -43,22 +43,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'invalid JSON' }, { status: 400, headers: corsHeaders });
     }
 
-    const teamId = String(body.teamId || '');
+    const rawTeamId = body.teamId ? String(body.teamId) : null;
+    const teamId = getAuthorizedTeamId(req, rawTeamId);
     const memberId = String(body.memberId || 'all');
 
     if (!teamId) {
-      return NextResponse.json({ error: 'teamId required' }, { status: 400, headers: corsHeaders });
+      return NextResponse.json({ error: 'unauthorized or teamId required' }, { status: 401, headers: corsHeaders });
     }
 
     if (memberId === 'all') {
       await query(
-        'UPDATE members SET sync_requested_at = now() WHERE team_id = $1',
+        'UPDATE members SET sync_requested_at = now() WHERE id IN (SELECT member_id FROM team_members WHERE team_id = $1)',
         [teamId],
       );
     } else {
       await query(
-        'UPDATE members SET sync_requested_at = now() WHERE team_id = $1 AND id = $2',
-        [teamId, memberId],
+        'UPDATE members SET sync_requested_at = now() WHERE id = $1 AND id IN (SELECT member_id FROM team_members WHERE team_id = $2)',
+        [memberId, teamId],
       );
     }
 

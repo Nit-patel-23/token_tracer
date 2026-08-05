@@ -23,6 +23,30 @@ export async function buildTeamStats(
   teamId: string,
   { from = null, to = null, memberId = null, minTokens = null, maxTokens = null, source = null }: StatsOptions = {},
 ) {
+  const isUuid = (val: string | null | undefined): boolean =>
+    Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
+  if (!isUuid(teamId)) {
+    return {
+      members: [],
+      totals: { totalSessions: 0, totalTokens: 0, totalCost: 0, totalEdits: 0, totalLines: 0, totalFiles: 0, totalTools: 0, totalLoops: 0, totalCorrections: 0 },
+      leaderboard: [],
+      tokenLeaderboard: [],
+      scoreboard: [],
+      bySource: [],
+      byDay: [],
+      topTools: [],
+      topFiles: [],
+      recentLogs: [],
+      memberSources: [],
+      memberProjects: [],
+      memberFiles: [],
+      memberModels: [],
+      projectRollup: [],
+      modelPricing: [],
+    };
+  }
+
   const params: unknown[] = [teamId];
   let dateFilter = '';
 
@@ -53,9 +77,12 @@ export async function buildTeamStats(
 
   // 1. Members list
   const { rows: members } = await query(
-    `SELECT m.id, m.display_name, m.role, m.created_at,
+    `SELECT m.id, m.display_name, tm.role, m.created_at,
             (SELECT max(created_at) FROM ingest_events e WHERE e.member_id = m.id) AS last_sync_at
-     FROM members m WHERE m.team_id = $1 ORDER BY m.display_name`,
+     FROM team_members tm
+     JOIN members m ON m.id = tm.member_id
+     WHERE tm.team_id = $1
+     ORDER BY m.display_name`,
     [teamId],
   );
 
@@ -79,9 +106,10 @@ export async function buildTeamStats(
             coalesce(sum(s.tokens_cache_write), 0)::bigint AS tokens_cache_write,
             coalesce(sum(s.api_cost), 0)::float AS api_cost,
             coalesce(sum(CASE WHEN s.priced THEN 1 ELSE 0 END), 0)::int AS priced_sessions
-     FROM members m
-     LEFT JOIN sync_sessions s ON s.member_id = m.id AND s.team_id = m.team_id ${dateFilter}
-     WHERE m.team_id = $1 ${memberId && memberId !== 'all' ? `AND m.id = '${memberId}'` : ''}
+     FROM team_members tm
+     JOIN members m ON m.id = tm.member_id
+     LEFT JOIN sync_sessions s ON s.member_id = m.id ${dateFilter}
+     WHERE tm.team_id = $1 ${memberId && memberId !== 'all' ? `AND m.id = '${memberId}'` : ''}
      GROUP BY m.id, m.display_name
      ORDER BY api_cost DESC, edits DESC, sessions DESC`,
     params,
@@ -99,7 +127,7 @@ export async function buildTeamStats(
             coalesce(sum(s.edits), 0)::int AS edits,
             coalesce(sum(s.changed_lines), 0)::int AS changed_lines
      FROM sync_sessions s
-     WHERE s.team_id = $1 ${dateFilter}
+     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
      GROUP BY s.member_id, s.source
      ORDER BY api_cost DESC`,
     params,
@@ -119,7 +147,7 @@ export async function buildTeamStats(
             coalesce(sum(s.changed_lines), 0)::int AS changed_lines,
             max(COALESCE(s.ended_at, s.started_at, s.synced_at)) AS last_activity
      FROM sync_sessions s
-     WHERE s.team_id = $1 ${dateFilter}
+     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
      GROUP BY s.member_id, COALESCE(s.agent, 'default'), s.source
      ORDER BY api_cost DESC, sessions DESC`,
     params,
@@ -135,7 +163,7 @@ export async function buildTeamStats(
             sum(f.additions + f.deletions)::int AS changed_lines
      FROM sync_session_files f
      JOIN sync_sessions s ON s.id = f.sync_session_id
-     WHERE s.team_id = $1 ${dateFilter}
+     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
      GROUP BY s.member_id, f.path
      ORDER BY changed_lines DESC`,
     params,
@@ -154,7 +182,7 @@ export async function buildTeamStats(
             coalesce(sum(s.api_cost), 0)::float AS api_cost
      FROM sync_sessions s
      JOIN members m ON m.id = s.member_id
-     WHERE s.team_id = $1 ${dateFilter}
+     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
      GROUP BY s.member_id, m.display_name, COALESCE(s.model, 'default'), s.source
      ORDER BY api_cost DESC, sessions DESC`,
     params,
@@ -174,7 +202,7 @@ export async function buildTeamStats(
             coalesce(sum(s.changed_lines), 0)::int AS changed_lines,
             max(COALESCE(s.ended_at, s.started_at, s.synced_at)) AS last_activity
      FROM sync_sessions s
-     WHERE s.team_id = $1 ${dateFilter}
+     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
      GROUP BY COALESCE(s.agent, 'default')
      ORDER BY api_cost DESC, sessions DESC`,
     params,
@@ -191,7 +219,7 @@ export async function buildTeamStats(
             coalesce(sum(s.edits), 0)::int AS edits,
             coalesce(sum(s.api_cost), 0)::float AS api_cost
      FROM sync_sessions s
-     WHERE s.team_id = $1 ${dateFilter}
+     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
      GROUP BY s.source ORDER BY api_cost DESC, edits DESC`,
     params,
   );
@@ -205,7 +233,7 @@ export async function buildTeamStats(
             coalesce(sum(s.edits), 0)::int AS edits,
             coalesce(sum(s.api_cost), 0)::float AS api_cost
      FROM sync_sessions s
-     WHERE s.team_id = $1 ${dateFilter}
+     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
      GROUP BY 1 ORDER BY 1 DESC`,
     params,
   );
@@ -215,7 +243,7 @@ export async function buildTeamStats(
     `SELECT t.tool_name AS name, sum(t.call_count)::int AS count
      FROM sync_session_tools t
      JOIN sync_sessions s ON s.id = t.sync_session_id
-     WHERE s.team_id = $1 ${dateFilter}
+     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
      GROUP BY t.tool_name ORDER BY count DESC LIMIT 20`,
     params,
   );
@@ -230,7 +258,7 @@ export async function buildTeamStats(
             count(DISTINCT s.member_id)::int AS member_count
      FROM sync_session_files f
      JOIN sync_sessions s ON s.id = f.sync_session_id
-     WHERE s.team_id = $1 ${dateFilter}
+     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
      GROUP BY f.path ORDER BY changed_lines DESC LIMIT 40`,
     params,
   );
@@ -256,7 +284,7 @@ export async function buildTeamStats(
             COALESCE(s.ended_at, s.started_at, s.synced_at) AS timestamp
      FROM sync_sessions s
      JOIN members m ON m.id = s.member_id
-     WHERE s.team_id = $1 ${dateFilter}
+     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
      ORDER BY timestamp DESC
      LIMIT 50`,
     params,
@@ -437,13 +465,20 @@ export async function buildTeamStats(
   };
 }
 
-/** Create a member + API key for an existing team. */
+/** Create a member + API key for an existing team and record in team_members. */
 export async function createMemberWithKey(teamId: string, displayName: string, role = 'member') {
   const { rows: memberRows } = await query(
     'INSERT INTO members (team_id, display_name, role) VALUES ($1, $2, $3) RETURNING id, display_name, role',
     [teamId, displayName, role],
   );
   const member = memberRows[0];
+
+  // Insert into team_members junction table
+  await query(
+    'INSERT INTO team_members (team_id, member_id, role) VALUES ($1, $2, $3) ON CONFLICT (team_id, member_id) DO NOTHING',
+    [teamId, member.id, role],
+  );
+
   const apiKey = generateApiKey();
   await query(
     'INSERT INTO member_keys (member_id, key_hash, label) VALUES ($1, $2, $3)',
@@ -452,19 +487,25 @@ export async function createMemberWithKey(teamId: string, displayName: string, r
   return { member, apiKey };
 }
 
-/** Update a team member's display name or role. */
+/** Update a team member's display name and role in a team. */
 export async function updateMember(memberId: string, teamId: string, displayName: string, role = 'member') {
   const { rows } = await query(
-    'UPDATE members SET display_name = $1, role = $2 WHERE id = $3 AND team_id = $4 RETURNING id, display_name, role',
-    [displayName, role, memberId, teamId],
+    'UPDATE members SET display_name = $1 WHERE id = $2 RETURNING id, display_name',
+    [displayName, memberId],
   );
-  return rows[0] || null;
+  if (teamId) {
+    await query(
+      'UPDATE team_members SET role = $1 WHERE member_id = $2 AND team_id = $3',
+      [role, memberId, teamId],
+    );
+  }
+  return rows[0] ? { ...rows[0], role } : null;
 }
 
-/** Delete a team member and all associated data. */
+/** Unlink a member from a specific team. */
 export async function deleteMember(memberId: string, teamId: string) {
   const { rowCount } = await query(
-    'DELETE FROM members WHERE id = $1 AND team_id = $2',
+    'DELETE FROM team_members WHERE member_id = $1 AND team_id = $2',
     [memberId, teamId],
   );
   return { ok: true, deleted: (rowCount || 0) > 0 };
@@ -486,7 +527,7 @@ export function matchesModelPattern(modelName: string, pattern: string): boolean
 }
 
 /**
- * Recalculate API costs across all synced sessions for a team using the latest model pricing rules.
+ * Recalculate API costs across all synced sessions for members of a team using the latest model pricing rules.
  */
 export async function recalculateTeamCosts(teamId: string, forceAll: boolean = false) {
   const { rows: customRules } = await query(
@@ -510,8 +551,8 @@ export async function recalculateTeamCosts(teamId: string, forceAll: boolean = f
 
   const { rows: sessions } = await query(
     forceAll
-      ? 'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE team_id = $1'
-      : 'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE team_id = $1 AND priced = false',
+      ? 'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE member_id IN (SELECT member_id FROM team_members WHERE team_id = $1)'
+      : 'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) AND priced = false',
     [teamId],
   );
 

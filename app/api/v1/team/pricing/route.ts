@@ -11,6 +11,13 @@ export async function GET(req: NextRequest) {
     const teamId = getAuthorizedTeamId(req, rawTeamId);
     if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+    const isUuid = (val: string | null | undefined): boolean =>
+      Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
+    if (!isUuid(teamId)) {
+      return NextResponse.json({ pricing: [] });
+    }
+
     const { rows: pricing } = await query(
       'SELECT id, model_pattern, cost_in_per_m, cost_out_per_m, cost_cache_read_per_m, created_at FROM model_pricing WHERE team_id = $1 ORDER BY model_pattern',
       [teamId],
