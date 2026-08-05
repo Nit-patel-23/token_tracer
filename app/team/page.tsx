@@ -118,8 +118,14 @@ export default async function TeamDashboardPage() {
           </nav>
 
           <div className="sidebar-footer">
-            <a href="/" className="sidebar-link">← Personal Dashboard</a>
-            <button id="team-logout-btn" className="hbtn sidebar-logout-btn">Sign out</button>
+            <button type="button" id="team-profile-btn" className="hbtn sidebar-profile-btn" title="Account & Profile Settings">
+              <span className="profile-btn-icon" aria-hidden="true">👤</span>
+              <span id="team-admin-name" className="sidebar-user-name">Profile</span>
+            </button>
+            <div className="sidebar-footer-links">
+              <a href="/" className="sidebar-link">← Personal Dashboard</a>
+              <button id="team-logout-btn" className="hbtn sidebar-logout-btn">Sign out</button>
+            </div>
           </div>
         </aside>
 
@@ -393,6 +399,68 @@ export default async function TeamDashboardPage() {
                     </div>
                   </div>
                   <div id="members" className="table-wrap"></div>
+                  <div id="new-member-banner" className="credentials-banner" hidden>
+                    <div className="credentials-head">
+                      <div className="credentials-badge">🎉 User Created Successfully</div>
+                      <button type="button" id="close-credentials-banner" className="hbtn small-btn">✕ Dismiss</button>
+                    </div>
+
+                    <div className="credentials-grid">
+                      <div className="credential-item">
+                        <span className="credential-label">Username</span>
+                        <div className="credential-val-row">
+                          <code id="cred-username" className="cred-code">—</code>
+                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-username">Copy</button>
+                        </div>
+                      </div>
+
+                      <div className="credential-item">
+                        <span className="credential-label">Temporary Password</span>
+                        <div className="credential-val-row">
+                          <code id="cred-password" className="cred-code cred-password">—</code>
+                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-password">Copy</button>
+                        </div>
+                      </div>
+
+                      <div className="credential-item">
+                        <span className="credential-label">API Key</span>
+                        <div className="credential-val-row">
+                          <code id="cred-apikey" className="cred-code">—</code>
+                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-apikey">Copy</button>
+                        </div>
+                      </div>
+
+                      <div className="credential-item">
+                        <span className="credential-label">Assigned Workspaces</span>
+                        <div className="credential-val-row">
+                          <span id="cred-teams" className="cred-teams-badge">—</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="credentials-commands">
+                      <div className="cmd-box">
+                        <div className="cmd-box-head">
+                          <span>🍎 <strong>macOS / Linux Setup Command</strong></span>
+                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-cmd-mac">Copy Mac Command</button>
+                        </div>
+                        <pre id="cred-cmd-mac" className="cmd-pre">—</pre>
+                      </div>
+
+                      <div className="cmd-box">
+                        <div className="cmd-box-head">
+                          <span>🪟 <strong>Windows PowerShell Setup Command</strong></span>
+                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-cmd-win">Copy Windows Command</button>
+                        </div>
+                        <pre id="cred-cmd-win" className="cmd-pre">—</pre>
+                      </div>
+                    </div>
+
+                    <div className="credentials-foot">
+                      <button type="button" id="copy-all-credentials-btn" className="hbtn hbtn-accent">📋 Copy All Onboarding Details</button>
+                      <span className="muted" style={{ fontSize: '11.5px' }}>Share these credentials and one-line setup command with the developer.</span>
+                    </div>
+                  </div>
                   <p id="new-key" className="key-banner" hidden></p>
                 </section>
               </section>
@@ -405,17 +473,37 @@ export default async function TeamDashboardPage() {
       {/* Add Member Dialog */}
       <dialog id="add-member-dialog">
         <form method="dialog" id="add-member-form">
-          <h3>Add team member</h3>
-          <label>Display name<input id="member-name" required placeholder="e.g. Alex Smith" /></label>
+          <h3>Add User &amp; Team Member</h3>
+          <p className="muted" style={{ margin: '0 0 14px 0', fontSize: '12px' }}>
+            Creates a complete user account and API key. Automatically assigned to this team and the Independent workspace.
+          </p>
+          
+          <label>Display name
+            <input id="member-name" required placeholder="e.g. Alex Smith" autoComplete="off" />
+          </label>
+
+          <label>Username <span className="muted" style={{ fontWeight: 'normal', fontSize: '11px' }}>(optional)</span>
+            <input id="member-username" placeholder="Leave blank to auto-generate (e.g. alex.smith)" autoComplete="off" />
+          </label>
+
+          <label>Temporary Password <span className="muted" style={{ fontWeight: 'normal', fontSize: '11px' }}>(optional)</span>
+            <input id="member-password" type="text" placeholder="Leave blank to auto-generate secure password" autoComplete="off" />
+          </label>
+
           <label>Role
             <select id="member-role">
               <option value="member">Member</option>
               <option value="admin">Admin</option>
             </select>
           </label>
+
+          <div className="form-hint-box" style={{ background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '6px', padding: '8px 12px', fontSize: '11.5px', color: 'var(--text-muted, #94a3b8)', margin: '8px 0 14px 0' }}>
+            👥 <strong>Default Workspaces:</strong> This user will be linked to <span id="add-member-team-hint" style={{ color: '#fff', fontWeight: 600 }}>this team</span> and <code style={{ color: '#818cf8' }}>Independent</code> by default.
+          </div>
+
           <menu>
             <button type="button" id="cancel-member" className="hbtn">Cancel</button>
-            <button type="submit" className="hbtn primary">Create + API key</button>
+            <button type="submit" id="add-member-submit" className="hbtn primary">Create User + Key</button>
           </menu>
         </form>
       </dialog>
@@ -474,6 +562,93 @@ export default async function TeamDashboardPage() {
           <menu>
             <button type="button" id="cancel-pricing" className="hbtn">Cancel</button>
             <button type="submit" className="hbtn primary">Save Pricing Rule</button>
+          </menu>
+        </form>
+      </dialog>
+
+      {/* Team Admin Profile Dialog */}
+      <dialog id="team-profile-dialog" aria-labelledby="team-profile-title">
+        <form method="dialog" id="team-profile-form" noValidate>
+          <div className="profile-modal-header">
+            <div className="profile-modal-title-row">
+              <span className="profile-icon" aria-hidden="true">👤</span>
+              <h3 id="team-profile-title">Admin Account &amp; Profile</h3>
+            </div>
+            <p className="profile-modal-sub">Manage your display name and update your administrator login password.</p>
+          </div>
+
+          <div className="profile-info-card">
+            <div className="profile-info-row">
+              <span className="profile-info-label">Username:</span>
+              <code id="team-profile-username-val" className="profile-code-pill">—</code>
+            </div>
+            <div className="profile-info-row">
+              <span className="profile-info-label">Account Role:</span>
+              <span id="team-profile-role-val" className="badge-pill">Team Admin</span>
+            </div>
+            <div className="profile-info-row">
+              <span className="profile-info-label">Assigned Workspaces:</span>
+              <span id="team-profile-teams-val" className="profile-teams-list">—</span>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="team-profile-display-name">
+              <strong>Display Name</strong>
+              <span className="field-hint">Visible across the team dashboard and admin logs</span>
+            </label>
+            <input
+              id="team-profile-display-name"
+              type="text"
+              required
+              minLength={2}
+              placeholder="e.g. Sarah Jenkins"
+              autoComplete="name"
+            />
+          </div>
+
+          <div className="profile-password-section">
+            <div className="password-section-title">
+              <span>Change Password</span>
+              <span className="field-hint">(Leave blank to keep current password)</span>
+            </div>
+            <div className="form-group">
+              <label htmlFor="team-profile-current-password">Current Password</label>
+              <input
+                id="team-profile-current-password"
+                type="password"
+                placeholder="Enter current password"
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="password-fields-grid">
+              <div className="form-group">
+                <label htmlFor="team-profile-new-password">New Password</label>
+                <input
+                  id="team-profile-new-password"
+                  type="password"
+                  minLength={6}
+                  placeholder="Min 6 characters"
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="team-profile-confirm-password">Confirm New Password</label>
+                <input
+                  id="team-profile-confirm-password"
+                  type="password"
+                  placeholder="Repeat new password"
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div id="team-profile-error-msg" className="dialog-error" hidden />
+
+          <menu className="dialog-actions">
+            <button type="button" id="cancel-team-profile-btn" className="hbtn">Cancel</button>
+            <button type="submit" id="save-team-profile-btn" className="hbtn primary">Save Changes</button>
           </menu>
         </form>
       </dialog>

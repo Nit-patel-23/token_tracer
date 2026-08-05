@@ -29,15 +29,20 @@ export async function GET(req: NextRequest) {
   const isUuid = (val: string | null | undefined): boolean =>
     Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
 
+  let currentDisplayName = session.displayName;
+
   if (isUuid(session.userId)) {
     const { rows: userRows } = await query(
-      `SELECT u.api_key, u.member_id, u.team_id FROM users u WHERE u.id = $1`,
+      `SELECT u.display_name, u.api_key, u.member_id, u.team_id FROM users u WHERE u.id = $1`,
       [session.userId],
     );
     if (userRows[0]) {
       apiKey = userRows[0].api_key ?? null;
       memberId = userRows[0].member_id ?? memberId;
       teamId = userRows[0].team_id ?? teamId;
+      if (userRows[0].display_name) {
+        currentDisplayName = userRows[0].display_name;
+      }
     }
   }
 
@@ -83,7 +88,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     userId: session.userId,
     username: session.username,
-    displayName: session.displayName,
+    displayName: currentDisplayName,
     role: session.role,
     memberId,
     teamId,

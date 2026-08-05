@@ -27,10 +27,165 @@ async function checkAuth() {
       window.location.href = '/';
       return false;
     }
+
+    const nameEl = document.getElementById('team-admin-name');
+    if (nameEl) nameEl.textContent = currentUser.displayName || currentUser.username || 'Profile';
+
+    setupTeamProfileHandlers();
+
     return true;
   } catch {
     window.location.href = '/';
     return false;
+  }
+}
+
+function openTeamProfileModal() {
+  const dialog = document.getElementById('team-profile-dialog');
+  if (!dialog) return;
+
+  const usernameEl = document.getElementById('team-profile-username-val');
+  if (usernameEl) usernameEl.textContent = currentUser?.username || '—';
+
+  const roleEl = document.getElementById('team-profile-role-val');
+  if (roleEl) {
+    roleEl.textContent = currentUser?.role === 'superadmin' ? 'Superadmin' : 'Team Admin';
+  }
+
+  const teamsEl = document.getElementById('team-profile-teams-val');
+  if (teamsEl) {
+    const teamNames = (currentUser?.teams || []).map((t) => t.name);
+    teamsEl.textContent = teamNames.length > 0 ? teamNames.join(', ') : 'All Workspaces';
+  }
+
+  const nameInput = document.getElementById('team-profile-display-name');
+  if (nameInput) nameInput.value = currentUser?.displayName || currentUser?.username || '';
+
+  const currentPwd = document.getElementById('team-profile-current-password');
+  if (currentPwd) currentPwd.value = '';
+
+  const newPwd = document.getElementById('team-profile-new-password');
+  if (newPwd) newPwd.value = '';
+
+  const confirmPwd = document.getElementById('team-profile-confirm-password');
+  if (confirmPwd) confirmPwd.value = '';
+
+  const errEl = document.getElementById('team-profile-error-msg');
+  if (errEl) {
+    errEl.hidden = true;
+    errEl.textContent = '';
+  }
+
+  dialog.showModal();
+}
+
+function setupTeamProfileHandlers() {
+  const dialog = document.getElementById('team-profile-dialog');
+  if (!dialog || dialog._profileInitialized) return;
+  dialog._profileInitialized = true;
+
+  document.getElementById('team-profile-btn')?.addEventListener('click', () => {
+    openTeamProfileModal();
+  });
+
+  document.getElementById('cancel-team-profile-btn')?.addEventListener('click', () => {
+    dialog.close();
+  });
+
+  const form = document.getElementById('team-profile-form');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('team-profile-error-msg');
+      const submitBtn = document.getElementById('save-team-profile-btn');
+      if (errEl) {
+        errEl.hidden = true;
+        errEl.textContent = '';
+      }
+
+      const displayName = (document.getElementById('team-profile-display-name')?.value || '').trim();
+      const currentPassword = document.getElementById('team-profile-current-password')?.value || '';
+      const newPassword = document.getElementById('team-profile-new-password')?.value || '';
+      const confirmPassword = document.getElementById('team-profile-confirm-password')?.value || '';
+
+      if (displayName.length < 2) {
+        if (errEl) {
+          errEl.textContent = 'Display name must be at least 2 characters long.';
+          errEl.hidden = false;
+        }
+        return;
+      }
+
+      if (newPassword) {
+        if (newPassword.length < 6) {
+          if (errEl) {
+            errEl.textContent = 'New password must be at least 6 characters long.';
+            errEl.hidden = false;
+          }
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          if (errEl) {
+            errEl.textContent = 'New passwords do not match.';
+            errEl.hidden = false;
+          }
+          return;
+        }
+        if (!currentPassword) {
+          if (errEl) {
+            errEl.textContent = 'Please enter your current password to change password.';
+            errEl.hidden = false;
+          }
+          return;
+        }
+      }
+
+      const origText = submitBtn ? submitBtn.textContent : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving…';
+      }
+
+      try {
+        const payload = { displayName };
+        if (newPassword) {
+          payload.currentPassword = currentPassword;
+          payload.newPassword = newPassword;
+        }
+
+        const res = await fetch('/api/auth/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to update profile');
+        }
+
+        currentUser.displayName = displayName;
+        const nameEl = document.getElementById('team-admin-name');
+        if (nameEl) nameEl.textContent = displayName;
+
+        dialog.close();
+        if (window.showToast) {
+          window.showToast('Profile updated successfully!', { type: 'success' });
+        }
+      } catch (err) {
+        if (errEl) {
+          errEl.textContent = err.message;
+          errEl.hidden = false;
+        } else if (window.showToast) {
+          window.showToast(err.message, { type: 'error' });
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = origText;
+        }
+      }
+    });
   }
 }
 
@@ -909,6 +1064,15 @@ document.getElementById('recalculate-costs-btn')?.addEventListener('click', asyn
 });
 
 document.getElementById('add-member-btn').addEventListener('click', () => {
+  const currentTeamObj = (teams || []).find((t) => t.id === teamId);
+  const teamHintEl = document.getElementById('add-member-team-hint');
+  if (teamHintEl) {
+    teamHintEl.textContent = currentTeamObj ? currentTeamObj.name : 'this team';
+  }
+  document.getElementById('member-name').value = '';
+  document.getElementById('member-username').value = '';
+  document.getElementById('member-password').value = '';
+  document.getElementById('member-role').value = 'member';
   document.getElementById('add-member-dialog').showModal();
 });
 
@@ -973,33 +1137,126 @@ document.getElementById('cancel-pricing')?.addEventListener('click', () => {
 document.getElementById('add-member-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = document.getElementById('member-name').value.trim();
+  const username = document.getElementById('member-username').value.trim();
+  const password = document.getElementById('member-password').value.trim();
   const role = document.getElementById('member-role').value || 'member';
   if (!name || !teamId) return;
+
+  const submitBtn = document.getElementById('add-member-submit');
+  const originalBtnText = submitBtn ? submitBtn.textContent : '';
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating user...';
+  }
+
   try {
-    const { member, apiKey } = await api('/api/v1/team/members', {
+    const res = await api('/api/v1/team/members', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamId, displayName: name, role }),
+      body: JSON.stringify({
+        teamId,
+        displayName: name,
+        username: username || undefined,
+        password: password || undefined,
+        role,
+      }),
     });
+
     document.getElementById('add-member-dialog').close();
-    document.getElementById('member-name').value = '';
 
-    const host = window.location.origin;
-    const installCmd = `curl -fsSL ${host}/install.sh | bash -s -- --key ${apiKey}`;
+    const banner = document.getElementById('new-member-banner');
+    if (banner) {
+      banner.hidden = false;
+      document.getElementById('cred-username').textContent = res.user?.username || '—';
+      document.getElementById('cred-password').textContent = res.tempPassword || '—';
+      document.getElementById('cred-apikey').textContent = res.apiKey || '—';
+      document.getElementById('cred-teams').innerHTML = (res.teams || []).map((t) => `<span class="cred-team-tag">🛡️ ${t}</span>`).join(' ');
+      document.getElementById('cred-cmd-mac').textContent = res.installCommandMac || '—';
+      document.getElementById('cred-cmd-win').textContent = res.installCommandWin || '—';
 
-    const banner = document.getElementById('new-key');
-    banner.hidden = false;
-    banner.innerHTML = `<strong>New Member Created: ${member.display_name}</strong><br/>` +
-      `API Key: <code>${apiKey}</code><br/><br/>` +
-      `<strong>Mac One-Line Install Command:</strong><br/>` +
-      `<code style="user-select:all">${installCmd}</code>`;
+      banner._latestCredentials = {
+        name: res.user?.display_name || name,
+        username: res.user?.username || '',
+        tempPassword: res.tempPassword || '',
+        apiKey: res.apiKey || '',
+        teams: res.teams || [],
+        installCommandMac: res.installCommandMac || '',
+        installCommandWin: res.installCommandWin || '',
+      };
+      banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
     loadMembers();
     loadStats();
-    window.showToast(`Member "${member.display_name}" created.`, { type: 'success' });
+    window.showToast(`User & member "${res.user?.display_name || name}" created successfully.`, { type: 'success' });
   } catch (err) {
     window.showToast(formatError(err.message), { type: 'error' });
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalBtnText;
+    }
   }
+});
+
+document.getElementById('close-credentials-banner')?.addEventListener('click', () => {
+  const banner = document.getElementById('new-member-banner');
+  if (banner) banner.hidden = true;
+});
+
+// Setup click handlers for all copy buttons in the credentials banner
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.copy-field-btn');
+  if (!btn) return;
+  const targetId = btn.getAttribute('data-target');
+  const targetEl = document.getElementById(targetId);
+  if (!targetEl) return;
+  const textToCopy = targetEl.textContent.trim();
+  if (!textToCopy || textToCopy === '—') return;
+
+  navigator.clipboard.writeText(textToCopy).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.classList.remove('copied');
+    }, 2000);
+  }).catch(() => {
+    window.showToast('Failed to copy to clipboard', { type: 'error' });
+  });
+});
+
+document.getElementById('copy-all-credentials-btn')?.addEventListener('click', () => {
+  const banner = document.getElementById('new-member-banner');
+  const c = banner?._latestCredentials;
+  if (!c) return;
+
+  const fullText = 
+`🚀 Token Tracer Account Details
+───────────────────────────────
+Name: ${c.name}
+Username: ${c.username}
+Temporary Password: ${c.tempPassword}
+API Key: ${c.apiKey}
+Assigned Workspaces: ${c.teams.join(', ')}
+
+🍎 macOS / Linux Setup Command:
+${c.installCommandMac}
+
+🪟 Windows PowerShell Setup Command:
+${c.installCommandWin}
+───────────────────────────────`;
+
+  navigator.clipboard.writeText(fullText).then(() => {
+    const btn = document.getElementById('copy-all-credentials-btn');
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ All Details Copied to Clipboard!';
+      setTimeout(() => { btn.textContent = orig; }, 2500);
+    }
+    window.showToast('All onboarding details copied to clipboard!', { type: 'success' });
+  });
 });
 
 document.getElementById('edit-member-form').addEventListener('submit', async (e) => {

@@ -183,6 +183,17 @@ export async function POST(req: NextRequest) {
           );
         }
       }
+
+      // Ensure Independent team is always linked by default
+      const { rows: indepRows } = await query("SELECT id FROM teams WHERE name = 'Independent' LIMIT 1");
+      if (indepRows[0]?.id) {
+        await query(
+          `INSERT INTO team_members (team_id, member_id, role)
+           VALUES ($1, $2, 'member')
+           ON CONFLICT (team_id, member_id) DO NOTHING`,
+          [indepRows[0].id, finalMemberId],
+        );
+      }
     }
 
     let finalTeamId = teamId;

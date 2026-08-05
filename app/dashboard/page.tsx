@@ -41,7 +41,10 @@ export default async function PersonalDashboardPage() {
         </div>
         <div id="roots" suppressHydrationWarning>scanning…</div>
         <div className="header-user" id="header-user" suppressHydrationWarning>
-          <span id="user-name" className="user-name" />
+          <button type="button" id="profile-btn" className="hbtn profile-btn" title="Account & Profile Settings">
+            <span className="profile-btn-icon" aria-hidden="true">👤</span>
+            <span id="user-name" className="user-name" />
+          </button>
           <button id="logout-btn" className="hbtn" title="Sign out">Sign out</button>
         </div>
         <button id="wrapped-btn" className="hbtn" title="Your usage, as a story">✦ Wrapped</button>
@@ -101,6 +104,94 @@ export default async function PersonalDashboardPage() {
           <span className="visually-hidden">Loading your dashboard…</span>
         </main>
       </div>
+
+      {/* ── User Profile Dialog ── */}
+      <dialog id="profile-dialog" aria-labelledby="profile-dialog-title">
+        <form id="profile-form" method="dialog" noValidate>
+          <div className="profile-modal-header">
+            <div className="profile-modal-title-row">
+              <span className="profile-icon" aria-hidden="true">👤</span>
+              <h3 id="profile-dialog-title">Account &amp; Profile Settings</h3>
+            </div>
+            <p className="profile-modal-sub">Update your personal account details, display name, and password.</p>
+          </div>
+
+          <div className="profile-info-card">
+            <div className="profile-info-row">
+              <span className="profile-info-label">Username:</span>
+              <code id="profile-username-val" className="profile-code-pill">—</code>
+            </div>
+            <div className="profile-info-row">
+              <span className="profile-info-label">Account Role:</span>
+              <span id="profile-role-val" className="badge-pill">Member</span>
+            </div>
+            <div className="profile-info-row">
+              <span className="profile-info-label">Assigned Workspaces:</span>
+              <span id="profile-teams-val" className="profile-teams-list">—</span>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="profile-display-name">
+              <strong>Display Name</strong>
+              <span className="field-hint">Visible across leaderboards, logs, and teams</span>
+            </label>
+            <input
+              id="profile-display-name"
+              type="text"
+              required
+              minLength={2}
+              placeholder="e.g. Alex Rivera"
+              autoComplete="name"
+            />
+          </div>
+
+          <div className="profile-password-section">
+            <div className="password-section-title">
+              <span>Change Password</span>
+              <span className="field-hint">(Leave blank to keep current password)</span>
+            </div>
+            <div className="form-group">
+              <label htmlFor="profile-current-password">Current Password</label>
+              <input
+                id="profile-current-password"
+                type="password"
+                placeholder="Enter current password"
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="password-fields-grid">
+              <div className="form-group">
+                <label htmlFor="profile-new-password">New Password</label>
+                <input
+                  id="profile-new-password"
+                  type="password"
+                  minLength={6}
+                  placeholder="Min 6 characters"
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="profile-confirm-password">Confirm New Password</label>
+                <input
+                  id="profile-confirm-password"
+                  type="password"
+                  placeholder="Repeat new password"
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div id="profile-error-msg" className="dialog-error" hidden />
+
+          <menu className="dialog-actions">
+            <button type="button" id="cancel-profile-btn" className="hbtn">Cancel</button>
+            <button type="submit" id="save-profile-btn" className="hbtn primary">Save Changes</button>
+          </menu>
+        </form>
+      </dialog>
+
       <div id="tooltip" role="presentation" />
       <Script src="/toast.js" strategy="afterInteractive" />
       <Script src="/loader.js" strategy="afterInteractive" />

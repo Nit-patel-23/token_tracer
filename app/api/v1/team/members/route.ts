@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorizedTeamId } from '@/lib/auth';
-import { createMemberWithKey, updateMember, deleteMember } from '@/lib/team/stats';
+import { createMemberWithKey, createTeamUserWithMember, updateMember, deleteMember } from '@/lib/team/stats';
 import { query } from '@/lib/team/db';
 
 export const dynamic = 'force-dynamic';
@@ -54,12 +54,28 @@ export async function POST(req: NextRequest) {
     if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     if (!body.displayName) return NextResponse.json({ error: 'displayName required' }, { status: 400 });
 
-    const { member, apiKey } = await createMemberWithKey(
+    const result = await createTeamUserWithMember({
       teamId,
-      String(body.displayName),
-      String(body.role ?? 'member'),
-    );
-    return NextResponse.json({ member, apiKey }, { status: 201 });
+      displayName: String(body.displayName).trim(),
+      username: body.username ? String(body.username).trim() : null,
+      password: body.password ? String(body.password).trim() : null,
+      role: String(body.role ?? 'member'),
+    });
+
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || req.nextUrl.origin || 'https://token-tracer-three.vercel.app';
+    const installCommandMac = `curl -fsSL ${serverUrl}/install.sh | bash -s -- --key ${result.apiKey}`;
+    const installCommandWin = `$ApiKey="${result.apiKey}"; iex (irm ${serverUrl}/install.ps1)`;
+
+    return NextResponse.json({
+      ok: true,
+      member: result.member,
+      user: result.user,
+      tempPassword: result.tempPassword,
+      apiKey: result.apiKey,
+      teams: result.teams,
+      installCommandMac,
+      installCommandWin,
+    }, { status: 201 });
   } catch (err) {
     console.error('[team/members POST error]', err);
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });

@@ -12,9 +12,16 @@ async function bootAuth() {
     }
     currentUser = await res.json();
 
-    // Show user name + logout button
+    // Show user name + profile + logout button
     const nameEl = document.getElementById('user-name');
     if (nameEl) nameEl.textContent = currentUser.displayName || currentUser.username || '';
+
+    const profileBtn = document.getElementById('profile-btn');
+    if (profileBtn) {
+      profileBtn.addEventListener('click', () => {
+        openProfileModal();
+      });
+    }
 
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
@@ -24,10 +31,157 @@ async function bootAuth() {
       });
     }
 
+    setupProfileHandlers();
+
     return true;
   } catch {
     window.location.href = '/';
     return false;
+  }
+}
+
+function openProfileModal() {
+  const dialog = document.getElementById('profile-dialog');
+  if (!dialog) return;
+
+  const usernameEl = document.getElementById('profile-username-val');
+  if (usernameEl) usernameEl.textContent = currentUser?.username || '—';
+
+  const roleEl = document.getElementById('profile-role-val');
+  if (roleEl) {
+    roleEl.textContent = currentUser?.role === 'admin' ? 'Team Admin' : currentUser?.role === 'superadmin' ? 'Superadmin' : 'Member';
+  }
+
+  const teamsEl = document.getElementById('profile-teams-val');
+  if (teamsEl) {
+    const teamNames = (currentUser?.teams || []).map((t) => t.name);
+    teamsEl.textContent = teamNames.length > 0 ? teamNames.join(', ') : 'Independent';
+  }
+
+  const nameInput = document.getElementById('profile-display-name');
+  if (nameInput) nameInput.value = currentUser?.displayName || currentUser?.username || '';
+
+  const currentPwd = document.getElementById('profile-current-password');
+  if (currentPwd) currentPwd.value = '';
+
+  const newPwd = document.getElementById('profile-new-password');
+  if (newPwd) newPwd.value = '';
+
+  const confirmPwd = document.getElementById('profile-confirm-password');
+  if (confirmPwd) confirmPwd.value = '';
+
+  const errEl = document.getElementById('profile-error-msg');
+  if (errEl) {
+    errEl.hidden = true;
+    errEl.textContent = '';
+  }
+
+  dialog.showModal();
+}
+
+function setupProfileHandlers() {
+  const dialog = document.getElementById('profile-dialog');
+  if (!dialog || dialog._profileInitialized) return;
+  dialog._profileInitialized = true;
+
+  document.getElementById('cancel-profile-btn')?.addEventListener('click', () => {
+    dialog.close();
+  });
+
+  const form = document.getElementById('profile-form');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('profile-error-msg');
+      const submitBtn = document.getElementById('save-profile-btn');
+      if (errEl) {
+        errEl.hidden = true;
+        errEl.textContent = '';
+      }
+
+      const displayName = (document.getElementById('profile-display-name')?.value || '').trim();
+      const currentPassword = document.getElementById('profile-current-password')?.value || '';
+      const newPassword = document.getElementById('profile-new-password')?.value || '';
+      const confirmPassword = document.getElementById('profile-confirm-password')?.value || '';
+
+      if (displayName.length < 2) {
+        if (errEl) {
+          errEl.textContent = 'Display name must be at least 2 characters long.';
+          errEl.hidden = false;
+        }
+        return;
+      }
+
+      if (newPassword) {
+        if (newPassword.length < 6) {
+          if (errEl) {
+            errEl.textContent = 'New password must be at least 6 characters long.';
+            errEl.hidden = false;
+          }
+          return;
+        }
+        if (newPassword !== confirmPassword) {
+          if (errEl) {
+            errEl.textContent = 'New passwords do not match.';
+            errEl.hidden = false;
+          }
+          return;
+        }
+        if (!currentPassword) {
+          if (errEl) {
+            errEl.textContent = 'Please enter your current password to change password.';
+            errEl.hidden = false;
+          }
+          return;
+        }
+      }
+
+      const origText = submitBtn ? submitBtn.textContent : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving…';
+      }
+
+      try {
+        const payload = { displayName };
+        if (newPassword) {
+          payload.currentPassword = currentPassword;
+          payload.newPassword = newPassword;
+        }
+
+        const res = await fetch('/api/auth/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to update profile');
+        }
+
+        currentUser.displayName = displayName;
+        const nameEl = document.getElementById('user-name');
+        if (nameEl) nameEl.textContent = displayName;
+
+        dialog.close();
+        if (window.showToast) {
+          window.showToast('Profile updated successfully!', { type: 'success' });
+        }
+      } catch (err) {
+        if (errEl) {
+          errEl.textContent = err.message;
+          errEl.hidden = false;
+        } else if (window.showToast) {
+          window.showToast(err.message, { type: 'error' });
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = origText;
+        }
+      }
+    });
   }
 }
 

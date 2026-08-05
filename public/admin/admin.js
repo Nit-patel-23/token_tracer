@@ -1,8 +1,13 @@
 let users = [];
 let unlinkedMembers = [];
 let teams = [];
+let pricingRules = [];
+let defaultPricingRules = [];
 let currentTab = 'users';
 let editingUser = null;
+let editingPricing = null;
+
+let currentAdminSession = null;
 
 // Helpers
 const $ = (s) => document.querySelector(s);
@@ -19,12 +24,144 @@ async function loadSession() {
     window.location.href = '/';
     return;
   }
+  currentAdminSession = session;
   const userEl = $('#admin-user-name');
   if (userEl) userEl.textContent = session.displayName || session.username;
+
+  setupAdminProfileHandlers();
 
   const boot = $('#boot-loading');
   if (boot) boot.hidden = true;
   $('#admin-app').hidden = false;
+}
+
+function setupAdminProfileHandlers() {
+  const dialog = $('#admin-profile-dialog');
+  if (!dialog || dialog._initialized) return;
+  dialog._initialized = true;
+
+  $('#admin-profile-btn')?.addEventListener('click', () => {
+    if (!dialog) return;
+    const usernameEl = $('#admin-profile-username-val');
+    if (usernameEl) usernameEl.textContent = currentAdminSession?.username || 'admin';
+
+    const nameInput = $('#admin-profile-display-name');
+    if (nameInput) nameInput.value = currentAdminSession?.displayName || currentAdminSession?.username || '';
+
+    const curPwd = $('#admin-profile-current-password');
+    if (curPwd) curPwd.value = '';
+    const newPwd = $('#admin-profile-new-password');
+    if (newPwd) newPwd.value = '';
+    const confPwd = $('#admin-profile-confirm-password');
+    if (confPwd) confPwd.value = '';
+
+    const errEl = $('#admin-profile-error-msg');
+    if (errEl) {
+      errEl.hidden = true;
+      errEl.textContent = '';
+    }
+
+    dialog.showModal();
+  });
+
+  $('#cancel-admin-profile-btn')?.addEventListener('click', () => {
+    dialog.close();
+  });
+
+  $('#admin-profile-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = $('#admin-profile-error-msg');
+    const submitBtn = $('#save-admin-profile-btn');
+    if (errEl) {
+      errEl.hidden = true;
+      errEl.textContent = '';
+    }
+
+    const displayName = ($('#admin-profile-display-name')?.value || '').trim();
+    const currentPassword = $('#admin-profile-current-password')?.value || '';
+    const newPassword = $('#admin-profile-new-password')?.value || '';
+    const confirmPassword = $('#admin-profile-confirm-password')?.value || '';
+
+    if (displayName.length < 2) {
+      if (errEl) {
+        errEl.textContent = 'Display name must be at least 2 characters long.';
+        errEl.hidden = false;
+      }
+      return;
+    }
+
+    if (newPassword) {
+      if (newPassword.length < 6) {
+        if (errEl) {
+          errEl.textContent = 'New password must be at least 6 characters long.';
+          errEl.hidden = false;
+        }
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        if (errEl) {
+          errEl.textContent = 'New passwords do not match.';
+          errEl.hidden = false;
+        }
+        return;
+      }
+      if (!currentPassword) {
+        if (errEl) {
+          errEl.textContent = 'Please enter your current password to change password.';
+          errEl.hidden = false;
+        }
+        return;
+      }
+    }
+
+    const origText = submitBtn ? submitBtn.textContent : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving…';
+    }
+
+    try {
+      const payload = { displayName };
+      if (newPassword) {
+        payload.currentPassword = currentPassword;
+        payload.newPassword = newPassword;
+      }
+
+      const res = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update profile');
+      }
+
+      if (currentAdminSession) {
+        currentAdminSession.displayName = displayName;
+      }
+      const userEl = $('#admin-user-name');
+      if (userEl) userEl.textContent = displayName;
+
+      dialog.close();
+      if (window.showToast) {
+        window.showToast('Profile updated successfully!', { type: 'success' });
+      }
+    } catch (err) {
+      if (errEl) {
+        errEl.textContent = err.message;
+        errEl.hidden = false;
+      } else if (window.showToast) {
+        window.showToast(err.message, { type: 'error' });
+      }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = origText;
+      }
+    }
+  });
 }
 
 async function loadData() {
@@ -56,6 +193,7 @@ async function loadData() {
     populateMemberDropdown();
     populateTeamDropdown();
     populateMemberFormTeamDropdown();
+    await loadPricing();
   } catch (err) {
     window.showToast(err.message, { type: 'error' });
   } finally {
@@ -587,21 +725,222 @@ async function handleTeamFormSubmit(e) {
   }
 }
 
-async function deleteTeam(id, name) {
-  if (!confirm(`Are you sure you want to permanently delete team "${name}"?\nWarning: This will cascade delete all members of this team, their API keys, and their session logs!`)) return;
+// Model Pricing & Global Sync
+async function loadPricing() {
+  try {
+    const res = await fetch('/api/admin/pricing');
+    if (!res.ok) throw new Error('Failed to load model pricing');
+    const data = await res.json();
+    pricingRules = data.pricing || [];
+    defaultPricingRules = data.defaultRules || [];
+    renderPricing();
+    populatePricingTeamDropdown();
+  } catch (err) {
+    console.error('[loadPricing error]', err);
+  }
+}
+
+function populatePricingTeamDropdown() {
+  const select = $('#pf-team');
+  if (!select) return;
+  const currentVal = select.value || 'global';
+  select.innerHTML = `<option value="global">🌐 Global (Applies to all teams &amp; members)</option>`;
+  teams.forEach(t => {
+    select.innerHTML += `<option value="${t.id}">🛡️ ${esc(t.name)} (Team Override)</option>`;
+  });
+  select.value = currentVal;
+}
+
+function renderPricing() {
+  const tbody = $('#pricing-tbody');
+  const countBadge = $('#pricing-count-badge');
+  if (countBadge) {
+    countBadge.textContent = `${pricingRules.length} rule${pricingRules.length === 1 ? '' : 's'}`;
+  }
+
+  if (tbody) {
+    if (!pricingRules.length) {
+      tbody.innerHTML = `<tr><td colspan="6" class="muted admin-empty">No custom pricing rules defined yet. System uses baseline reference rates below.</td></tr>`;
+    } else {
+      tbody.innerHTML = pricingRules.map(r => {
+        const isGlobal = !r.team_id;
+        const scopeBadge = isGlobal
+          ? `<span class="scope-badge-global">🌐 Global</span>`
+          : `<span class="scope-badge-team">🛡️ ${esc(r.team_name || 'Team Override')}</span>`;
+
+        return `
+          <tr>
+            <td><strong><code>${esc(r.model_pattern)}</code></strong></td>
+            <td>${scopeBadge}</td>
+            <td>$${Number(r.cost_in_per_m).toFixed(4)}</td>
+            <td>$${Number(r.cost_out_per_m).toFixed(4)}</td>
+            <td>$${Number(r.cost_cache_read_per_m).toFixed(4)}</td>
+            <td>
+              <div class="actions-cell">
+                <button class="hbtn small-btn edit-pricing-btn" data-id="${r.id}">Edit</button>
+                <button class="hbtn small-btn danger-btn delete-pricing-btn" data-id="${r.id}" data-pattern="${esc(r.model_pattern)}">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.querySelectorAll('.edit-pricing-btn').forEach(b => b.addEventListener('click', () => editPricing(b.dataset.id)));
+      tbody.querySelectorAll('.delete-pricing-btn').forEach(b => b.addEventListener('click', () => deletePricing(b.dataset.id, b.dataset.pattern)));
+    }
+  }
+
+  const defTbody = $('#default-pricing-tbody');
+  if (defTbody && defaultPricingRules.length) {
+    defTbody.innerHTML = defaultPricingRules.map(d => {
+      return `
+        <tr>
+          <td><strong>${esc(d.label || d.model_pattern)}</strong> ${d.model_pattern ? `<code style="font-size:11px; margin-left:6px; opacity:0.75;">${esc(d.model_pattern)}</code>` : '<span class="muted" style="font-size:11px; margin-left:6px;">(Default Fallback)</span>'}</td>
+          <td>$${Number(d.cost_in_per_m).toFixed(2)}</td>
+          <td>$${Number(d.cost_out_per_m).toFixed(2)}</td>
+          <td>$${Number(d.cost_cache_read_per_m).toFixed(2)}</td>
+          <td>
+            <button class="hbtn small-btn quick-override-btn" data-pattern="${esc(d.model_pattern)}" data-in="${d.cost_in_per_m}" data-out="${d.cost_out_per_m}" data-cache="${d.cost_cache_read_per_m}">Customize</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    defTbody.querySelectorAll('.quick-override-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        cancelPricingForm();
+        $('#pf-pattern').value = b.dataset.pattern;
+        $('#pf-cost-in').value = b.dataset.in;
+        $('#pf-cost-out').value = b.dataset.out;
+        $('#pf-cost-cache').value = b.dataset.cache;
+        $('#pricing-form-title').textContent = `Add Override for ${b.dataset.pattern || 'Fallback'}`;
+        $('#pricing-form-wrap').hidden = false;
+        $('#pf-team').focus();
+      });
+    });
+  }
+}
+
+function editPricing(id) {
+  const rule = pricingRules.find(r => r.id === id);
+  if (!rule) return;
+
+  editingPricing = rule;
+  $('#pf-id').value = rule.id;
+  $('#pf-team').value = rule.team_id || 'global';
+  $('#pf-pattern').value = rule.model_pattern;
+  $('#pf-cost-in').value = rule.cost_in_per_m;
+  $('#pf-cost-out').value = rule.cost_out_per_m;
+  $('#pf-cost-cache').value = rule.cost_cache_read_per_m;
+  $('#pricing-form-title').textContent = `Edit Pricing Rule (${rule.model_pattern})`;
+  $('#pricing-form-wrap').hidden = false;
+  $('#pf-pattern').focus();
+}
+
+function cancelPricingForm() {
+  editingPricing = null;
+  $('#pf-id').value = '';
+  $('#pf-team').value = 'global';
+  $('#pf-pattern').value = '';
+  $('#pf-cost-in').value = '';
+  $('#pf-cost-out').value = '';
+  $('#pf-cost-cache').value = '';
+  $('#pricing-form-wrap').hidden = true;
+  $('#pf-error').hidden = true;
+}
+
+async function handlePricingFormSubmit(e) {
+  e.preventDefault();
+  const errorEl = $('#pf-error');
+  errorEl.hidden = true;
+
+  const id = $('#pf-id').value;
+  const teamId = $('#pf-team').value;
+  const modelPattern = $('#pf-pattern').value.trim();
+  const costInPerM = $('#pf-cost-in').value;
+  const costOutPerM = $('#pf-cost-out').value;
+  const costCacheReadPerM = $('#pf-cost-cache').value;
+
+  if (!modelPattern) {
+    errorEl.textContent = 'Model pattern or identifier is required';
+    errorEl.hidden = false;
+    return;
+  }
+
+  const submitBtn = $('#pf-submit');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Saving & Recalculating…';
 
   try {
-    const res = await fetch(`/api/admin/teams?id=${id}`, {
-      method: 'DELETE'
+    const res = await fetch('/api/admin/pricing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: id || undefined,
+        teamId: teamId === 'global' ? null : teamId,
+        modelPattern,
+        costInPerM: parseFloat(costInPerM) || 0,
+        costOutPerM: parseFloat(costOutPerM) || 0,
+        costCacheReadPerM: parseFloat(costCacheReadPerM) || 0,
+        syncRecalc: true,
+      }),
     });
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Delete failed');
+    if (!res.ok) throw new Error(data.error || 'Failed to save pricing rule');
 
-    await loadData();
-    window.showToast(`Team "${name}" deleted.`, { type: 'success' });
+    window.showToast(`Pricing rule for "${modelPattern}" saved and session costs recalculated.`, { type: 'success' });
+    cancelPricingForm();
+    await loadPricing();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.hidden = false;
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Save Pricing Rule';
+  }
+}
+
+async function deletePricing(id, pattern) {
+  if (!confirm(`Are you sure you want to delete the pricing rule for "${pattern}"?\nSession costs will be recalculated using remaining rules.`)) return;
+
+  try {
+    const res = await fetch(`/api/admin/pricing?id=${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete pricing rule');
+
+    window.showToast(`Pricing rule for "${pattern}" deleted and costs recalculated.`, { type: 'success' });
+    await loadPricing();
   } catch (err) {
     window.showToast(err.message, { type: 'error' });
+  }
+}
+
+async function syncAllTeamsAndMembers() {
+  const btn = $('#sync-all-btn');
+  if (!btn) return;
+  const icon = btn.querySelector('.sync-icon');
+  
+  if (!confirm('Broadcast sync to all developer machines and recalculate historical token costs across all teams and members?')) {
+    return;
+  }
+
+  btn.disabled = true;
+  if (icon) icon.classList.add('spinning');
+  btn.innerHTML = `<span class="sync-icon spinning">🔄</span> Syncing & Recalculating…`;
+
+  try {
+    const res = await fetch('/api/admin/pricing/sync', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Sync request failed');
+
+    window.showToast(data.message || 'All teams & members synced successfully!', { type: 'success', duration: 6000 });
+    await loadData();
+  } catch (err) {
+    window.showToast(err.message, { type: 'error' });
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<span class="sync-icon">🔄</span> Sync for All Teams &amp; Members`;
   }
 }
 
@@ -717,6 +1056,31 @@ function closeMobileNav() {
   $('#tf-cancel')?.addEventListener('click', cancelTeamForm);
   $('#team-form')?.addEventListener('submit', handleTeamFormSubmit);
 
+  // Pricing listeners
+  $('#create-pricing-btn')?.addEventListener('click', () => {
+    cancelPricingForm();
+    $('#pricing-form-title').textContent = 'Add Pricing Rule';
+    $('#pricing-form-wrap').hidden = false;
+    $('#pf-pattern').focus();
+  });
+  $('#pf-cancel')?.addEventListener('click', cancelPricingForm);
+  $('#pricing-form')?.addEventListener('submit', handlePricingFormSubmit);
+  $('#sync-all-btn')?.addEventListener('click', syncAllTeamsAndMembers);
+
+  // Preset quick fill buttons
+  document.querySelectorAll('.preset-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      cancelPricingForm();
+      $('#pf-pattern').value = btn.dataset.pattern || '';
+      $('#pf-cost-in').value = btn.dataset.in || '';
+      $('#pf-cost-out').value = btn.dataset.out || '';
+      $('#pf-cost-cache').value = btn.dataset.cache || '';
+      $('#pricing-form-title').textContent = `Add Rule for ${btn.textContent || btn.dataset.pattern}`;
+      $('#pricing-form-wrap').hidden = false;
+      $('#pf-team').focus();
+    });
+  });
+
   // Logout
   $('#admin-logout-btn')?.addEventListener('click', async () => {
     await fetch('/api/auth/me', { method: 'POST' });
@@ -735,3 +1099,4 @@ function closeMobileNav() {
     });
   });
 })();
+

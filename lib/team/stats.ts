@@ -3,8 +3,10 @@
  * Provides deep analytics per member, per project, per agent source, per file,
  * custom model pricing rates, and API cost recalculations.
  */
+import crypto from 'node:crypto';
 import { query } from './db';
 import { generateApiKey, hashApiKey } from './auth';
+import { hashPassword } from '@/lib/auth';
 
 interface StatsOptions {
   from?: string | null;
@@ -290,10 +292,10 @@ export async function buildTeamStats(
     params,
   );
 
-  // 12. Model Pricing Rates Table
+  // 12. Model Pricing Rates Table (team overrides first, then global overrides)
   const { rows: modelPricing } = await query(
-    `SELECT id, model_pattern, cost_in_per_m, cost_out_per_m, cost_cache_read_per_m, created_at
-     FROM model_pricing WHERE team_id = $1 ORDER BY model_pattern`,
+    `SELECT id, team_id, model_pattern, cost_in_per_m, cost_out_per_m, cost_cache_read_per_m, created_at
+     FROM model_pricing WHERE team_id = $1 OR team_id IS NULL ORDER BY (team_id IS NOT NULL) DESC, model_pattern`,
     [teamId],
   );
 
@@ -467,24 +469,133 @@ export async function buildTeamStats(
 
 /** Create a member + API key for an existing team and record in team_members. */
 export async function createMemberWithKey(teamId: string, displayName: string, role = 'member') {
+  return createTeamUserWithMember({ teamId, displayName, role });
+}
+
+export interface CreateTeamUserOptions {
+  teamId: string;
+  displayName: string;
+  username?: string | null;
+  password?: string | null;
+  role?: string;
+}
+
+/**
+ * Creates a team user account and member record:
+ * - Generates clean unique username if not provided
+ * - Generates secure temporary password if not provided
+ * - Links member to BOTH the admin's team and the Independent team by default
+ * - Generates active API key for the member
+ * - Creates user account in `users` table linked to member and admin team
+ */
+export async function createTeamUserWithMember({
+  teamId,
+  displayName,
+  username: providedUsername,
+  password: providedPassword,
+  role = 'member',
+}: CreateTeamUserOptions) {
+  // 1. Fetch admin team details
+  const { rows: teamRows } = await query<{ id: string; name: string }>('SELECT id, name FROM teams WHERE id = $1', [teamId]);
+  const adminTeamName = teamRows[0]?.name || 'Team';
+
+  // 2. Fetch or create Independent team
+  let independentTeamId: string;
+  const { rows: indepRows } = await query<{ id: string }>('SELECT id FROM teams WHERE name = $1 LIMIT 1', ['Independent']);
+  if (indepRows[0]?.id) {
+    independentTeamId = indepRows[0].id;
+  } else {
+    const { rows: newIndep } = await query<{ id: string }>("INSERT INTO teams (name) VALUES ('Independent') RETURNING id");
+    independentTeamId = newIndep[0].id;
+  }
+
+  // 3. Resolve username
+  let cleanUsername = String(providedUsername || '').trim().toLowerCase();
+  const reservedUsernames = ['team', 'superadmin', 'admin', 'root', 'api', 'system', 'dashboard'];
+  if (!cleanUsername) {
+    // Generate clean username from display name
+    const base = displayName.toLowerCase().replace(/[^a-z0-9]/g, '.').replace(/\.+/g, '.').replace(/^\.|\.$/g, '') || 'user';
+    let candidate = base;
+    let counter = 1;
+    while (true) {
+      if (!reservedUsernames.includes(candidate)) {
+        const { rows: existing } = await query('SELECT id FROM users WHERE LOWER(username) = $1', [candidate]);
+        if (existing.length === 0) {
+          cleanUsername = candidate;
+          break;
+        }
+      }
+      candidate = `${base}${counter}`;
+      counter++;
+    }
+  } else {
+    if (cleanUsername.length < 2) {
+      throw new Error('Username must be at least 2 characters long');
+    }
+    if (!/^[a-z0-9_.-]+$/.test(cleanUsername)) {
+      throw new Error('Username can only contain letters, numbers, dots, hyphens, and underscores');
+    }
+    if (reservedUsernames.includes(cleanUsername)) {
+      throw new Error('This username is reserved. Please choose another username.');
+    }
+    const { rows: existing } = await query('SELECT id FROM users WHERE LOWER(username) = $1', [cleanUsername]);
+    if (existing.length > 0) {
+      throw new Error(`Username "${cleanUsername}" is already taken.`);
+    }
+  }
+
+  // 4. Resolve temporary password
+  const tempPassword = providedPassword?.trim() || `Tracer-${crypto.randomBytes(3).toString('hex')}`;
+  const passwordHash = await hashPassword(tempPassword);
+
+  // 5. Create member in members table
   const { rows: memberRows } = await query(
     'INSERT INTO members (team_id, display_name, role) VALUES ($1, $2, $3) RETURNING id, display_name, role',
     [teamId, displayName, role],
   );
   const member = memberRows[0];
 
-  // Insert into team_members junction table
+  // 6. Associate member in team_members for BOTH the admin's team and Independent team
   await query(
     'INSERT INTO team_members (team_id, member_id, role) VALUES ($1, $2, $3) ON CONFLICT (team_id, member_id) DO NOTHING',
     [teamId, member.id, role],
   );
+  if (independentTeamId && independentTeamId !== teamId) {
+    await query(
+      'INSERT INTO team_members (team_id, member_id, role) VALUES ($1, $2, $3) ON CONFLICT (team_id, member_id) DO NOTHING',
+      [independentTeamId, member.id, 'member'],
+    );
+  }
 
+  // 7. Generate API key
   const apiKey = generateApiKey();
   await query(
     'INSERT INTO member_keys (member_id, key_hash, label) VALUES ($1, $2, $3)',
     [member.id, hashApiKey(apiKey), 'default'],
   );
-  return { member, apiKey };
+
+  // 8. Create user account in users table
+  const userRole = role === 'admin' ? 'admin' : 'user';
+  const { rows: userRows } = await query(
+    `INSERT INTO users (username, password_hash, display_name, member_id, team_id, role, api_key, active)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+     RETURNING id, username, display_name, role, member_id, team_id, active, created_at`,
+    [cleanUsername, passwordHash, displayName, member.id, teamId, userRole, apiKey],
+  );
+  const user = userRows[0];
+
+  const assignedTeams = [adminTeamName];
+  if (adminTeamName !== 'Independent') {
+    assignedTeams.push('Independent');
+  }
+
+  return {
+    member,
+    user,
+    tempPassword,
+    apiKey,
+    teams: assignedTeams,
+  };
 }
 
 /** Update a team member's display name and role in a team. */
@@ -531,7 +642,7 @@ export function matchesModelPattern(modelName: string, pattern: string): boolean
  */
 export async function recalculateTeamCosts(teamId: string, forceAll: boolean = false) {
   const { rows: customRules } = await query(
-    'SELECT model_pattern, cost_in_per_m, cost_out_per_m, cost_cache_read_per_m FROM model_pricing WHERE team_id = $1',
+    'SELECT model_pattern, cost_in_per_m, cost_out_per_m, cost_cache_read_per_m FROM model_pricing WHERE team_id = $1 OR team_id IS NULL ORDER BY (team_id IS NOT NULL) DESC',
     [teamId],
   );
 
@@ -560,6 +671,79 @@ export async function recalculateTeamCosts(teamId: string, forceAll: boolean = f
   for (const s of sessions) {
     const modelName = (s.model || '').toLowerCase();
     const rule = allRules.find((r) => r.model_pattern && matchesModelPattern(modelName, r.model_pattern)) || defaultRules[defaultRules.length - 1];
+
+    let tokensIn = Number(s.tokens_in || 0);
+    let tokensOut = Number(s.tokens_out || 0);
+    const tokensCacheRead = Number(s.tokens_cache_read || 0);
+    const tokensCacheWrite = Number(s.tokens_cache_write || 0);
+
+    const edits = Number(s.edits || 0);
+    const toolCalls = Number(s.tool_calls || 0);
+    const changedLines = Number(s.changed_lines || 0);
+
+    if (tokensIn === 0 && tokensOut === 0 && (edits > 0 || toolCalls > 0 || changedLines > 0)) {
+      tokensIn = Math.max(500, (toolCalls + edits) * 350 + changedLines * 10);
+      tokensOut = Math.max(200, (toolCalls + edits) * 150 + changedLines * 5);
+      await query('UPDATE sync_sessions SET tokens_in = $1, tokens_out = $2 WHERE id = $3', [tokensIn, tokensOut, s.id]);
+    }
+
+    const freshInput = Math.max(0, tokensIn - tokensCacheRead - tokensCacheWrite);
+
+    const cost =
+      (freshInput / 1_000_000) * Number(rule.cost_in_per_m || 0) +
+      (tokensOut / 1_000_000) * Number(rule.cost_out_per_m || 0) +
+      (tokensCacheRead / 1_000_000) * Number(rule.cost_cache_read_per_m || 0) +
+      (tokensCacheWrite / 1_000_000) * Number(((rule as any).cost_cache_write_per_m ?? rule.cost_in_per_m) || 0);
+
+    await query('UPDATE sync_sessions SET api_cost = $1, priced = true WHERE id = $2', [cost, s.id]);
+    updatedCount++;
+  }
+
+  return { updatedCount, totalSessions: sessions.length };
+}
+
+/**
+ * Recalculate API costs across all synced sessions for all teams and members using global and team model pricing rules.
+ */
+export async function recalculateAllCosts(forceAll: boolean = true) {
+  const { rows: customRules } = await query(
+    'SELECT team_id, model_pattern, cost_in_per_m, cost_out_per_m, cost_cache_read_per_m FROM model_pricing',
+  );
+
+  const defaultRules = [
+    { model_pattern: 'claude-3-7-sonnet', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
+    { model_pattern: 'claude-3-5-sonnet', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
+    { model_pattern: 'claude-3-5-haiku', cost_in_per_m: 0.8, cost_out_per_m: 4.0, cost_cache_read_per_m: 0.08 },
+    { model_pattern: 'gpt-4o', cost_in_per_m: 2.5, cost_out_per_m: 10.0, cost_cache_read_per_m: 1.25 },
+    { model_pattern: 'o1', cost_in_per_m: 15.0, cost_out_per_m: 60.0, cost_cache_read_per_m: 7.5 },
+    { model_pattern: 'o3-mini', cost_in_per_m: 1.1, cost_out_per_m: 4.4, cost_cache_read_per_m: 0.55 },
+    { model_pattern: 'deepseek-r1', cost_in_per_m: 0.55, cost_out_per_m: 2.19, cost_cache_read_per_m: 0.14 },
+    { model_pattern: 'deepseek-v3', cost_in_per_m: 0.14, cost_out_per_m: 0.28, cost_cache_read_per_m: 0.014 },
+    { model_pattern: '', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
+  ];
+
+  const globalCustomRules = customRules.filter((r) => !r.team_id);
+  const teamCustomRules = customRules.filter((r) => Boolean(r.team_id));
+
+  const { rows: sessions } = await query(
+    forceAll
+      ? `SELECT s.id, s.team_id, s.member_id, s.model, s.tokens_in, s.tokens_out, s.tokens_cache_read, s.tokens_cache_write, s.edits, s.tool_calls, s.changed_lines
+         FROM sync_sessions s`
+      : `SELECT s.id, s.team_id, s.member_id, s.model, s.tokens_in, s.tokens_out, s.tokens_cache_read, s.tokens_cache_write, s.edits, s.tool_calls, s.changed_lines
+         FROM sync_sessions s WHERE s.priced = false`
+  );
+
+  let updatedCount = 0;
+  for (const s of sessions) {
+    const modelName = (s.model || '').toLowerCase();
+    const teamRules = s.team_id ? teamCustomRules.filter((r) => r.team_id === s.team_id) : [];
+    
+    // Check team overrides -> global overrides -> default system rates
+    const rule =
+      teamRules.find((r) => r.model_pattern && matchesModelPattern(modelName, r.model_pattern)) ||
+      globalCustomRules.find((r) => r.model_pattern && matchesModelPattern(modelName, r.model_pattern)) ||
+      defaultRules.find((r) => r.model_pattern && matchesModelPattern(modelName, r.model_pattern)) ||
+      defaultRules[defaultRules.length - 1];
 
     let tokensIn = Number(s.tokens_in || 0);
     let tokensOut = Number(s.tokens_out || 0);

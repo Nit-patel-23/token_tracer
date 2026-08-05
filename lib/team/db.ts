@@ -88,14 +88,18 @@ export async function ensureSchema(): Promise<void> {
 
           CREATE TABLE IF NOT EXISTS model_pricing (
             id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            team_id               UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+            team_id               UUID REFERENCES teams(id) ON DELETE CASCADE,
             model_pattern         TEXT NOT NULL,
             cost_in_per_m         DOUBLE PRECISION NOT NULL DEFAULT 0,
             cost_out_per_m        DOUBLE PRECISION NOT NULL DEFAULT 0,
             cost_cache_read_per_m DOUBLE PRECISION NOT NULL DEFAULT 0,
-            created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-            UNIQUE (team_id, model_pattern)
+            created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
           );
+
+          -- Allow global pricing rules (team_id IS NULL)
+          ALTER TABLE model_pricing ALTER COLUMN team_id DROP NOT NULL;
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_model_pricing_global_unique ON model_pricing (LOWER(model_pattern)) WHERE team_id IS NULL;
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_model_pricing_team_unique ON model_pricing (team_id, LOWER(model_pattern)) WHERE team_id IS NOT NULL;
 
           CREATE INDEX IF NOT EXISTS idx_team_members_team ON team_members(team_id);
           CREATE INDEX IF NOT EXISTS idx_team_members_member ON team_members(member_id);

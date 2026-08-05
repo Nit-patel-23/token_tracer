@@ -85,17 +85,18 @@ CREATE TABLE IF NOT EXISTS sync_session_files (
   UNIQUE (sync_session_id, path)
 );
 
--- Custom per-team model pricing overrides (falls back to hardcoded defaults in lib/team/stats.ts)
+-- Custom global and per-team model pricing overrides (falls back to hardcoded defaults in lib/team/stats.ts)
 CREATE TABLE IF NOT EXISTS model_pricing (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  team_id               UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  team_id               UUID REFERENCES teams(id) ON DELETE CASCADE,
   model_pattern         TEXT NOT NULL,
   cost_in_per_m         DOUBLE PRECISION NOT NULL DEFAULT 0,
   cost_out_per_m        DOUBLE PRECISION NOT NULL DEFAULT 0,
   cost_cache_read_per_m DOUBLE PRECISION NOT NULL DEFAULT 0,
-  created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (team_id, model_pattern)
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_model_pricing_global_unique ON model_pricing (LOWER(model_pattern)) WHERE team_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_model_pricing_team_unique ON model_pricing (team_id, LOWER(model_pattern)) WHERE team_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS ingest_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

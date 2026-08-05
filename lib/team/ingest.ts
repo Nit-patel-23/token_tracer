@@ -51,11 +51,12 @@ export async function ingestSessions(
     return { accepted: 0, total: 0 };
   }
 
-  // 1. Fetch custom pricing rules for this member's teams once at the start of ingestion
+  // 1. Fetch custom pricing rules (team-specific overrides first, then global overrides)
   const { rows: customRules } = await query(
     `SELECT model_pattern, cost_in_per_m, cost_out_per_m, cost_cache_read_per_m
      FROM model_pricing
-     WHERE team_id = $1 OR team_id IN (SELECT team_id FROM team_members WHERE member_id = $2)`,
+     WHERE team_id = $1 OR team_id IN (SELECT team_id FROM team_members WHERE member_id = $2) OR team_id IS NULL
+     ORDER BY (team_id IS NOT NULL) DESC`,
     [member.team_id || null, member.member_id],
   );
 

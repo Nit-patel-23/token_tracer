@@ -82,11 +82,16 @@ export async function POST(req: NextRequest) {
     // Ensure sync_requested_at exists on members
     await query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS sync_requested_at TIMESTAMPTZ`).catch(() => {});
 
-    // Alter tables to allow nullable team_id for independent personal dashboards
+    // Alter tables to allow nullable team_id for independent personal dashboards & global pricing rules
     await query(`ALTER TABLE members ALTER COLUMN team_id DROP NOT NULL`).catch(() => {});
     await query(`ALTER TABLE sync_sessions ALTER COLUMN team_id DROP NOT NULL`).catch(() => {});
+    await query(`ALTER TABLE model_pricing ALTER COLUMN team_id DROP NOT NULL`).catch(() => {});
 
-    return NextResponse.json({ ok: true, message: 'Migration complete. Users table and multi-team memberships are ready.' });
+    // Unique indexes for global and team-specific model pricing
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_model_pricing_global_unique ON model_pricing (LOWER(model_pattern)) WHERE team_id IS NULL`).catch(() => {});
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_model_pricing_team_unique ON model_pricing (team_id, LOWER(model_pattern)) WHERE team_id IS NOT NULL`).catch(() => {});
+
+    return NextResponse.json({ ok: true, message: 'Migration complete. Users table, multi-team memberships, and global pricing are ready.' });
   } catch (err) {
     console.error('[admin/migrate error]', err);
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
