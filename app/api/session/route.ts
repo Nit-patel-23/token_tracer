@@ -19,12 +19,17 @@ export async function GET(req: NextRequest) {
   }
 
   if (appSession.role !== 'user') {
-    return NextResponse.json({ error: 'personal dashboard is for regular users only' }, { status: 403 });
+    return NextResponse.json(
+      { error: 'personal dashboard is for regular users only' },
+      { status: 403 },
+    );
   }
 
   let memberId = appSession.memberId;
   try {
-    const { rows: userRows } = await query('SELECT member_id FROM users WHERE id = $1', [appSession.userId]);
+    const { rows: userRows } = await query('SELECT member_id FROM users WHERE id = $1', [
+      appSession.userId,
+    ]);
     if (userRows[0]?.member_id) {
       memberId = userRows[0].member_id;
     }
@@ -33,7 +38,10 @@ export async function GET(req: NextRequest) {
   }
 
   if (!memberId) {
-    return NextResponse.json({ error: 'user account is not linked to any member profile' }, { status: 403 });
+    return NextResponse.json(
+      { error: 'user account is not linked to any member profile' },
+      { status: 403 },
+    );
   }
 
   try {
@@ -48,7 +56,7 @@ export async function GET(req: NextRequest) {
         const { scanSessions } = await import('@/lib/scan.mjs');
         const { sessionSummary } = await import('@/lib/analytics.mjs');
         const pricingData = (await import('@/lib/pricing.json')).default;
-        
+
         const { byId } = scanSessions({});
         const localSession = byId.get(sessionId);
         if (localSession) {
@@ -60,33 +68,44 @@ export async function GET(req: NextRequest) {
     }
 
     // Look up by session_id OR the UUID id column, scoped to this member
-    const { rows: [row] } = await query(`
+    const {
+      rows: [row],
+    } = await query(
+      `
       SELECT s.*
       FROM sync_sessions s
       WHERE s.member_id = $1
         AND (lower(s.session_id) = $2 OR lower(s.id::text) = $2)
       LIMIT 1
-    `, [memberId, sessionId]);
+    `,
+      [memberId, sessionId],
+    );
 
     if (!row) {
       return NextResponse.json({ error: 'session not found' }, { status: 404 });
     }
 
     // Fetch tool breakdown
-    const { rows: tools } = await query(`
+    const { rows: tools } = await query(
+      `
       SELECT tool_name, call_count
       FROM sync_session_tools
       WHERE sync_session_id = $1
       ORDER BY call_count DESC
-    `, [row.id]);
+    `,
+      [row.id],
+    );
 
     // Fetch file breakdown
-    const { rows: files } = await query(`
+    const { rows: files } = await query(
+      `
       SELECT path, edits, additions, deletions
       FROM sync_session_files
       WHERE sync_session_id = $1
       ORDER BY edits DESC
-    `, [row.id]);
+    `,
+      [row.id],
+    );
 
     return NextResponse.json({
       id: row.session_id || row.id,

@@ -44,22 +44,13 @@ export async function POST(req: NextRequest) {
     if (!memberId) return NextResponse.json({ error: 'memberId required' }, { status: 400 });
 
     // 1. Update the member's team_id
-    await query(
-      'UPDATE members SET team_id = $1 WHERE id = $2',
-      [teamId, memberId],
-    );
+    await query('UPDATE members SET team_id = $1 WHERE id = $2', [teamId, memberId]);
 
     // 2. Update their existing sync sessions to belong to the new team
-    await query(
-      'UPDATE sync_sessions SET team_id = $1 WHERE member_id = $2',
-      [teamId, memberId],
-    );
+    await query('UPDATE sync_sessions SET team_id = $1 WHERE member_id = $2', [teamId, memberId]);
 
     // 3. Update their ingest events to belong to the new team
-    await query(
-      'UPDATE ingest_events SET team_id = $1 WHERE member_id = $2',
-      [teamId, memberId],
-    );
+    await query('UPDATE ingest_events SET team_id = $1 WHERE member_id = $2', [teamId, memberId]);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

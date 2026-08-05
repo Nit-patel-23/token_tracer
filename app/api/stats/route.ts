@@ -19,12 +19,17 @@ export async function GET(req: NextRequest) {
   }
 
   if (session.role !== 'user') {
-    return NextResponse.json({ error: 'personal stats are for regular users only' }, { status: 403 });
+    return NextResponse.json(
+      { error: 'personal stats are for regular users only' },
+      { status: 403 },
+    );
   }
 
   let memberId = session.memberId;
   try {
-    const { rows: userRows } = await query('SELECT member_id FROM users WHERE id = $1', [session.userId]);
+    const { rows: userRows } = await query('SELECT member_id FROM users WHERE id = $1', [
+      session.userId,
+    ]);
     if (userRows[0]?.member_id) {
       memberId = userRows[0].member_id;
     }
@@ -33,7 +38,10 @@ export async function GET(req: NextRequest) {
   }
 
   if (!memberId) {
-    return NextResponse.json({ error: 'user account is not linked to any member profile' }, { status: 403 });
+    return NextResponse.json(
+      { error: 'user account is not linked to any member profile' },
+      { status: 403 },
+    );
   }
 
   try {
@@ -43,7 +51,11 @@ export async function GET(req: NextRequest) {
     const all = allParam === '1' || allParam === 'true';
     let from = normalizeDateParam(url.searchParams.get('from'));
     let to = normalizeDateParam(url.searchParams.get('to'));
-    if (from && to && from > to) { const tmp = from; from = to; to = tmp; }
+    if (from && to && from > to) {
+      const tmp = from;
+      from = to;
+      to = tmp;
+    }
     const useAll = all || (!from && !to);
 
     // If running locally, check if local sessions exist
@@ -52,7 +64,7 @@ export async function GET(req: NextRequest) {
         const { scanSessions } = await import('@/lib/scan.mjs');
         const { buildStats } = await import('@/lib/analytics.mjs');
         const pricingData = (await import('@/lib/pricing.json')).default;
-        
+
         const { sessions: localSessions } = scanSessions({ sources: src ? [src] : null });
         if (localSessions.length > 0) {
           let filtered = localSessions;
@@ -65,7 +77,11 @@ export async function GET(req: NextRequest) {
               return true;
             });
           }
-          const localStats = buildStats(filtered, { from: from || undefined, to: to || undefined, pricing: pricingData });
+          const localStats = buildStats(filtered, {
+            from: from || undefined,
+            to: to || undefined,
+            pricing: pricingData,
+          });
           return NextResponse.json(localStats);
         }
       } catch (err) {
@@ -76,13 +92,25 @@ export async function GET(req: NextRequest) {
     const params: unknown[] = [memberId];
     let dateFilter = '';
     if (!useAll) {
-      if (from) { params.push(from); dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date >= $${params.length}::date`; }
-      if (to)   { params.push(to);   dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date <= $${params.length}::date`; }
+      if (from) {
+        params.push(from);
+        dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date >= $${params.length}::date`;
+      }
+      if (to) {
+        params.push(to);
+        dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date <= $${params.length}::date`;
+      }
     }
-    if (src && src !== 'all') { params.push(src); dateFilter += ` AND s.source = $${params.length}`; }
+    if (src && src !== 'all') {
+      params.push(src);
+      dateFilter += ` AND s.source = $${params.length}`;
+    }
 
     // Totals
-    const { rows: [totals] } = await query(`
+    const {
+      rows: [totals],
+    } = await query(
+      `
       SELECT
         count(*)::int AS sessions,
         coalesce(sum(s.tokens_in), 0)::bigint AS tokens_in,
@@ -101,10 +129,13 @@ export async function GET(req: NextRequest) {
         coalesce(sum(CASE WHEN s.abandoned THEN 1 ELSE 0 END), 0)::int AS abandoned
       FROM sync_sessions s
       WHERE s.member_id = $1 ${dateFilter}
-    `, params);
+    `,
+      params,
+    );
 
     // Per-day breakdown
-    const { rows: perDay } = await query(`
+    const { rows: perDay } = await query(
+      `
       SELECT
         COALESCE(s.ended_at, s.started_at, s.synced_at)::date AS date,
         count(*)::int AS sessions,
@@ -114,10 +145,13 @@ export async function GET(req: NextRequest) {
       FROM sync_sessions s
       WHERE s.member_id = $1 ${dateFilter}
       GROUP BY 1 ORDER BY 1
-    `, params);
+    `,
+      params,
+    );
 
     // Per-source breakdown
-    const { rows: perSource } = await query(`
+    const { rows: perSource } = await query(
+      `
       SELECT
         s.source,
         count(*)::int AS sessions,
@@ -127,10 +161,13 @@ export async function GET(req: NextRequest) {
       FROM sync_sessions s
       WHERE s.member_id = $1 ${dateFilter}
       GROUP BY s.source ORDER BY tokens DESC
-    `, params);
+    `,
+      params,
+    );
 
     // Per-model breakdown
-    const { rows: perModel } = await query(`
+    const { rows: perModel } = await query(
+      `
       SELECT
         s.model,
         count(*)::int AS sessions,
@@ -139,16 +176,21 @@ export async function GET(req: NextRequest) {
       FROM sync_sessions s
       WHERE s.member_id = $1 ${dateFilter} AND s.model IS NOT NULL
       GROUP BY s.model ORDER BY tokens DESC LIMIT 20
-    `, params);
+    `,
+      params,
+    );
 
     // Top tools
-    const { rows: topTools } = await query(`
+    const { rows: topTools } = await query(
+      `
       SELECT t.tool_name, sum(t.call_count)::int AS total_calls
       FROM sync_session_tools t
       JOIN sync_sessions s ON s.id = t.sync_session_id
       WHERE s.member_id = $1 ${dateFilter}
       GROUP BY t.tool_name ORDER BY total_calls DESC LIMIT 20
-    `, params);
+    `,
+      params,
+    );
 
     const workflow = {
       reworkLoops: totals?.rework_loops ?? 0,

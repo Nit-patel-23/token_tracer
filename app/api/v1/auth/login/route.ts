@@ -5,14 +5,21 @@ import { adminPassword } from '@/lib/team/env';
 export const dynamic = 'force-dynamic';
 
 function isVercel(req: NextRequest): boolean {
-  return req.headers.get('x-forwarded-proto') === 'https' || process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+  return (
+    req.headers.get('x-forwarded-proto') === 'https' ||
+    process.env.VERCEL === '1' ||
+    process.env.NODE_ENV === 'production'
+  );
 }
 
 export async function POST(req: NextRequest) {
   try {
     const pwd = adminPassword();
     if (!pwd) {
-      return NextResponse.json({ error: 'ADMIN_PASSWORD is not configured on the server' }, { status: 503 });
+      return NextResponse.json(
+        { error: 'ADMIN_PASSWORD is not configured on the server' },
+        { status: 503 },
+      );
     }
     let body: Record<string, unknown> = {};
     try {

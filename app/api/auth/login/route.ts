@@ -11,26 +11,35 @@ import crypto from 'node:crypto';
 import { adminPassword, superadminPassword } from '@/lib/team/env';
 import { verifyAdminPassword } from '@/lib/team/auth';
 import {
-  findUserByUsername, verifyPassword, touchLastLogin,
-  buildSessionCookie, type SessionPayload,
+  findUserByUsername,
+  verifyPassword,
+  touchLastLogin,
+  buildSessionCookie,
+  type SessionPayload,
 } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 function isSecure(req: NextRequest): boolean {
-  return process.env.VERCEL === '1' ||
+  return (
+    process.env.VERCEL === '1' ||
     req.headers.get('x-forwarded-proto') === 'https' ||
-    process.env.NODE_ENV === 'production';
+    process.env.NODE_ENV === 'production'
+  );
 }
 
 export async function POST(req: NextRequest) {
   try {
     let body: Record<string, unknown> = {};
-    try { body = await req.json(); } catch {
+    try {
+      body = await req.json();
+    } catch {
       return NextResponse.json({ error: 'invalid JSON' }, { status: 400 });
     }
 
-    const username = String(body.username ?? '').trim().toLowerCase();
+    const username = String(body.username ?? '')
+      .trim()
+      .toLowerCase();
     const password = String(body.password ?? '');
 
     if (!username || !password) {
@@ -43,7 +52,8 @@ export async function POST(req: NextRequest) {
     // ── Admin login ───────────────────────────────────────────────────────────
     if (username === 'team') {
       const pwd = adminPassword();
-      if (!pwd) return NextResponse.json({ error: 'Admin login is not configured' }, { status: 503 });
+      if (!pwd)
+        return NextResponse.json({ error: 'Admin login is not configured' }, { status: 503 });
       if (!verifyAdminPassword(password)) {
         return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
       }
@@ -64,7 +74,8 @@ export async function POST(req: NextRequest) {
     // ── Superadmin login ──────────────────────────────────────────────────────
     if (username === 'superadmin') {
       const pwd = superadminPassword();
-      if (!pwd) return NextResponse.json({ error: 'Superadmin login is not configured' }, { status: 503 });
+      if (!pwd)
+        return NextResponse.json({ error: 'Superadmin login is not configured' }, { status: 503 });
       const a = Buffer.from(password);
       const b = Buffer.from(pwd);
       const match = a.length === b.length && crypto.timingSafeEqual(a, b);

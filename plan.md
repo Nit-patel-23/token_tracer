@@ -1,4 +1,0 @@
-we right now do not have on thing that, when logined as admin, and their if we add a member their, then it should get reflected in the superadmin, and the member should get created there and it should be linked to that admin and that project, so that if i keep the admin same but change the project that member should not be shown, but a member who is of same admin but different project under ame admin should be shown. 
-
-
-we need to improve ui, like it must in such way that it looks good and with charts and as much interactive and clean and aesthatic ui as possible, use the /skill.md and try to implement things with it, create something good 

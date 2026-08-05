@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromCookie, hashPassword } from '@/lib/auth';
 import { generateApiKey, hashApiKey } from '@/lib/team/auth';
 import { query } from '@/lib/team/db';
+import { publicServerUrl } from '@/lib/team/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,8 @@ function requireSuperadmin(req: NextRequest): boolean {
 }
 
 export async function GET(req: NextRequest) {
-  if (!requireSuperadmin(req)) return NextResponse.json({ error: 'superadmin access required' }, { status: 403 });
+  if (!requireSuperadmin(req))
+    return NextResponse.json({ error: 'superadmin access required' }, { status: 403 });
 
   try {
     const { rows } = await query(`
@@ -61,11 +63,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!requireSuperadmin(req)) return NextResponse.json({ error: 'superadmin access required' }, { status: 403 });
+  if (!requireSuperadmin(req))
+    return NextResponse.json({ error: 'superadmin access required' }, { status: 403 });
 
   try {
     const body = await req.json();
-    const username = String(body.username || '').trim().toLowerCase();
+    const username = String(body.username || '')
+      .trim()
+      .toLowerCase();
     const password = String(body.password || '');
     const displayName = String(body.displayName || body.display_name || '').trim();
     const memberId = body.memberId || body.member_id || null;
@@ -74,7 +79,10 @@ export async function POST(req: NextRequest) {
     const newTeamName = String(body.newTeamName || '').trim();
 
     if (!username || !password || !displayName) {
-      return NextResponse.json({ error: 'username, password, and displayName are required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'username, password, and displayName are required' },
+        { status: 400 },
+      );
     }
     if (!['user', 'admin', 'superadmin'].includes(role)) {
       return NextResponse.json({ error: 'invalid role' }, { status: 400 });
@@ -87,16 +95,18 @@ export async function POST(req: NextRequest) {
     let apiKeyHash: string | null = null;
 
     if (role === 'user' && memberId === 'new') {
-      let teamRes = await query("SELECT id FROM teams WHERE name = 'Independent' LIMIT 1");
+      const teamRes = await query("SELECT id FROM teams WHERE name = 'Independent' LIMIT 1");
       let independentTeamId = teamRes.rows[0]?.id;
       if (!independentTeamId) {
-        const newTeamRes = await query("INSERT INTO teams (name) VALUES ('Independent') RETURNING id");
+        const newTeamRes = await query(
+          "INSERT INTO teams (name) VALUES ('Independent') RETURNING id",
+        );
         independentTeamId = newTeamRes.rows[0].id;
       }
 
       const memberRes = await query(
         "INSERT INTO members (team_id, display_name, role) VALUES ($1, $2, 'member') RETURNING id",
-        [independentTeamId, displayName]
+        [independentTeamId, displayName],
       );
       finalMemberId = memberRes.rows[0].id;
     }
@@ -115,22 +125,24 @@ export async function POST(req: NextRequest) {
 
     let finalTeamId = teamId;
     if (role === 'admin' && newTeamName) {
-      const { rows: teamRows } = await query(
-        'INSERT INTO teams (name) VALUES ($1) RETURNING id',
-        [newTeamName]
-      );
+      const { rows: teamRows } = await query('INSERT INTO teams (name) VALUES ($1) RETURNING id', [
+        newTeamName,
+      ]);
       finalTeamId = teamRows[0].id;
     } else if (role !== 'admin') {
       finalTeamId = null;
     }
 
-    const { rows } = await query(`
+    const { rows } = await query(
+      `
       INSERT INTO users (username, password_hash, display_name, member_id, team_id, role, api_key)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, username, display_name, role, member_id, team_id, active, created_at
-    `, [username, passwordHash, displayName, finalMemberId, finalTeamId, role, rawApiKey]);
+    `,
+      [username, passwordHash, displayName, finalMemberId, finalTeamId, role, rawApiKey],
+    );
 
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'https://token-tracer-three.vercel.app';
+    const serverUrl = publicServerUrl();
     let installCommandMac = null;
     let installCommandWin = null;
     if (rawApiKey) {
@@ -138,12 +150,15 @@ export async function POST(req: NextRequest) {
       installCommandWin = `$ApiKey="${rawApiKey}"; iex (irm ${serverUrl}/install.ps1)`;
     }
 
-    return NextResponse.json({
-      user: rows[0],
-      apiKey: rawApiKey,
-      installCommandMac,
-      installCommandWin
-    }, { status: 201 });
+    return NextResponse.json(
+      {
+        user: rows[0],
+        apiKey: rawApiKey,
+        installCommandMac,
+        installCommandWin,
+      },
+      { status: 201 },
+    );
   } catch (err: any) {
     if (err?.code === '23505') {
       return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
@@ -154,7 +169,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  if (!requireSuperadmin(req)) return NextResponse.json({ error: 'superadmin access required' }, { status: 403 });
+  if (!requireSuperadmin(req))
+    return NextResponse.json({ error: 'superadmin access required' }, { status: 403 });
 
   try {
     const body = await req.json();
@@ -164,10 +180,9 @@ export async function PUT(req: NextRequest) {
 
     let finalTeamId = teamId;
     if (role === 'admin' && newTeamName) {
-      const { rows: teamRows } = await query(
-        'INSERT INTO teams (name) VALUES ($1) RETURNING id',
-        [newTeamName]
-      );
+      const { rows: teamRows } = await query('INSERT INTO teams (name) VALUES ($1) RETURNING id', [
+        newTeamName,
+      ]);
       finalTeamId = teamRows[0].id;
     } else if (role !== 'admin' && role !== undefined) {
       // If changing role away from admin, remove team association
@@ -176,16 +191,18 @@ export async function PUT(req: NextRequest) {
 
     let finalMemberId = memberId;
     if (role === 'user' && memberId === 'new') {
-      let teamRes = await query("SELECT id FROM teams WHERE name = 'Independent' LIMIT 1");
+      const teamRes = await query("SELECT id FROM teams WHERE name = 'Independent' LIMIT 1");
       let independentTeamId = teamRes.rows[0]?.id;
       if (!independentTeamId) {
-        const newTeamRes = await query("INSERT INTO teams (name) VALUES ('Independent') RETURNING id");
+        const newTeamRes = await query(
+          "INSERT INTO teams (name) VALUES ('Independent') RETURNING id",
+        );
         independentTeamId = newTeamRes.rows[0].id;
       }
 
       const memberRes = await query(
         "INSERT INTO members (team_id, display_name, role) VALUES ($1, $2, 'member') RETURNING id",
-        [independentTeamId, displayName || 'Unnamed Member']
+        [independentTeamId, displayName || 'Unnamed Member'],
       );
       finalMemberId = memberRes.rows[0].id;
     }
@@ -209,7 +226,8 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    const { rows } = await query(`
+    const { rows } = await query(
+      `
       UPDATE users SET
         display_name = COALESCE($2, display_name),
         role         = COALESCE($3, role),
@@ -220,11 +238,21 @@ export async function PUT(req: NextRequest) {
         updated_at   = now()
       WHERE id = $1
       RETURNING id, username, display_name, role, active, member_id, team_id, updated_at
-    `, [id, displayName ?? null, role ?? null, active ?? null, finalMemberId ?? null, finalTeamId ?? null, rawApiKey]);
+    `,
+      [
+        id,
+        displayName ?? null,
+        role ?? null,
+        active ?? null,
+        finalMemberId ?? null,
+        finalTeamId ?? null,
+        rawApiKey,
+      ],
+    );
 
     if (!rows[0]) return NextResponse.json({ error: 'user not found' }, { status: 404 });
 
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'https://token-tracer-three.vercel.app';
+    const serverUrl = publicServerUrl();
     const effectiveApiKey = rawApiKey || existingApiKey || null;
     let installCommandMac = null;
     let installCommandWin = null;
@@ -237,7 +265,7 @@ export async function PUT(req: NextRequest) {
       user: rows[0],
       apiKey: effectiveApiKey,
       installCommandMac,
-      installCommandWin
+      installCommandWin,
     });
   } catch (err) {
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
@@ -245,7 +273,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  if (!requireSuperadmin(req)) return NextResponse.json({ error: 'superadmin access required' }, { status: 403 });
+  if (!requireSuperadmin(req))
+    return NextResponse.json({ error: 'superadmin access required' }, { status: 403 });
 
   const id = req.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });

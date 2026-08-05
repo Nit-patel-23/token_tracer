@@ -21,10 +21,18 @@ interface StatsOptions {
  */
 export async function buildTeamStats(
   teamId: string,
-  { from = null, to = null, memberId = null, minTokens = null, maxTokens = null, source = null }: StatsOptions = {},
+  {
+    from = null,
+    to = null,
+    memberId = null,
+    minTokens = null,
+    maxTokens = null,
+    source = null,
+  }: StatsOptions = {},
 ) {
   const params: unknown[] = [teamId];
   let dateFilter = '';
+  let memberFilter = '';
 
   if (from) {
     params.push(from);
@@ -36,7 +44,9 @@ export async function buildTeamStats(
   }
   if (memberId && memberId !== 'all') {
     params.push(memberId);
-    dateFilter += ` AND s.member_id = $${params.length}`;
+    const memberParam = `$${params.length}`;
+    dateFilter += ` AND s.member_id = ${memberParam}`;
+    memberFilter = ` AND m.id = ${memberParam}`;
   }
   if (source && source !== 'all') {
     params.push(source);
@@ -81,7 +91,7 @@ export async function buildTeamStats(
             coalesce(sum(CASE WHEN s.priced THEN 1 ELSE 0 END), 0)::int AS priced_sessions
      FROM members m
      LEFT JOIN sync_sessions s ON s.member_id = m.id AND s.team_id = m.team_id ${dateFilter}
-     WHERE m.team_id = $1 ${memberId && memberId !== 'all' ? `AND m.id = '${memberId}'` : ''}
+     WHERE m.team_id = $1${memberFilter}
      GROUP BY m.id, m.display_name
      ORDER BY api_cost DESC, edits DESC, sessions DESC`,
     params,
@@ -411,7 +421,14 @@ export async function buildTeamStats(
   );
 
   return {
-    window: { from: from ?? null, to: to ?? null, memberId: memberId ?? null, minTokens: minTokens ?? null, maxTokens: maxTokens ?? null, source: source ?? null },
+    window: {
+      from: from ?? null,
+      to: to ?? null,
+      memberId: memberId ?? null,
+      minTokens: minTokens ?? null,
+      maxTokens: maxTokens ?? null,
+      source: source ?? null,
+    },
     members,
     leaderboard: Array.from(memberMap.values()),
     tokenLeaderboard,
@@ -445,15 +462,21 @@ export async function createMemberWithKey(teamId: string, displayName: string, r
   );
   const member = memberRows[0];
   const apiKey = generateApiKey();
-  await query(
-    'INSERT INTO member_keys (member_id, key_hash, label) VALUES ($1, $2, $3)',
-    [member.id, hashApiKey(apiKey), 'default'],
-  );
+  await query('INSERT INTO member_keys (member_id, key_hash, label) VALUES ($1, $2, $3)', [
+    member.id,
+    hashApiKey(apiKey),
+    'default',
+  ]);
   return { member, apiKey };
 }
 
 /** Update a team member's display name or role. */
-export async function updateMember(memberId: string, teamId: string, displayName: string, role = 'member') {
+export async function updateMember(
+  memberId: string,
+  teamId: string,
+  displayName: string,
+  role = 'member',
+) {
   const { rows } = await query(
     'UPDATE members SET display_name = $1, role = $2 WHERE id = $3 AND team_id = $4 RETURNING id, display_name, role',
     [displayName, role, memberId, teamId],
@@ -463,19 +486,23 @@ export async function updateMember(memberId: string, teamId: string, displayName
 
 /** Delete a team member and all associated data. */
 export async function deleteMember(memberId: string, teamId: string) {
-  const { rowCount } = await query(
-    'DELETE FROM members WHERE id = $1 AND team_id = $2',
-    [memberId, teamId],
-  );
+  const { rowCount } = await query('DELETE FROM members WHERE id = $1 AND team_id = $2', [
+    memberId,
+    teamId,
+  ]);
   return { ok: true, deleted: (rowCount || 0) > 0 };
 }
 
 export function matchesModelPattern(modelName: string, pattern: string): boolean {
   const normModel = (modelName || '').toLowerCase().trim();
   const normPattern = (pattern || '').toLowerCase().trim();
-  if ((!normModel || normModel === 'default') && (!normPattern || normPattern === 'default')) return true;
+  if ((!normModel || normModel === 'default') && (!normPattern || normPattern === 'default'))
+    return true;
   if (!normPattern || !normModel) return false;
-  const subPatterns = normPattern.split(/[/,|,]/).map((p) => p.trim()).filter(Boolean);
+  const subPatterns = normPattern
+    .split(/[/,|,]/)
+    .map((p) => p.trim())
+    .filter(Boolean);
   return subPatterns.some((p) => {
     if (!p) return false;
     if (normModel.includes(p)) return true;
@@ -495,14 +522,49 @@ export async function recalculateTeamCosts(teamId: string, forceAll: boolean = f
   );
 
   const defaultRules = [
-    { model_pattern: 'claude-3-7-sonnet', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
-    { model_pattern: 'claude-3-5-sonnet', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
-    { model_pattern: 'claude-3-5-haiku', cost_in_per_m: 0.8, cost_out_per_m: 4.0, cost_cache_read_per_m: 0.08 },
-    { model_pattern: 'gpt-4o', cost_in_per_m: 2.5, cost_out_per_m: 10.0, cost_cache_read_per_m: 1.25 },
+    {
+      model_pattern: 'claude-3-7-sonnet',
+      cost_in_per_m: 3.0,
+      cost_out_per_m: 15.0,
+      cost_cache_read_per_m: 0.3,
+    },
+    {
+      model_pattern: 'claude-3-5-sonnet',
+      cost_in_per_m: 3.0,
+      cost_out_per_m: 15.0,
+      cost_cache_read_per_m: 0.3,
+    },
+    {
+      model_pattern: 'claude-3-5-haiku',
+      cost_in_per_m: 0.8,
+      cost_out_per_m: 4.0,
+      cost_cache_read_per_m: 0.08,
+    },
+    {
+      model_pattern: 'gpt-4o',
+      cost_in_per_m: 2.5,
+      cost_out_per_m: 10.0,
+      cost_cache_read_per_m: 1.25,
+    },
     { model_pattern: 'o1', cost_in_per_m: 15.0, cost_out_per_m: 60.0, cost_cache_read_per_m: 7.5 },
-    { model_pattern: 'o3-mini', cost_in_per_m: 1.1, cost_out_per_m: 4.4, cost_cache_read_per_m: 0.55 },
-    { model_pattern: 'deepseek-r1', cost_in_per_m: 0.55, cost_out_per_m: 2.19, cost_cache_read_per_m: 0.14 },
-    { model_pattern: 'deepseek-v3', cost_in_per_m: 0.14, cost_out_per_m: 0.28, cost_cache_read_per_m: 0.014 },
+    {
+      model_pattern: 'o3-mini',
+      cost_in_per_m: 1.1,
+      cost_out_per_m: 4.4,
+      cost_cache_read_per_m: 0.55,
+    },
+    {
+      model_pattern: 'deepseek-r1',
+      cost_in_per_m: 0.55,
+      cost_out_per_m: 2.19,
+      cost_cache_read_per_m: 0.14,
+    },
+    {
+      model_pattern: 'deepseek-v3',
+      cost_in_per_m: 0.14,
+      cost_out_per_m: 0.28,
+      cost_cache_read_per_m: 0.014,
+    },
     { model_pattern: '', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
   ];
 
@@ -518,7 +580,9 @@ export async function recalculateTeamCosts(teamId: string, forceAll: boolean = f
   let updatedCount = 0;
   for (const s of sessions) {
     const modelName = (s.model || '').toLowerCase();
-    const rule = allRules.find((r) => r.model_pattern && matchesModelPattern(modelName, r.model_pattern)) || defaultRules[defaultRules.length - 1];
+    const rule =
+      allRules.find((r) => r.model_pattern && matchesModelPattern(modelName, r.model_pattern)) ||
+      defaultRules[defaultRules.length - 1];
 
     let tokensIn = Number(s.tokens_in || 0);
     let tokensOut = Number(s.tokens_out || 0);
@@ -532,7 +596,11 @@ export async function recalculateTeamCosts(teamId: string, forceAll: boolean = f
     if (tokensIn === 0 && tokensOut === 0 && (edits > 0 || toolCalls > 0 || changedLines > 0)) {
       tokensIn = Math.max(500, (toolCalls + edits) * 350 + changedLines * 10);
       tokensOut = Math.max(200, (toolCalls + edits) * 150 + changedLines * 5);
-      await query('UPDATE sync_sessions SET tokens_in = $1, tokens_out = $2 WHERE id = $3', [tokensIn, tokensOut, s.id]);
+      await query('UPDATE sync_sessions SET tokens_in = $1, tokens_out = $2 WHERE id = $3', [
+        tokensIn,
+        tokensOut,
+        s.id,
+      ]);
     }
 
     const freshInput = Math.max(0, tokensIn - tokensCacheRead - tokensCacheWrite);
@@ -541,12 +609,15 @@ export async function recalculateTeamCosts(teamId: string, forceAll: boolean = f
       (freshInput / 1_000_000) * Number(rule.cost_in_per_m || 0) +
       (tokensOut / 1_000_000) * Number(rule.cost_out_per_m || 0) +
       (tokensCacheRead / 1_000_000) * Number(rule.cost_cache_read_per_m || 0) +
-      (tokensCacheWrite / 1_000_000) * Number(((rule as any).cost_cache_write_per_m ?? rule.cost_in_per_m) || 0);
+      (tokensCacheWrite / 1_000_000) *
+        Number(((rule as any).cost_cache_write_per_m ?? rule.cost_in_per_m) || 0);
 
-    await query('UPDATE sync_sessions SET api_cost = $1, priced = true WHERE id = $2', [cost, s.id]);
+    await query('UPDATE sync_sessions SET api_cost = $1, priced = true WHERE id = $2', [
+      cost,
+      s.id,
+    ]);
     updatedCount++;
   }
 
   return { updatedCount, totalSessions: sessions.length };
 }
-

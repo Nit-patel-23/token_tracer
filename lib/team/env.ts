@@ -3,7 +3,7 @@ import path from 'node:path';
 
 let loaded = false;
 
-/** Fallback loader for .env.local and .env files */
+/** Fallback loader for .env.local and .env files (useful outside Next runtime). */
 export function loadEnv() {
   if (loaded) return;
   loaded = true;
@@ -19,7 +19,10 @@ export function loadEnv() {
         if (eq <= 0) continue;
         const key = trimmed.slice(0, eq).trim();
         let val = trimmed.slice(eq + 1).trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        ) {
           val = val.slice(1, -1);
         }
         if (!val) continue;
@@ -28,9 +31,14 @@ export function loadEnv() {
         }
       }
     } catch {
-      // ignore
+      // ignore missing files
     }
   }
+}
+
+export function isProduction(): boolean {
+  loadEnv();
+  return process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
 }
 
 export function databaseUrl(): string | null {
@@ -54,7 +62,27 @@ export function superadminPassword(): string | null {
   return process.env.SUPERADMIN_PASSWORD || null;
 }
 
+/**
+ * Session signing secret.
+ * In production this MUST be set — never fall back to ADMIN_PASSWORD or a default.
+ */
 export function sessionSecret(): string {
   loadEnv();
-  return process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'dev-insecure-change-me';
+  const secret = process.env.SESSION_SECRET?.trim();
+  if (secret) return secret;
+
+  if (isProduction()) {
+    throw new Error(
+      'SESSION_SECRET is required in production. Generate one with: openssl rand -base64 48',
+    );
+  }
+
+  // Local/dev convenience only — never used when NODE_ENV=production or on Vercel.
+  return process.env.ADMIN_PASSWORD || 'dev-insecure-change-me';
+}
+
+/** Public origin used in install commands and onboarding copy. */
+export function publicServerUrl(): string {
+  loadEnv();
+  return process.env.NEXT_PUBLIC_SERVER_URL || process.env.SERVER_URL || 'http://localhost:3000';
 }

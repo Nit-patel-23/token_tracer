@@ -162,9 +162,18 @@ function showDashboardShell() {
   document.getElementById('app').hidden = false;
 }
 
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /** Consistent, reusable "nothing to show" placeholder for any panel/table. */
 function emptyState(message) {
-  return `<div class="table-empty"><span class="table-empty-icon" aria-hidden="true">\u25CC</span><p>${message}</p></div>`;
+  return `<div class="table-empty"><span class="table-empty-icon" aria-hidden="true">\u25CC</span><p>${esc(message)}</p></div>`;
 }
 
 function fmt(n) {
@@ -245,7 +254,7 @@ function renderBars(containerId, rows, labelKey, valueKey) {
   const max = Math.max(...rows.map((r) => r[valueKey]), 1);
   el.innerHTML = rows.map((r) => `
     <div class="bar-row">
-      <span class="name">${r[labelKey]}</span>
+      <span class="name">${esc(r[labelKey])}</span>
       <div class="track"><div class="fill" style="width:${Math.round((r[valueKey] / max) * 100)}%"></div></div>
       <span class="val">${fmt(r[valueKey])}</span>
     </div>`).join('');
@@ -271,7 +280,7 @@ function renderLeaderboard(rows) {
   el.innerHTML = `<table><thead><tr>
     <th>Member</th><th>Sessions</th><th>Input Tokens</th><th>Output Tokens</th><th>Edits</th><th>Lines Diff</th><th>Est. Cost</th>
   </tr></thead><tbody>${rows.map((r) => `<tr>
-    <td><strong>👤 ${r.display_name}</strong></td>
+    <td><strong>👤 ${esc(r.display_name)}</strong></td>
     <td>${fmt(r.sessions)}</td>
     <td>${fmt(r.tokens_in)}</td>
     <td>${fmt(r.tokens_out)}</td>
@@ -291,7 +300,7 @@ function renderTokenLeaderboard(rows) {
     <th>Rank</th><th>Member</th><th>Total Tokens</th><th>Team Share</th><th>Input Tokens</th><th>Output Tokens</th><th>Cache Read</th><th>Est. API Cost</th>
   </tr></thead><tbody>${rows.map((r, i) => `<tr>
     <td><strong>#${i + 1}</strong></td>
-    <td><strong>👤 ${r.display_name}</strong></td>
+    <td><strong>👤 ${esc(r.display_name)}</strong></td>
     <td><strong>${fmt(r.total_tokens)}</strong></td>
     <td>
       <div class="bar-row" style="margin:0">
@@ -313,7 +322,7 @@ function renderHeadToHead(rows) {
   el.innerHTML = `<table><thead><tr>
     <th>Member</th><th>Edits / Session</th><th>Tokens / Edit</th><th>Tool Error Rate</th><th>Cache Efficiency</th><th>Cost / Edit</th><th>Cost / 100 Lines</th>
   </tr></thead><tbody>${rows.map((r) => `<tr>
-    <td><strong>👤 ${r.display_name}</strong></td>
+    <td><strong>👤 ${esc(r.display_name)}</strong></td>
     <td>${r.editsPerSession.toFixed(2)}</td>
     <td>${fmt(r.outputTokensPerEdit)}</td>
     <td>${fmtPct(r.toolErrorRate)}</td>
@@ -330,7 +339,7 @@ function renderMemberDrilldown(membersData) {
 
   if (select && select.children.length <= 1) {
     select.innerHTML = '<option value="all">All Members</option>' +
-      membersData.map((m) => `<option value="${m.member_id}">${m.display_name}</option>`).join('');
+      membersData.map((m) => `<option value="${m.member_id}">${esc(m.display_name)}</option>`).join('');
     select.onchange = () => renderMemberDrilldown(membersData);
   }
 
@@ -346,7 +355,7 @@ function renderMemberDrilldown(membersData) {
     const sourcesHtml = m.sources?.length
       ? m.sources.map((s) => `
         <div class="bar-row">
-          <span class="name"><span class="source-tag">${s.source}</span></span>
+          <span class="name"><span class="source-tag">${esc(s.source)}</span></span>
           <div class="track"><div class="fill" style="width:${Math.min(100, (s.tokens_in / Math.max(1, m.tokens_in)) * 100)}%"></div></div>
           <span class="val">${fmt(s.tokens_in)} in / ${fmtCost(s.api_cost)}</span>
         </div>`).join('')
@@ -355,8 +364,8 @@ function renderMemberDrilldown(membersData) {
     const projectsHtml = m.projects?.length
       ? `<div class="table-wrap"><table><thead><tr><th>Project / Workspace</th><th>Source</th><th>Sessions</th><th>Tokens</th><th>Cost</th></tr></thead><tbody>` +
         m.projects.map((p) => `<tr>
-          <td><strong>📁 ${cleanProjectName(p.project)}</strong></td>
-          <td><span class="source-tag">${p.source}</span></td>
+          <td><strong>📁 ${esc(cleanProjectName(p.project))}</strong></td>
+          <td><span class="source-tag">${esc(p.source)}</span></td>
           <td>${fmt(p.sessions)}</td>
           <td>${fmt(p.tokens_in)} in</td>
           <td>${fmtCost(p.api_cost)}</td>
@@ -366,8 +375,8 @@ function renderMemberDrilldown(membersData) {
     const modelsHtml = m.models?.length
       ? `<div class="table-wrap"><table><thead><tr><th>LLM Model Used</th><th>Source</th><th>Sessions</th><th>Tokens (In/Out)</th><th>Est. Cost</th></tr></thead><tbody>` +
         m.models.map((mod) => `<tr>
-          <td><strong>🤖 <code>${mod.model}</code></strong></td>
-          <td><span class="source-tag">${mod.source}</span></td>
+          <td><strong>🤖 <code>${esc(mod.model)}</code></strong></td>
+          <td><span class="source-tag">${esc(mod.source)}</span></td>
           <td>${fmt(mod.sessions)}</td>
           <td>${fmt(mod.tokens_in)} / ${fmt(mod.tokens_out)}</td>
           <td><strong>${fmtCost(mod.api_cost)}</strong></td>
@@ -377,7 +386,7 @@ function renderMemberDrilldown(membersData) {
     const filesHtml = m.topFiles?.length
       ? `<div class="table-wrap"><table><thead><tr><th>File Path</th><th>Edits</th><th>Diff (+ / −)</th></tr></thead><tbody>` +
         m.topFiles.map((f) => `<tr>
-          <td><code>${f.path}</code></td>
+          <td><code>${esc(f.path)}</code></td>
           <td>${fmt(f.edits)}</td>
           <td><span class="diff-add">+${fmt(f.additions)}</span> <span class="diff-del">−${fmt(f.deletions)}</span></td>
         </tr>`).join('') + `</tbody></table></div>`
@@ -387,7 +396,7 @@ function renderMemberDrilldown(membersData) {
       <details class="member-card" open id="member-card-${m.member_id}">
         <summary class="member-header">
           <div style="display:flex; align-items:center; gap:10px;">
-            <h3 style="margin:0;">👤 ${m.display_name}</h3>
+            <h3 style="margin:0;">👤 ${esc(m.display_name)}</h3>
             <span class="source-tag">${fmt(m.sessions)} sessions</span>
             <span class="source-tag">${fmt(Number(m.tokens_in || 0) + Number(m.tokens_out || 0))} tokens</span>
           </div>
@@ -418,11 +427,11 @@ function renderMemberDrilldown(membersData) {
           </div>
           <div style="margin-top: 14px;" class="member-sections">
             <div class="member-subpanel">
-              <h4>LLM Models Used by ${m.display_name}</h4>
+              <h4>LLM Models Used by ${esc(m.display_name)}</h4>
               ${modelsHtml}
             </div>
             <div class="member-subpanel">
-              <h4>Top Modified Files by ${m.display_name}</h4>
+              <h4>Top Modified Files by ${esc(m.display_name)}</h4>
               ${filesHtml}
             </div>
           </div>
@@ -441,9 +450,9 @@ function renderProjects(projectsData) {
   el.innerHTML = `<table><thead><tr>
     <th>Project / Workspace Name</th><th>Contributors</th><th>AI Sources</th><th>Sessions</th><th>Input Tokens</th><th>Output Tokens</th><th>Lines Changed</th><th>Total API Cost</th>
   </tr></thead><tbody>${projectsData.map((p) => {
-    const memberNames = p.members?.map((m) => m.display_name).join(', ') || '—';
+    const memberNames = p.members?.map((m) => esc(m.display_name)).join(', ') || '—';
     return `<tr>
-      <td><strong>📁 ${cleanProjectName(p.project)}</strong> <br/><small class="muted">${p.project}</small></td>
+      <td><strong>📁 ${esc(cleanProjectName(p.project))}</strong> <br/><small class="muted">${esc(p.project)}</small></td>
       <td>${memberNames}</td>
       <td><span class="source-tag">${p.source_count || 1} sources</span></td>
       <td>${fmt(p.sessions)}</td>
@@ -465,7 +474,7 @@ function renderTopFiles(filesData) {
   el.innerHTML = `<table><thead><tr>
     <th>Codebase File Path</th><th>Edits</th><th>Lines Added</th><th>Lines Removed</th><th>Total Diff</th><th>Contributors</th>
   </tr></thead><tbody>${filesData.map((f) => `<tr>
-    <td><code>${f.path}</code></td>
+    <td><code>${esc(f.path)}</code></td>
     <td>${fmt(f.edits)}</td>
     <td><span class="diff-add">+${fmt(f.additions || 0)}</span></td>
     <td><span class="diff-del">−${fmt(f.deletions || 0)}</span></td>
@@ -485,10 +494,10 @@ function renderSessionLogs(logs) {
     <th>Timestamp</th><th>Member</th><th>Project</th><th>Source / Agent</th><th>Model</th><th>Tokens (In/Out)</th><th>Cost</th>
   </tr></thead><tbody>${logs.map((l) => `<tr>
     <td>${fmtDate(l.timestamp)}</td>
-    <td><strong>👤 ${l.member_name}</strong></td>
-    <td><code>${cleanProjectName(l.project)}</code></td>
-    <td><span class="source-tag">${l.source}</span></td>
-    <td>${l.model || '—'}</td>
+    <td><strong>👤 ${esc(l.member_name)}</strong></td>
+    <td><code>${esc(cleanProjectName(l.project))}</code></td>
+    <td><span class="source-tag">${esc(l.source)}</span></td>
+    <td>${esc(l.model || '—')}</td>
     <td>${fmt(l.tokens_in)} / ${fmt(l.tokens_out)}</td>
     <td><strong>${fmtCost(l.api_cost)}</strong></td>
   </tr>`).join('')}</tbody></table>`;
@@ -511,7 +520,7 @@ function renderModelPricingTable(pricingList) {
   el.innerHTML = `<table><thead><tr>
     <th>Model Pattern / Name</th><th>Input Cost ($/1M)</th><th>Output Cost ($/1M)</th><th>Cache-Read Cost ($/1M)</th><th>Type</th><th>Actions</th>
   </tr></thead><tbody>${displayRows.map((p) => `<tr>
-    <td><strong><code>${p.model_pattern}</code></strong></td>
+    <td><strong><code>${esc(p.model_pattern)}</code></strong></td>
     <td>$${Number(p.cost_in_per_m).toFixed(2)} / 1M</td>
     <td>$${Number(p.cost_out_per_m).toFixed(2)} / 1M</td>
     <td>$${Number(p.cost_cache_read_per_m).toFixed(2)} / 1M</td>
@@ -532,9 +541,9 @@ function renderMemberModelsTable(memberModels) {
   el.innerHTML = `<table><thead><tr>
     <th>Member Name</th><th>LLM Model Used</th><th>Agent Source</th><th>Sessions</th><th>Input Tokens</th><th>Output Tokens</th><th>Estimated API Cost</th>
   </tr></thead><tbody>${memberModels.map((m) => `<tr>
-    <td><strong>👤 ${m.member_name}</strong></td>
-    <td>🤖 <code>${m.model}</code></td>
-    <td><span class="source-tag">${m.source}</span></td>
+    <td><strong>👤 ${esc(m.member_name)}</strong></td>
+    <td>🤖 <code>${esc(m.model)}</code></td>
+    <td><span class="source-tag">${esc(m.source)}</span></td>
     <td>${fmt(m.sessions)}</td>
     <td>${fmt(m.tokens_in)}</td>
     <td>${fmt(m.tokens_out)}</td>
@@ -562,7 +571,7 @@ function renderMembersTable(rows) {
   if (select && rows?.length) {
     const currentVal = select.value;
     select.innerHTML = '<option value="all">All Members</option>' +
-      rows.map((m) => `<option value="${m.id}">${m.display_name}</option>`).join('');
+      rows.map((m) => `<option value="${m.id}">${esc(m.display_name)}</option>`).join('');
     if (currentVal && rows.some((m) => m.id === currentVal)) select.value = currentVal;
   }
 
@@ -578,8 +587,8 @@ function renderMembersTable(rows) {
       const installCmd = `curl -fsSL ${host}/install.sh | bash -s -- --key ${m.api_key || 'av_live_YOUR_KEY'}`;
       const winInstallCmd = `$ApiKey="${m.api_key || 'av_live_YOUR_KEY'}"; iex (irm ${host}/install.ps1)`;
       return `<tr>
-        <td><strong>👤 ${m.display_name}</strong></td>
-        <td><span class="source-tag">${m.role}</span></td>
+        <td><strong>👤 ${esc(m.display_name)}</strong></td>
+        <td><span class="source-tag">${esc(m.role)}</span></td>
         <td>${fmt(m.session_count || 0)}</td>
         <td>${fmt(m.total_tokens || 0)}</td>
         <td><strong>${fmtCost(m.total_cost || 0)}</strong></td>
@@ -588,7 +597,7 @@ function renderMembersTable(rows) {
           <button type="button" class="hbtn" style="border-color:var(--brand);color:var(--brand-hi);" onclick="triggerMemberSync('${m.id}', '${encodeURIComponent(m.display_name)}')">⚡ Trigger Sync</button>
           <button type="button" class="hbtn primary" onclick="copyInstallCmd('${encodeURIComponent(installCmd)}', 'Mac')">📋 Mac Cmd</button>
           <button type="button" class="hbtn primary" onclick="copyInstallCmd('${encodeURIComponent(winInstallCmd)}', 'Windows')">📋 Win Cmd</button>
-          <button type="button" class="hbtn" onclick="openEditMember('${m.id}', '${encodeURIComponent(m.display_name)}', '${m.role}')">✏️ Edit</button>
+          <button type="button" class="hbtn" onclick="openEditMember('${m.id}', '${encodeURIComponent(m.display_name)}', '${esc(m.role)}')">✏️ Edit</button>
           <button type="button" class="hbtn" style="color:#ee5555" onclick="confirmDeleteMember('${m.id}', '${encodeURIComponent(m.display_name)}')">🗑️ Delete</button>
         </td>
       </tr>`;
@@ -670,7 +679,7 @@ async function loadTeams() {
   teams = list;
   const sel = document.getElementById('team-select');
   if (!sel) return;
-  sel.innerHTML = teams.map((t) => `<option value="${t.id}">${t.name}</option>`).join('');
+  sel.innerHTML = teams.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
   if (teamId && teams.some((t) => t.id === teamId)) sel.value = teamId;
   else if (teams[0]) {
     teamId = teams[0].id;
@@ -915,7 +924,7 @@ document.getElementById('link-member-btn').addEventListener('click', async () =>
       return;
     }
     sel.innerHTML = '<option value="">— select member —</option>' + 
-      members.map(m => `<option value="${m.id}">${m.display_name} (${m.team_name || 'Independent'})</option>`).join('');
+      members.map(m => `<option value="${m.id}">${esc(m.display_name)} (${esc(m.team_name || 'Independent')})</option>`).join('');
   } catch (err) {
     sel.innerHTML = `<option value="">Error loading members: ${err.message}</option>`;
   }
@@ -968,18 +977,18 @@ document.getElementById('add-member-form').addEventListener('submit', async (e) 
     document.getElementById('member-name').value = '';
 
     const host = window.location.origin;
-    const installCmd = `curl -fsSL ${host}/install.sh | bash -s -- --key ${apiKey}`;
+    const installCmd = `curl -fsSL ${host}/install.sh | bash -s -- --key ${esc(apiKey)}`;
 
     const banner = document.getElementById('new-key');
     banner.hidden = false;
-    banner.innerHTML = `<strong>New Member Created: ${member.display_name}</strong><br/>` +
-      `API Key: <code>${apiKey}</code><br/><br/>` +
+    banner.innerHTML = `<strong>New Member Created: ${esc(member.display_name)}</strong><br/>` +
+      `API Key: <code>${esc(apiKey)}</code><br/><br/>` +
       `<strong>Mac One-Line Install Command:</strong><br/>` +
-      `<code style="user-select:all">${installCmd}</code>`;
+      `<code style="user-select:all">${esc(installCmd)}</code>`;
 
     loadMembers();
     loadStats();
-    window.showToast(`Member "${member.display_name}" created.`, { type: 'success' });
+    window.showToast(`Member "${esc(member.display_name)}" created.`, { type: 'success' });
   } catch (err) {
     window.showToast(formatError(err.message), { type: 'error' });
   }
@@ -1055,14 +1064,14 @@ document.getElementById('add-pricing-form')?.addEventListener('submit', async (e
 
 window.triggerMemberSync = async function (memberId = 'all', name = 'all members') {
   const memberName = name && name !== 'all members' ? decodeURIComponent(name) : 'all members';
-  showRecalculationLoader(`Broadcasting sync signal to ${memberName}...`);
+  showRecalculationLoader(`Broadcasting sync signal to ${esc(memberName)}...`);
   try {
     await api('/api/v1/team/members/trigger-sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId, memberId }),
     });
-    window.showToast(`Sync request broadcast to ${memberName}.`, { type: 'success' });
+    window.showToast(`Sync request broadcast to ${esc(memberName)}.`, { type: 'success' });
     await loadMembers();
     await loadStats();
   } catch (err) {

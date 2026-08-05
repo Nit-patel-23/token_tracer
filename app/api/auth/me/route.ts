@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromCookie, clearSessionCookie } from '@/lib/auth';
 import { query } from '@/lib/team/db';
+import { publicServerUrl } from '@/lib/team/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'https://token-tracer-three.vercel.app';
+  const serverUrl = publicServerUrl();
   if (apiKey) {
     installCommandMac = `curl -fsSL ${serverUrl}/install.sh | bash -s -- --key ${apiKey}`;
     installCommandWin = `$ApiKey="${apiKey}"; iex (irm ${serverUrl}/install.ps1)`;

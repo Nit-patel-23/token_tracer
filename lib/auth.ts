@@ -15,7 +15,7 @@ export const COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
 export type Role = 'user' | 'admin' | 'superadmin';
 
 export interface SessionPayload {
-  userId: string;   // For users: UUID from users table. For admin/superadmin: 'admin' | 'superadmin'
+  userId: string; // For users: UUID from users table. For admin/superadmin: 'admin' | 'superadmin'
   username: string;
   displayName: string;
   role: Role;
@@ -44,10 +44,7 @@ function tokenSecret(): string {
 export function encodeSessionToken(payload: SessionPayload): string {
   const data = JSON.stringify(payload);
   const b64 = Buffer.from(data).toString('base64url');
-  const sig = crypto
-    .createHmac('sha256', tokenSecret())
-    .update(b64)
-    .digest('base64url');
+  const sig = crypto.createHmac('sha256', tokenSecret()).update(b64).digest('base64url');
   return `${b64}.${sig}`;
 }
 
@@ -59,10 +56,7 @@ export function decodeSessionToken(token: string | null | undefined): SessionPay
     if (dot < 0) return null;
     const b64 = token.slice(0, dot);
     const sig = token.slice(dot + 1);
-    const expectedSig = crypto
-      .createHmac('sha256', tokenSecret())
-      .update(b64)
-      .digest('base64url');
+    const expectedSig = crypto.createHmac('sha256', tokenSecret()).update(b64).digest('base64url');
     // Timing-safe compare
     const a = Buffer.from(sig);
     const b = Buffer.from(expectedSig);
@@ -78,7 +72,9 @@ export function decodeSessionToken(token: string | null | undefined): SessionPay
 }
 
 /** Read and verify the session token from a cookie header string. */
-export function getSessionFromCookie(cookieHeader: string | null | undefined): SessionPayload | null {
+export function getSessionFromCookie(
+  cookieHeader: string | null | undefined,
+): SessionPayload | null {
   if (!cookieHeader) return null;
   for (const part of cookieHeader.split(';')) {
     const [k, ...rest] = part.trim().split('=');
@@ -142,31 +138,37 @@ export async function getMemberApiKey(memberId: string): Promise<string | null> 
 
 /**
  * Verifies if the request is from an admin or superadmin, and returns the authorized teamId.
- * - If superadmin, returns the requested teamId (from parameters).
- * - If admin, strictly overrides and returns their associated teamId.
- * - Returns null if unauthorized or missing permissions.
+ * - Superadmin may select any team via `paramTeamId`.
+ * - Admin is always scoped to their own `session.teamId` (never trust client teamId).
+ * - Legacy admin tokens may only access a team when explicitly provided AND
+ *   `ALLOW_LEGACY_ADMIN_TOKEN=1` is set (disabled by default).
  */
-export function getAuthorizedTeamId(req: any, paramTeamId: string | null | undefined): string | null {
+export function getAuthorizedTeamId(
+  req: Request,
+  paramTeamId: string | null | undefined,
+): string | null {
   const session = getSessionFromCookie(req.headers.get('cookie'));
   if (session) {
     if (session.role === 'superadmin') {
       return paramTeamId || null;
     }
     if (session.role === 'admin') {
-      return session.teamId || paramTeamId || null;
+      return session.teamId || null;
     }
   }
 
-  // Fallback check for legacy static admin password token
-  const authHeader = req.headers.get('authorization');
-  let legacyToken = '';
-  if (authHeader?.startsWith('Bearer ')) {
-    legacyToken = authHeader.slice(7);
-  } else {
-    legacyToken = adminTokenFromCookie(req.headers.get('cookie')) || '';
-  }
-  if (verifyAdminToken(legacyToken)) {
-    return paramTeamId || null;
+  // Legacy static admin token — opt-in only (prefer cookie sessions).
+  if (process.env.ALLOW_LEGACY_ADMIN_TOKEN === '1') {
+    const authHeader = req.headers.get('authorization');
+    let legacyToken = '';
+    if (authHeader?.startsWith('Bearer ')) {
+      legacyToken = authHeader.slice(7);
+    } else {
+      legacyToken = adminTokenFromCookie(req.headers.get('cookie')) || '';
+    }
+    if (verifyAdminToken(legacyToken)) {
+      return paramTeamId || null;
+    }
   }
 
   return null;

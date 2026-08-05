@@ -25,8 +25,16 @@ declare module '*/lib/analytics.mjs' {
   ): unknown;
 
   export function normalizeDateParam(value: string | null | undefined): string | null;
-  export function sessionInDateRange(session: SessionObj, from: string | null, to: string | null): boolean;
-  export function sessionSummary(session: SessionObj, pricing: unknown, includeEvents?: boolean): unknown;
+  export function sessionInDateRange(
+    session: SessionObj,
+    from: string | null,
+    to: string | null,
+  ): boolean;
+  export function sessionSummary(
+    session: SessionObj,
+    pricing: unknown,
+    includeEvents?: boolean,
+  ): unknown;
   export const dayKey: (ts: Date | string) => string | null;
 }
 

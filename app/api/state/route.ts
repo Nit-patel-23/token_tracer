@@ -20,12 +20,17 @@ export async function GET(req: NextRequest) {
   }
 
   if (session.role !== 'user') {
-    return NextResponse.json({ error: 'personal dashboard is for regular users only' }, { status: 403 });
+    return NextResponse.json(
+      { error: 'personal dashboard is for regular users only' },
+      { status: 403 },
+    );
   }
 
   let memberId = session.memberId;
   try {
-    const { rows: userRows } = await query('SELECT member_id FROM users WHERE id = $1', [session.userId]);
+    const { rows: userRows } = await query('SELECT member_id FROM users WHERE id = $1', [
+      session.userId,
+    ]);
     if (userRows[0]?.member_id) {
       memberId = userRows[0].member_id;
     }
@@ -34,7 +39,10 @@ export async function GET(req: NextRequest) {
   }
 
   if (!memberId) {
-    return NextResponse.json({ error: 'user account is not linked to any member profile' }, { status: 403 });
+    return NextResponse.json(
+      { error: 'user account is not linked to any member profile' },
+      { status: 403 },
+    );
   }
 
   try {
@@ -44,7 +52,11 @@ export async function GET(req: NextRequest) {
     const all = allParam === '1' || allParam === 'true';
     let from = normalizeDateParam(url.searchParams.get('from'));
     let to = normalizeDateParam(url.searchParams.get('to'));
-    if (from && to && from > to) { const tmp = from; from = to; to = tmp; }
+    if (from && to && from > to) {
+      const tmp = from;
+      from = to;
+      to = tmp;
+    }
     const useAll = all || (!from && !to);
 
     // If running locally, try to read from local filesystem first
@@ -67,7 +79,7 @@ export async function GET(req: NextRequest) {
           // Count per source
           const counts: Record<string, number> = {};
           for (const s of filtered as any[]) counts[s.source] = (counts[s.source] || 0) + 1;
-          
+
           // Map to expected shape
           const sessionRows = filtered.map((s: any) => ({
             id: s.id,
@@ -103,12 +115,22 @@ export async function GET(req: NextRequest) {
     const params: unknown[] = [memberId];
     let dateFilter = '';
     if (!useAll) {
-      if (from) { params.push(from); dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date >= $${params.length}::date`; }
-      if (to)   { params.push(to);   dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date <= $${params.length}::date`; }
+      if (from) {
+        params.push(from);
+        dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date >= $${params.length}::date`;
+      }
+      if (to) {
+        params.push(to);
+        dateFilter += ` AND COALESCE(s.ended_at, s.started_at, s.synced_at)::date <= $${params.length}::date`;
+      }
     }
-    if (src && src !== 'all') { params.push(src); dateFilter += ` AND s.source = $${params.length}`; }
+    if (src && src !== 'all') {
+      params.push(src);
+      dateFilter += ` AND s.source = $${params.length}`;
+    }
 
-    const { rows: sessions } = await query(`
+    const { rows: sessions } = await query(
+      `
       SELECT s.id, s.session_id, s.source, s.agent, s.label, s.model,
              s.started_at, s.ended_at, s.synced_at,
              s.tokens_in, s.tokens_out, s.tokens_cache_read, s.tokens_cache_write,
@@ -119,7 +141,9 @@ export async function GET(req: NextRequest) {
       WHERE s.member_id = $1 ${dateFilter}
       ORDER BY COALESCE(s.ended_at, s.started_at, s.synced_at) DESC
       LIMIT 500
-    `, params);
+    `,
+      params,
+    );
 
     // Count per source
     const counts: Record<string, number> = {};

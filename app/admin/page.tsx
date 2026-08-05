@@ -25,7 +25,16 @@ export default async function AdminPage() {
             <div className="tt-loader-ring" />
             <div className="tt-loader-ring tt-loader-ring--inner" />
             <div className="tt-loader-core">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
                 <circle cx="12" cy="12" r="4" />
               </svg>
@@ -34,15 +43,26 @@ export default async function AdminPage() {
             <i className="tt-loader-token t2" />
             <i className="tt-loader-token t3" />
           </div>
-          <p className="tt-loader-label">Loading <em>admin</em>…</p>
+          <p className="tt-loader-label">
+            Loading <em>admin</em>…
+          </p>
         </div>
       </div>
 
       <div id="admin-app" className="admin-app" hidden>
         {/* Mobile-only topbar: shown under 880px, hosts the hamburger toggle */}
         <div className="mobile-topbar">
-          <button type="button" id="admin-nav-toggle" className="mobile-nav-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="admin-sidebar-nav">
-            <span></span><span></span><span></span>
+          <button
+            type="button"
+            id="admin-nav-toggle"
+            className="mobile-nav-toggle"
+            aria-label="Toggle menu"
+            aria-expanded="false"
+            aria-controls="admin-sidebar-nav"
+          >
+            <span></span>
+            <span></span>
+            <span></span>
           </button>
           <div className="wordmark">
             <h1>admin</h1>
@@ -59,31 +79,66 @@ export default async function AdminPage() {
             </div>
           </div>
           <nav className="admin-sidebar-nav" role="tablist" aria-label="Admin sections">
-            <button type="button" id="tabbtn-users" className="tab-btn active" data-tab="tab-users" role="tab" aria-selected="true" aria-controls="tab-users" tabIndex={0}>
-              <span className="nav-icon" aria-hidden="true">👥</span> Users
+            <button
+              type="button"
+              id="tabbtn-users"
+              className="tab-btn active"
+              data-tab="tab-users"
+              role="tab"
+              aria-selected="true"
+              aria-controls="tab-users"
+              tabIndex={0}
+            >
+              <span className="nav-icon" aria-hidden="true">
+                👥
+              </span>{' '}
+              Users
             </button>
-            <button type="button" id="tabbtn-members" className="tab-btn" data-tab="tab-members" role="tab" aria-selected="false" aria-controls="tab-members" tabIndex={-1}>
-              <span className="nav-icon" aria-hidden="true">🔗</span> Members
+            <button
+              type="button"
+              id="tabbtn-members"
+              className="tab-btn"
+              data-tab="tab-members"
+              role="tab"
+              aria-selected="false"
+              aria-controls="tab-members"
+              tabIndex={-1}
+            >
+              <span className="nav-icon" aria-hidden="true">
+                🔗
+              </span>{' '}
+              Members
             </button>
           </nav>
           <div className="sidebar-footer">
             <span id="admin-user-name" className="muted" />
-            <button id="admin-logout-btn" className="hbtn" title="Sign out">Sign out</button>
+            <button id="admin-logout-btn" className="hbtn" title="Sign out">
+              Sign out
+            </button>
           </div>
         </aside>
 
         <main className="admin-content">
           <div id="data-loading" className="data-loading" hidden aria-busy="true"></div>
           {/* Users tab */}
-          <div id="tab-users" className="admin-tab active-tab" role="tabpanel" aria-labelledby="tabbtn-users">
+          <div
+            id="tab-users"
+            className="admin-tab active-tab"
+            role="tabpanel"
+            aria-labelledby="tabbtn-users"
+          >
             <div className="admin-tab-header">
               <div>
                 <h2>Users</h2>
                 <span className="admin-tab-sub">Accounts, roles, and member links</span>
               </div>
               <div className="admin-header-actions">
-                <button type="button" className="hbtn migrate-btn" id="migrate-btn" hidden>Run database migration</button>
-                <button type="button" className="hbtn primary" id="create-user-btn">+ Add user</button>
+                <button type="button" className="hbtn migrate-btn" id="migrate-btn" hidden>
+                  Run database migration
+                </button>
+                <button type="button" className="hbtn primary" id="create-user-btn">
+                  + Add user
+                </button>
               </div>
             </div>
 
@@ -99,11 +154,24 @@ export default async function AdminPage() {
                   </div>
                   <div className="form-field">
                     <label htmlFor="uf-displayname">Display Name</label>
-                    <input id="uf-displayname" type="text" placeholder="e.g. Raxit Patel" required />
+                    <input
+                      id="uf-displayname"
+                      type="text"
+                      placeholder="e.g. Raxit Patel"
+                      required
+                    />
                   </div>
                   <div className="form-field">
-                    <label htmlFor="uf-password">Password <span className="muted">(leave blank when editing to keep current)</span></label>
-                    <input id="uf-password" type="password" placeholder="temporary password" autoComplete="new-password" />
+                    <label htmlFor="uf-password">
+                      Password{' '}
+                      <span className="muted">(leave blank when editing to keep current)</span>
+                    </label>
+                    <input
+                      id="uf-password"
+                      type="password"
+                      placeholder="temporary password"
+                      autoComplete="new-password"
+                    />
                   </div>
                   <div className="form-field">
                     <label htmlFor="uf-role">Role</label>
@@ -132,8 +200,12 @@ export default async function AdminPage() {
                   </div>
                 </div>
                 <div className="form-actions">
-                  <button type="submit" className="hbtn primary" id="uf-submit">Save</button>
-                  <button type="button" className="hbtn" id="uf-cancel">Cancel</button>
+                  <button type="submit" className="hbtn primary" id="uf-submit">
+                    Save
+                  </button>
+                  <button type="button" className="hbtn" id="uf-cancel">
+                    Cancel
+                  </button>
                   <p id="uf-error" className="error" role="alert" aria-live="assertive" hidden />
                 </div>
               </form>
@@ -158,7 +230,12 @@ export default async function AdminPage() {
                   {[0, 1, 2, 3].map((i) => (
                     <tr key={i} aria-hidden="true">
                       {Array.from({ length: 8 }).map((_, j) => (
-                        <td key={j}><div className="skeleton" style={{ height: '14px', width: j === 0 ? '80%' : '60%' }} /></td>
+                        <td key={j}>
+                          <div
+                            className="skeleton"
+                            style={{ height: '14px', width: j === 0 ? '80%' : '60%' }}
+                          />
+                        </td>
                       ))}
                     </tr>
                   ))}
@@ -170,14 +247,24 @@ export default async function AdminPage() {
             <div id="new-password-banner" className="new-password-banner" hidden>
               <strong>New password:</strong>
               <code id="new-password-value" />
-              <span className="muted">— copy it now, it won't be shown again.</span>
-              <button type="button" className="hbtn" id="new-password-copy">Copy</button>
-              <button type="button" className="hbtn" id="new-password-close">×</button>
+              <span className="muted">— copy it now, it will not be shown again.</span>
+              <button type="button" className="hbtn" id="new-password-copy">
+                Copy
+              </button>
+              <button type="button" className="hbtn" id="new-password-close">
+                ×
+              </button>
             </div>
           </div>
 
           {/* Members tab */}
-          <div id="tab-members" className="admin-tab" role="tabpanel" aria-labelledby="tabbtn-members" hidden>
+          <div
+            id="tab-members"
+            className="admin-tab"
+            role="tabpanel"
+            aria-labelledby="tabbtn-members"
+            hidden
+          >
             <div className="admin-tab-header">
               <div>
                 <h2>Unlinked Members</h2>
@@ -187,13 +274,22 @@ export default async function AdminPage() {
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
-                  <tr><th>Display Name</th><th>Team</th><th>Status</th></tr>
+                  <tr>
+                    <th>Display Name</th>
+                    <th>Team</th>
+                    <th>Status</th>
+                  </tr>
                 </thead>
                 <tbody id="members-tbody" aria-busy="true">
                   {[0, 1, 2].map((i) => (
                     <tr key={i} aria-hidden="true">
                       {Array.from({ length: 3 }).map((_, j) => (
-                        <td key={j}><div className="skeleton" style={{ height: '14px', width: j === 0 ? '80%' : '60%' }} /></td>
+                        <td key={j}>
+                          <div
+                            className="skeleton"
+                            style={{ height: '14px', width: j === 0 ? '80%' : '60%' }}
+                          />
+                        </td>
                       ))}
                     </tr>
                   ))}

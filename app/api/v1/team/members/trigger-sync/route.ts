@@ -51,19 +51,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (memberId === 'all') {
-      await query(
-        'UPDATE members SET sync_requested_at = now() WHERE team_id = $1',
-        [teamId],
-      );
+      await query('UPDATE members SET sync_requested_at = now() WHERE team_id = $1', [teamId]);
     } else {
-      await query(
-        'UPDATE members SET sync_requested_at = now() WHERE team_id = $1 AND id = $2',
-        [teamId, memberId],
-      );
+      await query('UPDATE members SET sync_requested_at = now() WHERE team_id = $1 AND id = $2', [
+        teamId,
+        memberId,
+      ]);
     }
 
     return NextResponse.json(
-      { success: true, message: `Sync signal broadcasted for ${memberId === 'all' ? 'all members' : memberId}` },
+      {
+        success: true,
+        message: `Sync signal broadcasted for ${memberId === 'all' ? 'all members' : memberId}`,
+      },
       { headers: corsHeaders },
     );
   } catch (err) {
@@ -83,10 +83,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'invalid API key' }, { status: 401, headers: corsHeaders });
     }
 
-    const { rows } = await query(
-      'SELECT sync_requested_at FROM members WHERE id = $1',
-      [member.member_id],
-    );
+    const { rows } = await query('SELECT sync_requested_at FROM members WHERE id = $1', [
+      member.member_id,
+    ]);
 
     const syncRequestedAt = rows[0]?.sync_requested_at || null;
 

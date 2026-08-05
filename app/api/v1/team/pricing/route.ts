@@ -68,7 +68,10 @@ export async function DELETE(req: NextRequest) {
     if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
-    const { rowCount } = await query('DELETE FROM model_pricing WHERE id = $1 AND team_id = $2', [id, teamId]);
+    const { rowCount } = await query('DELETE FROM model_pricing WHERE id = $1 AND team_id = $2', [
+      id,
+      teamId,
+    ]);
     if (rowCount && rowCount > 0) {
       await recalculateTeamCosts(teamId, true);
     }
@@ -78,4 +81,3 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
   }
 }
-

@@ -58,14 +58,49 @@ export async function ingestSessions(
   );
 
   const defaultRules = [
-    { model_pattern: 'claude-3-7-sonnet', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
-    { model_pattern: 'claude-3-5-sonnet', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
-    { model_pattern: 'claude-3-5-haiku', cost_in_per_m: 0.8, cost_out_per_m: 4.0, cost_cache_read_per_m: 0.08 },
-    { model_pattern: 'gpt-4o', cost_in_per_m: 2.5, cost_out_per_m: 10.0, cost_cache_read_per_m: 1.25 },
+    {
+      model_pattern: 'claude-3-7-sonnet',
+      cost_in_per_m: 3.0,
+      cost_out_per_m: 15.0,
+      cost_cache_read_per_m: 0.3,
+    },
+    {
+      model_pattern: 'claude-3-5-sonnet',
+      cost_in_per_m: 3.0,
+      cost_out_per_m: 15.0,
+      cost_cache_read_per_m: 0.3,
+    },
+    {
+      model_pattern: 'claude-3-5-haiku',
+      cost_in_per_m: 0.8,
+      cost_out_per_m: 4.0,
+      cost_cache_read_per_m: 0.08,
+    },
+    {
+      model_pattern: 'gpt-4o',
+      cost_in_per_m: 2.5,
+      cost_out_per_m: 10.0,
+      cost_cache_read_per_m: 1.25,
+    },
     { model_pattern: 'o1', cost_in_per_m: 15.0, cost_out_per_m: 60.0, cost_cache_read_per_m: 7.5 },
-    { model_pattern: 'o3-mini', cost_in_per_m: 1.1, cost_out_per_m: 4.4, cost_cache_read_per_m: 0.55 },
-    { model_pattern: 'deepseek-r1', cost_in_per_m: 0.55, cost_out_per_m: 2.19, cost_cache_read_per_m: 0.14 },
-    { model_pattern: 'deepseek-v3', cost_in_per_m: 0.14, cost_out_per_m: 0.28, cost_cache_read_per_m: 0.014 },
+    {
+      model_pattern: 'o3-mini',
+      cost_in_per_m: 1.1,
+      cost_out_per_m: 4.4,
+      cost_cache_read_per_m: 0.55,
+    },
+    {
+      model_pattern: 'deepseek-r1',
+      cost_in_per_m: 0.55,
+      cost_out_per_m: 2.19,
+      cost_cache_read_per_m: 0.14,
+    },
+    {
+      model_pattern: 'deepseek-v3',
+      cost_in_per_m: 0.14,
+      cost_out_per_m: 0.28,
+      cost_cache_read_per_m: 0.014,
+    },
     { model_pattern: '', cost_in_per_m: 3.0, cost_out_per_m: 15.0, cost_cache_read_per_m: 0.3 },
   ];
 
@@ -75,7 +110,12 @@ export async function ingestSessions(
   for (const item of sessions) {
     const s = item as Record<string, any>;
     const source = String(s.source || 'cursor');
-    const sessionId = String(s.sessionId || s.id || s.session_id || `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+    const sessionId = String(
+      s.sessionId ||
+        s.id ||
+        s.session_id ||
+        `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    );
     const model = String(s.model || 'default');
 
     let tokensIn = Number(s.tokensIn ?? s.tokens_in ?? 0);
@@ -92,7 +132,9 @@ export async function ingestSessions(
 
     // 2. Inline server-side cost calculation for this session using matched rules
     const modelName = model.toLowerCase();
-    const rule = allRules.find((r) => r.model_pattern && matchesModelPattern(modelName, r.model_pattern)) || defaultRules[defaultRules.length - 1];
+    const rule =
+      allRules.find((r) => r.model_pattern && matchesModelPattern(modelName, r.model_pattern)) ||
+      defaultRules[defaultRules.length - 1];
 
     const tokensCacheRead = Number(s.tokensCacheRead ?? s.tokens_cache_read ?? 0);
     const tokensCacheWrite = Number(s.tokensCacheWrite ?? s.tokens_cache_write ?? 0);
@@ -102,7 +144,8 @@ export async function ingestSessions(
       (freshInput / 1_000_000) * Number(rule.cost_in_per_m || 0) +
       (tokensOut / 1_000_000) * Number(rule.cost_out_per_m || 0) +
       (tokensCacheRead / 1_000_000) * Number(rule.cost_cache_read_per_m || 0) +
-      (tokensCacheWrite / 1_000_000) * Number(((rule as any).cost_cache_write_per_m ?? rule.cost_in_per_m) || 0);
+      (tokensCacheWrite / 1_000_000) *
+        Number(((rule as any).cost_cache_write_per_m ?? rule.cost_in_per_m) || 0);
 
     const { rows } = await query(
       `INSERT INTO sync_sessions (

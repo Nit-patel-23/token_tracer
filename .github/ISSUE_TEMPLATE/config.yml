@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Nit-patel-23/token_tracer/security/advisories/new
+    about: Report a security issue privately (do not open a public issue).
+  - name: Discussions
+    url: https://github.com/Nit-patel-23/token_tracer/discussions
+    about: Q&A, ideas, and show-and-tell (enable Discussions in repo settings).

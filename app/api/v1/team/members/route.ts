@@ -42,7 +42,8 @@ export async function POST(req: NextRequest) {
     const rawTeamId = body.teamId ? String(body.teamId) : null;
     const teamId = getAuthorizedTeamId(req, rawTeamId);
     if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    if (!body.displayName) return NextResponse.json({ error: 'displayName required' }, { status: 400 });
+    if (!body.displayName)
+      return NextResponse.json({ error: 'displayName required' }, { status: 400 });
 
     const { member, apiKey } = await createMemberWithKey(
       teamId,

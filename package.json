@@ -1,12 +1,31 @@
 {
-  "name": "agentvis-next",
+  "name": "token-tracer",
   "version": "0.1.0",
   "private": true,
+  "description": "AI token analytics dashboard for monitoring LLM usage, costs, and team productivity across Claude Code, Cursor, Codex, and more.",
+  "license": "MIT",
+  "homepage": "https://github.com/Nit-patel-23/token_tracer",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nit-patel-23/token_tracer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Nit-patel-23/token_tracer/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"app/**/*.{ts,tsx}\" \"lib/**/*.{ts,tsx}\" \"docs/**/*.md\" \"*.md\" \".github/**/*.{yml,yaml,md}\" \"package.json\" \"tsconfig.json\" \"eslint.config.mjs\"",
+    "format:check": "prettier --check \"app/**/*.{ts,tsx}\" \"lib/**/*.{ts,tsx}\" \"docs/**/*.md\" \"*.md\" \".github/**/*.{yml,yaml,md}\" \"package.json\" \"tsconfig.json\" \"eslint.config.mjs\"",
+    "db:migrate": "curl -sS -X POST http://localhost:3000/api/admin/migrate -H 'Cookie: app_session='\"$SESSION_COOKIE\" || echo 'Start the app, sign in as superadmin, then click Migrate — or POST /api/admin/migrate with a session cookie.'",
+    "check": "npm run typecheck && npm run lint && npm run build"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -22,6 +41,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "prettier": "^3.9.6",
     "typescript": "^5"
   }
 }

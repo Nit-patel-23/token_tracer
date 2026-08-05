@@ -31,13 +31,24 @@ export default async function LoginPage() {
         <div className="login-card" id="login-card">
           <div className="login-brand">
             <div className="login-mark" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
                 <circle cx="12" cy="12" r="4" />
               </svg>
             </div>
             <div className="wordmark">
-              <h1>token<span>tracer</span></h1>
+              <h1>
+                token<span>tracer</span>
+              </h1>
             </div>
             <p className="login-tagline">Sign in to your analytics workspace</p>
           </div>
@@ -73,16 +84,38 @@ export default async function LoginPage() {
                   aria-label="Show password"
                   aria-pressed="false"
                 >
-                  <svg className="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                  <svg className="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" hidden>
-                    <path d="M3 3l18 18" />
-                    <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
-                    <path d="M9.4 5.1A10.3 10.3 0 0 1 12 5c6.5 0 10 7 10 7a18.4 18.4 0 0 1-2.2 3.2" />
-                    <path d="M6.7 6.7C4.2 8.4 2.7 11 2.7 11S6.2 18 12 18c1.1 0 2.1-.2 3-.5" />
-                  </svg>
+                  <span className="eye-open" aria-hidden="true">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  </span>
+                  <span className="eye-closed" aria-hidden="true" hidden>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 3l18 18" />
+                      <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                      <path d="M9.4 5.1A10.3 10.3 0 0 1 12 5c6.5 0 10 7 10 7a18.4 18.4 0 0 1-2.2 3.2" />
+                      <path d="M6.7 6.7C4.2 8.4 2.7 11 2.7 11S6.2 18 12 18c1.1 0 2.1-.2 3-.5" />
+                    </svg>
+                  </span>
                 </button>
               </div>
             </div>
@@ -99,7 +132,9 @@ export default async function LoginPage() {
         <p className="login-footer">Token usage analytics for AI coding agents</p>
       </div>
 
-      <script dangerouslySetInnerHTML={{ __html: `
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
         (function() {
           var form = document.getElementById('login-form');
           var errEl = document.getElementById('login-error');
@@ -155,7 +190,9 @@ export default async function LoginPage() {
             }
           });
         })();
-      ` }} />
+      `,
+        }}
+      />
     </div>
   );
 }
