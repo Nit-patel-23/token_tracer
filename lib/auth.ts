@@ -10,6 +10,7 @@ import { query } from '@/lib/team/db';
 import { adminTokenFromCookie, verifyAdminToken } from './team/auth';
 
 export const COOKIE_NAME = 'app_session';
+export const IMPERSONATION_COOKIE = 'sa_original_session';
 export const COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
 
 export type Role = 'user' | 'admin' | 'superadmin';
@@ -22,6 +23,8 @@ export interface SessionPayload {
   memberId: string | null;
   teamId: string | null;
   issuedAt: number;
+  impersonatedBy?: string;      // original superadmin userId (set during impersonation)
+  impersonatedByName?: string;  // original superadmin display name
 }
 
 // ── Password helpers ──────────────────────────────────────────────────────────
@@ -98,6 +101,42 @@ export function buildSessionCookie(payload: SessionPayload, secure: boolean): st
 /** Build a cookie that clears the session. */
 export function clearSessionCookie(): string {
   return `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+}
+
+// ── Impersonation cookie helpers ──────────────────────────────────────────────
+
+/** Store the original superadmin session token in a backup cookie during impersonation. */
+export function buildImpersonationCookie(originalToken: string, secure: boolean): string {
+  return `${IMPERSONATION_COOKIE}=${encodeURIComponent(originalToken)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE}${secure ? '; Secure' : ''}`;
+}
+
+/** Clear the impersonation backup cookie. */
+export function clearImpersonationCookie(): string {
+  return `${IMPERSONATION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+}
+
+/** Read the original superadmin session from the backup impersonation cookie. */
+export function getOriginalSessionFromCookie(cookieHeader: string | null | undefined): SessionPayload | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const [k, ...rest] = part.trim().split('=');
+    if (k.trim() === IMPERSONATION_COOKIE) {
+      return decodeSessionToken(decodeURIComponent(rest.join('=')));
+    }
+  }
+  return null;
+}
+
+/** Extract the raw impersonation cookie token string (not decoded). */
+export function getRawImpersonationToken(cookieHeader: string | null | undefined): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const [k, ...rest] = part.trim().split('=');
+    if (k.trim() === IMPERSONATION_COOKIE) {
+      return decodeURIComponent(rest.join('=')) || null;
+    }
+  }
+  return null;
 }
 
 // ── Database user helpers ─────────────────────────────────────────────────────

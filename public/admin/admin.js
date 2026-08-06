@@ -7,6 +7,11 @@ let currentTab = 'users';
 let editingUser = null;
 let editingPricing = null;
 
+// User Table Filters
+let userFilterSearch = '';
+let userFilterTeam = '';
+let userFilterStatus = '';
+
 let currentAdminSession = null;
 
 // Helpers
@@ -215,6 +220,14 @@ function populateTeamDropdown() {
     });
   }
 
+  const filterTeam = $('#filter-team-select');
+  if (filterTeam) {
+    filterTeam.innerHTML = `<option value="">All Teams</option>`;
+    teams.forEach(t => {
+      filterTeam.innerHTML += `<option value="${t.id}">${esc(t.name)}</option>`;
+    });
+  }
+
   // Populate multi-team checkboxes for user form
   const ufBoxes = $('#uf-teams-checkboxes');
   if (ufBoxes) {
@@ -254,11 +267,43 @@ function renderUsers() {
   const tbody = $('#users-tbody');
   if (!tbody) return;
   if (!users.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="muted admin-empty">No users yet. Create one to get started.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="muted admin-empty">No users yet. Create one to get started.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = users.map(u => {
+  let filteredUsers = users;
+
+  if (userFilterSearch) {
+    const term = userFilterSearch.toLowerCase();
+    filteredUsers = filteredUsers.filter(u => 
+      (u.username && u.username.toLowerCase().includes(term)) || 
+      (u.display_name && u.display_name.toLowerCase().includes(term))
+    );
+  }
+
+  if (userFilterTeam) {
+    filteredUsers = filteredUsers.filter(u => {
+      if (u.teams && u.teams.length > 0) {
+        return u.teams.some(t => t.id === userFilterTeam);
+      }
+      return false; // Assuming single team structure doesn't apply if teams array is missing, but if it does we'd check u.team_name. Let's strictly check teams array or string.
+      // Wait, let's just check the string representation to be safe, or t.id. The dropdown uses t.id.
+    });
+  }
+
+  if (userFilterStatus) {
+    filteredUsers = filteredUsers.filter(u => {
+      const isActive = u.active ? 'active' : 'inactive';
+      return isActive === userFilterStatus;
+    });
+  }
+
+  if (!filteredUsers.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="muted admin-empty">No users match your filters.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filteredUsers.map(u => {
     const lastLogin = u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'Never';
     const status = u.active ? '<span class="status-badge active-badge">Active</span>' : '<span class="status-badge inactive-badge">Inactive</span>';
     const sessionCount = u.session_count || 0;
@@ -267,23 +312,35 @@ function renderUsers() {
       ? `<div style="display:flex; flex-wrap:wrap; gap:4px;">` + u.teams.map(t => `<span class="team-badge" style="background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; font-size:11px;">🛡️ ${esc(t.name)}</span>`).join('') + `</div>`
       : (u.team_name && u.team_name !== '—' ? `<span class="team-badge" style="background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:4px; font-size:11px;">🛡️ ${esc(u.team_name)}</span>` : '<span class="muted">—</span>');
 
+    // Don't show "Login as" for the current superadmin's own account
+    const isSelf = currentAdminSession && (currentAdminSession.userId === u.id || currentAdminSession.username === u.username);
+
     return `
       <tr>
-        <td><strong>${esc(u.username)}</strong></td>
-        <td>${esc(u.display_name)}</td>
-        <td><code class="role-badge">${esc(u.role)}</code></td>
-        <td>${teamBadges}</td>
         <td>
-          ${u.member_name ? `<span class="linked-member">👤 ${esc(u.member_name)}</span>` : '<span class="muted">—</span>'}
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--surface-2, rgba(255,255,255,0.05)); display: flex; align-items: center; justify-content: center; font-weight: 600; color: var(--brand); flex-shrink: 0; font-size: 13px;">
+              ${esc((u.display_name || u.username)[0].toUpperCase())}
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <strong style="color: var(--ink); font-size: 14px;">${esc(u.display_name || u.username)}</strong>
+                <code class="role-badge" style="font-size: 10px; padding: 2px 6px;">${esc(u.role)}</code>
+              </div>
+              <span class="muted" style="font-size: 12px;">@${esc(u.username)}</span>
+            </div>
+          </div>
         </td>
+        <td>${teamBadges}</td>
         <td>${sessionCount} sessions</td>
         <td><span class="muted">${lastLogin}</span></td>
         <td>${status}</td>
         <td>
           <div class="actions-cell">
-            <button class="hbtn small-btn edit-btn" data-id="${u.id}">Edit</button>
-            <button class="hbtn small-btn reset-btn" data-id="${u.id}" data-username="${esc(u.username)}">Reset PW</button>
-            <button class="hbtn small-btn danger-btn delete-btn" data-id="${u.id}" data-username="${esc(u.username)}">Delete</button>
+            ${isSelf ? '' : `<button class="hbtn small-btn impersonate-btn" data-id="${u.id}" data-username="${esc(u.username)}" data-displayname="${esc(u.display_name)}" data-role="${esc(u.role)}" title="Login as User" style="padding: 4px 6px; font-size: 14px;">👁️</button>`}
+            <button class="hbtn small-btn edit-btn" data-id="${u.id}" title="Edit User" style="padding: 4px 6px; font-size: 14px;">✏️</button>
+            <button class="hbtn small-btn reset-btn" data-id="${u.id}" data-username="${esc(u.username)}" title="Reset Password" style="padding: 4px 6px; font-size: 14px;">🔑</button>
+            <button class="hbtn small-btn danger-btn delete-btn" data-id="${u.id}" data-username="${esc(u.username)}" title="Delete User" style="padding: 4px 6px; font-size: 14px;">🗑️</button>
           </div>
         </td>
       </tr>
@@ -294,6 +351,11 @@ function renderUsers() {
   tbody.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', () => editUser(b.dataset.id)));
   tbody.querySelectorAll('.reset-btn').forEach(b => b.addEventListener('click', () => resetPassword(b.dataset.id, b.dataset.username)));
   tbody.querySelectorAll('.delete-btn').forEach(b => b.addEventListener('click', () => deleteUser(b.dataset.id, b.dataset.username)));
+
+  // Wire impersonate buttons
+  tbody.querySelectorAll('.impersonate-btn').forEach(b => {
+    b.addEventListener('click', () => impersonateUser(b.dataset.id, b.dataset.username, b.dataset.displayname, b.dataset.role));
+  });
 }
 
 function renderMembers() {
@@ -568,6 +630,80 @@ async function resetPassword(id, username) {
       banner.hidden = false;
     }
     window.showToast(`Password reset for "${username}".`, { type: 'success' });
+  } catch (err) {
+    window.showToast(err.message, { type: 'error' });
+  }
+}
+
+async function impersonateUser(userId, username, displayName, role) {
+  const dialog = document.getElementById('impersonate-dialog');
+  const targetNameEl = document.getElementById('impersonate-target-name');
+  const targetRoleEl = document.getElementById('impersonate-target-role');
+  const cancelBtn = document.getElementById('impersonate-cancel-btn');
+  const confirmBtn = document.getElementById('impersonate-confirm-btn');
+  const errorMsg = document.getElementById('impersonate-error-msg');
+  
+  if (!dialog || !targetNameEl || !targetRoleEl || !cancelBtn || !confirmBtn) {
+    // Fallback if dialog is missing
+    if (!confirm(`Login as ${displayName || username} (${role})?\n\nYou will see their exact dashboard. You can return to your superadmin account at any time.`)) return;
+    performImpersonation(userId);
+    return;
+  }
+  
+  targetNameEl.textContent = displayName || username;
+  targetRoleEl.textContent = role;
+  errorMsg.hidden = true;
+  confirmBtn.textContent = 'Login as User';
+  confirmBtn.disabled = false;
+  
+  dialog.showModal();
+  
+  // Clean up any old listeners
+  const newCancel = cancelBtn.cloneNode(true);
+  cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+  const newConfirm = confirmBtn.cloneNode(true);
+  confirmBtn.parentNode.replaceChild(newConfirm, confirmBtn);
+  
+  newCancel.addEventListener('click', () => dialog.close());
+  
+  newConfirm.addEventListener('click', async (e) => {
+    e.preventDefault();
+    newConfirm.disabled = true;
+    newConfirm.textContent = 'Authenticating...';
+    errorMsg.hidden = true;
+    
+    try {
+      const res = await fetch('/api/admin/impersonate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to impersonate user');
+      
+      window.location.href = data.redirect || '/';
+    } catch (err) {
+      errorMsg.textContent = err.message;
+      errorMsg.hidden = false;
+      newConfirm.disabled = false;
+      newConfirm.textContent = 'Login as User';
+    }
+  });
+}
+
+async function performImpersonation(userId) {
+  try {
+    const res = await fetch('/api/admin/impersonate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId })
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to impersonate user');
+    
+    window.location.href = data.redirect || '/';
   } catch (err) {
     window.showToast(err.message, { type: 'error' });
   }
@@ -1813,4 +1949,35 @@ function setupAnalyticsTabs() {
   });
 }
 
+function bindUserFilters() {
+  const searchInput = $('#filter-user-input');
+  const teamSelect = $('#filter-team-select');
+  const statusSelect = $('#filter-status-select');
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      userFilterSearch = e.target.value;
+      renderUsers();
+    });
+  }
+  if (teamSelect) {
+    teamSelect.addEventListener('change', (e) => {
+      userFilterTeam = e.target.value;
+      renderUsers();
+    });
+  }
+  if (statusSelect) {
+    statusSelect.addEventListener('change', (e) => {
+      userFilterStatus = e.target.value;
+      renderUsers();
+    });
+  }
+}
+
+// Bind filters immediately, assuming elements might already be in DOM
+// or will be accessed when loadData runs
+if (typeof window !== 'undefined') {
+  // Use setTimeout to ensure DOM is fully parsed if script runs early
+  setTimeout(bindUserFilters, 0);
+}
 

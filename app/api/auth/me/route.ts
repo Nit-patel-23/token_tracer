@@ -97,11 +97,15 @@ export async function GET(req: NextRequest) {
     installCommandMac,
     installCommandWin,
     sessionCount,
+    impersonatedBy: session.impersonatedBy || null,
+    impersonatedByName: session.impersonatedByName || null,
   });
 }
 
 export async function POST(req: NextRequest) {
+  const { clearImpersonationCookie } = await import('@/lib/auth');
   const res = NextResponse.json({ ok: true });
-  res.headers.set('Set-Cookie', clearSessionCookie());
+  res.headers.append('Set-Cookie', clearSessionCookie());
+  res.headers.append('Set-Cookie', clearImpersonationCookie());
   return res;
 }

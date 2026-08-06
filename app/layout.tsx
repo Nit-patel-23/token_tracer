@@ -13,7 +13,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href="/style.css" />
         <link rel="stylesheet" href="/team/team.css" />
       </head>
-      <body>{children}</body>
+      <body suppressHydrationWarning>
+        <div id="impersonation-banner" className="impersonation-banner" hidden>
+          <span id="impersonation-text">You are logged in as</span>
+          <button id="impersonation-back-btn" className="hbtn small-btn outline-btn" style={{ background: 'rgba(0,0,0,0.15)', borderColor: 'rgba(0,0,0,0.2)', color: '#000' }}>
+            Back to Super Admin
+          </button>
+        </div>
+        {children}
+      </body>
     </html>
   );
 }

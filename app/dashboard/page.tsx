@@ -25,7 +25,7 @@ export default async function PersonalDashboardPage() {
 
   return (
     <div suppressHydrationWarning>
-
+      <Script src="/impersonation.js" strategy="afterInteractive" />
 
       {/* ── Main dashboard ── */}
       <header>

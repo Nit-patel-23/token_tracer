@@ -25,6 +25,7 @@ export default async function TeamDashboardPage() {
 
   return (
     <div suppressHydrationWarning>
+      <Script src="/impersonation.js" strategy="afterInteractive" />
       {/* Shown only until the cookie session check resolves, so a slow
           network never flashes the legacy password-login screen below
           in front of an already-authenticated user. */}
