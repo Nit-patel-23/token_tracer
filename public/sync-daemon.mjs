@@ -185,11 +185,16 @@ function parseGenericMessage(session, pending, obj) {
     session.stats.messages++;
     if (m.model) session.model = m.model;
     sumUsage(session.stats, m.usage);
+    const turnUsage = m.usage ? {
+      tokensIn: Number(m.usage.input ?? m.usage.input_tokens ?? m.usage.inputTokens ?? m.usage.prompt_tokens ?? m.usage.promptTokens ?? m.usage.tokensIn ?? m.usage.tokens_in ?? 0),
+      tokensOut: Number(m.usage.output ?? m.usage.output_tokens ?? m.usage.outputTokens ?? m.usage.completion_tokens ?? m.usage.completionTokens ?? m.usage.tokensOut ?? m.usage.tokens_out ?? 0),
+      cacheRead: Number(m.usage.cacheRead ?? m.usage.cache_read_input_tokens ?? m.usage.cacheReadTokens ?? m.usage.cache_read_tokens ?? m.usage.prompt_tokens_details?.cached_tokens ?? 0)
+    } : null;
     for (const b of blocksOf(m.content)) {
       const t = b.type ?? "text";
       if (t === "thinking" || t === "redacted_thinking") session.events.push({ kind: "thinking", ts, text: b.thinking ?? b.text ?? "" });
       else if (t === "text") {
-        if (b.text) session.events.push({ kind: "assistant", ts, text: b.text });
+        if (b.text) session.events.push({ kind: "assistant", ts, text: b.text, usage: turnUsage });
       } else if (t === "toolCall" || t === "tool_use" || t === "toolUse")
         addToolCall(session, pending, ts, { id: b.id ?? b.toolCallId, name: b.name ?? b.toolName ?? "tool", args: b.arguments ?? b.input });
     }

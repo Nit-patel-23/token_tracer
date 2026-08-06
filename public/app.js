@@ -1084,7 +1084,12 @@ async function renderTrajectory() {
 function eventHtml(ev) {
   const when = `<span class="when">${fmtTime(ev.ts)}</span>`;
   if (ev.kind === 'user') return wrap('ev-user', `USER ${when}`, `<div class="body">${esc(ev.text)}</div>`);
-  if (ev.kind === 'assistant') return wrap('ev-assistant', `ASSISTANT ${when}`, `<div class="body">${esc(ev.text)}</div>`);
+  if (ev.kind === 'assistant') {
+    const badge = ev.usage
+      ? ` <span class="usage-badge" style="font-size:10px; opacity:0.75; font-weight:normal; margin-left:8px; border:1px solid var(--border); padding:2px 6px; border-radius:4px; background:var(--surface);">in: ${fmtNum(ev.usage.tokensIn)} | out: ${fmtNum(ev.usage.tokensOut)}${ev.usage.cacheRead ? ` | cache: ${fmtNum(ev.usage.cacheRead)}` : ''}</span>`
+      : '';
+    return wrap('ev-assistant', `ASSISTANT ${when}${badge}`, `<div class="body">${esc(ev.text)}</div>`);
+  }
   if (ev.kind === 'thinking')
     return wrap('ev-thinking', `THINKING ${when}`, `<details><summary>show reasoning</summary><pre>${esc(ev.text)}</pre></details>`);
   if (ev.kind === 'meta') return wrap('ev-meta', `EVENT ${when}`, `<div class="body">${esc(ev.text)}</div>`);
