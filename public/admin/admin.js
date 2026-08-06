@@ -1098,5 +1098,719 @@ function closeMobileNav() {
       setTimeout(() => { $('#new-password-copy').textContent = 'Copy'; }, 2000);
     });
   });
+
+  // ── Analytics tab hooks ────────────────────────────────────────────────────
+  // Lazy-load analytics data the first time each tab is activated.
+  // Re-fetch whenever the range-select changes.
+  setupAnalyticsTabs();
 })();
+
+
+/* ═══════════════════════════════════════════════════════════
+   SUPERADMIN ANALYTICS — client-side logic
+   ═══════════════════════════════════════════════════════════ */
+
+// ── Shared SVG helpers ──────────────────────────────────────────────────────
+
+const PALETTE = {
+  claude_code: '#f87171',
+  cursor:      '#60a5fa',
+  codex:       '#a78bfa',
+  unknown:     '#94a3b8',
+};
+
+function toolColor(tool) {
+  return PALETTE[tool] || PALETTE.unknown;
+}
+
+function fmtCost(v) {
+  const n = Number(v) || 0;
+  if (n === 0) return '$0.00';
+  if (n < 0.01) return '$' + n.toFixed(4);
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtTokens(n) {
+  n = Number(n) || 0;
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return String(n);
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function fmtDuration(seconds) {
+  const s = Number(seconds) || 0;
+  if (s < 60) return s.toFixed(0) + 's';
+  const m = s / 60;
+  if (m < 60) return m.toFixed(1) + 'm';
+  const h = m / 60;
+  if (h < 24) return h.toFixed(1) + 'h';
+  const d = h / 24;
+  return d.toFixed(1) + 'd';
+}
+
+/**
+ * Generate smooth bezier curve path points
+ */
+function getBezierPath(points) {
+  if (points.length < 2) return '';
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i];
+    const p1 = points[i + 1];
+    const cpX1 = p0.x + (p1.x - p0.x) / 3;
+    const cpY1 = p0.y;
+    const cpX2 = p0.x + 2 * (p1.x - p0.x) / 3;
+    const cpY2 = p1.y;
+    d += ` C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${p1.x} ${p1.y}`;
+  }
+  return d;
+}
+
+/**
+ * Draw a smooth line chart on an SVG element.
+ */
+function drawLineChart(svgEl, series, xLabels, opts = {}) {
+  if (!svgEl) return;
+  const W = 600, H = opts.height || 160;
+  const padL = 42, padR = 12, padT = 12, padB = 28;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+
+  const allVals = series.flatMap(s => s.values).filter(v => v != null);
+  const maxV = allVals.length ? Math.max(...allVals, 0) * 1.1 || 1 : 1;
+  const n = xLabels.length;
+
+  function px(i) { return padL + (n < 2 ? chartW / 2 : (i / (n - 1)) * chartW); }
+  function py(v) { return padT + chartH - (v / maxV) * chartH; }
+
+  const labelFormatter = opts.yFormatter || ((v) => String(v));
+
+  let html = `<g class="grid">`;
+  // Horizontal grid lines (4)
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + (i / 4) * chartH;
+    const v = maxV * (1 - i / 4);
+    html += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>`;
+    html += `<text x="${padL - 6}" y="${y + 3}" text-anchor="end" font-size="9" fill="rgba(255,255,255,0.3)" font-family="var(--font-mono)">${labelFormatter(v).replace('$','')}</text>`;
+  }
+  html += `</g>`;
+
+  // Draw series paths
+  series.forEach(s => {
+    if (!s.values.length) return;
+    const pts = s.values.map((v, i) => ({ x: px(i), y: py(v || 0) }));
+    const curvePath = getBezierPath(pts);
+    const firstPt = pts[0];
+    const lastPt = pts[pts.length - 1];
+    const areaPath = `${curvePath} L ${lastPt.x} ${padT + chartH} L ${firstPt.x} ${padT + chartH} Z`;
+
+    html += `<path d="${areaPath}" fill="${s.color}" fill-opacity="0.05"/>`;
+    html += `<path d="${curvePath}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    
+    // Draw dots at points
+    pts.forEach((pt) => {
+      html += `<circle cx="${pt.x}" cy="${pt.y}" r="3" fill="var(--surface)" stroke="${s.color}" stroke-width="1.5" />`;
+    });
+  });
+
+  // X-axis labels
+  const step = Math.max(1, Math.floor(n / 6));
+  html += `<g>`;
+  xLabels.forEach((lbl, i) => {
+    if (i % step !== 0 && i !== n - 1) return;
+    html += `<text x="${px(i)}" y="${H - 6}" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.35)">${lbl}</text>`;
+  });
+  html += `</g>`;
+
+  svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svgEl.innerHTML = html;
+}
+
+/**
+ * Draw a bar chart on an SVG element.
+ */
+function drawBarChart(svgEl, bars, opts = {}) {
+  if (!svgEl || !bars.length) return;
+  const W = 600, H = opts.height || 120;
+  const padL = 24, padR = 12, padT = 12, padB = 24;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+
+  const maxV = Math.max(...bars.map(b => b.value), 0) * 1.1 || 1;
+  const bw = (chartW / bars.length) * 0.6;
+  const gap = chartW / bars.length;
+
+  let html = '';
+  // Horizontal grid lines
+  for (let i = 0; i <= 3; i++) {
+    const y = padT + (i / 3) * chartH;
+    html += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="rgba(255,255,255,0.03)" stroke-width="1"/>`;
+  }
+
+  bars.forEach((b, i) => {
+    const bh = (b.value / maxV) * chartH;
+    const x = padL + i * gap + (gap - bw) / 2;
+    const y = padT + chartH - bh;
+    
+    html += `
+      <g class="bar-group" data-index="${i}">
+        <rect x="${x}" y="${y}" width="${bw}" height="${bh}" rx="2" fill="${b.color || '#34d399'}" fill-opacity="0.8" />
+      </g>
+    `;
+  });
+
+  // X-axis labels
+  const step = Math.max(1, Math.floor(bars.length / 5));
+  bars.forEach((b, i) => {
+    if (i % step !== 0 && i !== bars.length - 1) return;
+    const x = padL + i * gap + gap / 2;
+    html += `<text x="${x}" y="${H - 4}" text-anchor="middle" font-size="9" fill="rgba(255,255,255,0.35)">${fmtDate(b.label)}</text>`;
+  });
+
+  svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svgEl.innerHTML = html;
+}
+
+// ── Empty state helper ──────────────────────────────────────────────────────
+function showEmptyState(el, msg = 'No data yet — rollup runs nightly') {
+  if (!el) return;
+  el.innerHTML = `
+    <div class="analytics-empty-new">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="8" y1="12" x2="16" y2="12"/>
+      </svg>
+      <span>${esc(msg)}</span>
+    </div>`;
+}
+
+// ── Interactive Tooltips and Hover Tracking ─────────────────────────────────
+
+function initInteractiveChart(svgEl, series, xLabels, tooltipEl, valueFormatter = (v) => v) {
+  if (!svgEl || !xLabels.length) return;
+
+  const W = 600;
+  const H = svgEl.viewBox.baseVal.height || 180;
+  const padL = 42, padR = 12, padT = 12, padB = 28;
+  const chartW = W - padL - padR;
+
+  const points = xLabels.map((_, i) => {
+    return padL + (xLabels.length < 2 ? chartW / 2 : (i / (xLabels.length - 1)) * chartW);
+  });
+
+  svgEl.style.position = 'relative';
+
+  svgEl.onmousemove = (e) => {
+    const rect = svgEl.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * W;
+    
+    let closestIdx = 0;
+    let minDiff = Infinity;
+    points.forEach((px, idx) => {
+      const diff = Math.abs(x - px);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = idx;
+      }
+    });
+
+    updateInteractiveGroup(svgEl, points[closestIdx], closestIdx, series, H, padT, padB);
+
+    if (tooltipEl) {
+      tooltipEl.hidden = false;
+      const tooltipX = ((points[closestIdx] / W) * rect.width);
+      const alignLeft = tooltipX > rect.width * 0.6;
+      tooltipEl.style.left = `${alignLeft ? tooltipX - tooltipEl.offsetWidth - 10 : tooltipX + 15}px`;
+      tooltipEl.style.top = `${((H / 2) / H) * rect.height - 20}px`;
+
+      let tooltipHtml = `<div class="tooltip-label">${xLabels[closestIdx]}</div>`;
+      series.forEach(s => {
+        const val = s.values[closestIdx];
+        if (val !== undefined && val !== null) {
+          tooltipHtml += `
+            <div class="tooltip-row">
+              <span class="tooltip-dot" style="background:${s.color}"></span>
+              <span style="color:var(--ink-2);margin-right:auto">${s.label}:</span>
+              <span class="tooltip-val">${valueFormatter(val, s.label)}</span>
+            </div>`;
+        }
+      });
+      tooltipEl.innerHTML = tooltipHtml;
+    }
+  };
+
+  svgEl.onmouseleave = () => {
+    const interactiveG = svgEl.querySelector('#interactive-group');
+    if (interactiveG) interactiveG.setAttribute('opacity', '0');
+    if (tooltipEl) tooltipEl.hidden = true;
+  };
+}
+
+function updateInteractiveGroup(svgEl, x, idx, series, H, padT, padB) {
+  let interactiveG = svgEl.querySelector('#interactive-group');
+  if (!interactiveG) {
+    interactiveG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    interactiveG.setAttribute('id', 'interactive-group');
+    svgEl.appendChild(interactiveG);
+  }
+  interactiveG.setAttribute('opacity', '1');
+
+  const maxVal = Math.max(...series.flatMap(s => s.values).filter(v => v != null), 0) * 1.1 || 1;
+  const chartH = H - padT - padB;
+  function py(v) { return padT + chartH - (v / maxVal) * chartH; }
+
+  let html = `<line x1="${x}" y1="${padT}" x2="${x}" y2="${H - padB}" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="3,3"/>`;
+  
+  series.forEach(s => {
+    const val = s.values[idx];
+    if (val !== undefined && val !== null) {
+      const y = py(val);
+      html += `
+        <circle cx="${x}" cy="${y}" r="5" fill="${s.color}" stroke="var(--surface)" stroke-width="1.5"/>
+        <circle cx="${x}" cy="${y}" r="8" fill="${s.color}" opacity="0.25"/>
+      `;
+    }
+  });
+
+  interactiveG.innerHTML = html;
+}
+
+// ── Easing counter animations ────────────────────────────────────────────────
+
+function animateValue(el, endVal, duration = 400, formatter = (v) => String(v)) {
+  if (!el) return;
+  const target = Number(endVal) || 0;
+  const start = 0;
+  const startTime = performance.now();
+
+  function update(currentTime) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const ease = progress * (2 - progress);
+    const val = start + (target - start) * ease;
+    
+    el.textContent = formatter(val);
+
+    if (progress < 1) {
+      requestAnimationFrame(update);
+    } else {
+      el.textContent = formatter(target);
+    }
+  }
+
+  requestAnimationFrame(update);
+}
+
+// ── Pipeline Health ─────────────────────────────────────────────────────────
+
+let pipelineLoaded = false;
+
+async function loadPipelineHealth(range = '7d') {
+  try {
+    const res = await fetch(`/api/admin/pipeline-health?range=${range}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderPipelineHealth(data);
+  } catch (err) {
+    window.showToast?.(`Pipeline health: ${err.message}`, { type: 'error' });
+  }
+}
+
+function daemonHealthClass(last_heartbeat) {
+  if (!last_heartbeat) return 'never';
+  const diffMs = Date.now() - new Date(last_heartbeat).getTime();
+  const diffHr = diffMs / 3600000;
+  if (diffHr < 1)  return 'healthy';
+  if (diffHr < 24) return 'stale';
+  return 'dead';
+}
+
+function renderPipelineHealth(data) {
+  const dot = $('#pipeline-health-dot');
+  const label = $('#pipeline-health-label');
+  
+  const daemons = data.daemons || [];
+  let status = 'healthy';
+  let activeCount = 0;
+  let staleCount = 0;
+  let deadCount = 0;
+
+  daemons.forEach(d => {
+    const s = daemonHealthClass(d.last_heartbeat);
+    if (s === 'healthy') activeCount++;
+    else if (s === 'stale') staleCount++;
+    else if (s === 'dead') deadCount++;
+  });
+
+  if (deadCount > 0 || (daemons.length === 0)) {
+    status = 'critical';
+  } else if (staleCount > 0) {
+    status = 'warn';
+  }
+
+  if (dot) {
+    dot.className = 'health-indicator-dot ' + (status === 'healthy' ? 'dot-healthy' : status === 'warn' ? 'dot-warn' : 'dot-critical');
+  }
+  if (label) {
+    label.textContent = status === 'healthy' ? 'All Systems Operational' : status === 'warn' ? `${staleCount} Daemon(s) Stale` : 'System Issues Detected';
+  }
+
+  // Animate KPI values
+  animateValue($('#pipeline-active-24h'), data.active_24h ?? 0, 400, (v) => String(Math.floor(v)));
+  animateValue($('#pipeline-total-known'), data.total_known ?? 0, 400, (v) => String(Math.floor(v)));
+  animateValue($('#pipeline-table-count'), data.schema?.table_count ?? 0, 400, (v) => String(Math.floor(v)));
+  
+  const avgLag = daemons.length ? Math.round(daemons.reduce((acc, curr) => acc + (curr.avg_ingestion_lag_seconds || 0), 0) / daemons.length) : 0;
+  animateValue($('#pipeline-avg-lag'), avgLag, 400, fmtDuration);
+
+  // Daemon grid new
+  const grid = $('#daemon-grid');
+  const countBadge = $('#daemon-count-badge');
+  if (countBadge) {
+    countBadge.textContent = `${daemons.length} registered`;
+  }
+  if (grid) {
+    if (!daemons.length) {
+      showEmptyState(grid, 'No registered daemons found');
+    } else {
+      grid.innerHTML = daemons.map(d => {
+        const statusClass = daemonHealthClass(d.last_heartbeat);
+        const labelMap = { healthy: 'Healthy', stale: 'Stale', dead: 'Dead', never: 'Never' };
+        const hb = d.last_heartbeat
+          ? new Date(d.last_heartbeat).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + new Date(d.last_heartbeat).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          : 'Never';
+        return `
+          <div class="daemon-row">
+            <div class="daemon-status-dot ${statusClass}" title="${labelMap[statusClass]}"></div>
+            <div>
+              <div class="daemon-row-name">${esc(d.daemon_name || d.daemon_id)}</div>
+              <div class="daemon-row-org">${esc(d.org_name || 'Independent')} · ${fmtDuration(d.avg_ingestion_lag_seconds)} lag · ${Number(d.batches_received || 0).toLocaleString()} batches</div>
+            </div>
+            <div class="daemon-row-meta">
+              <span class="daemon-row-badge badge-${statusClass}">${labelMap[statusClass]}</span>
+              <div class="daemon-row-hb">${hb}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+  }
+
+  // Ingestion lag chart
+  const lagSvg = $('#lag-chart');
+  const lagTooltip = $('#lag-tooltip');
+  if (lagSvg) {
+    const trend = data.lag_trend || [];
+    if (!trend.length) {
+      showEmptyState(document.getElementById('lag-chart-wrap'), 'No lag data recorded in period');
+    } else {
+      const labels = trend.map(r => fmtDate(r.day));
+      const vals   = trend.map(r => Number(r.avg_lag_seconds) || 0);
+      const series = [{ label: 'Ingestion Lag', color: '#a78bfa', values: vals }];
+      
+      drawLineChart(lagSvg, series, labels, {
+        height: 150,
+        yFormatter: fmtDuration
+      });
+      initInteractiveChart(lagSvg, series, labels, lagTooltip, fmtDuration);
+    }
+  }
+
+  // Failure Rates List
+  const frList = $('#failure-rate-list');
+  if (frList) {
+    const failures = data.failure_rates || [];
+    if (!failures.length) {
+      showEmptyState(frList, 'No activity or failures recorded');
+    } else {
+      frList.innerHTML = failures.map(r => {
+        const rate = Number(r.failure_rate_pct) || 0;
+        const total = Number(r.total_received) || 0;
+        const failed = Number(r.total_failed) || 0;
+        return `
+          <div class="fr-row">
+            <div class="fr-name">${esc(r.daemon_name || r.daemon_id)}</div>
+            <div class="fr-track">
+              <div class="fr-fill" style="width: ${rate}%"></div>
+            </div>
+            <div class="fr-meta">
+              <span>Failure Rate: <strong>${rate.toFixed(1)}%</strong></span>
+              <span>${failed}/${total} failed batches</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+  }
+}
+
+// ── Cost Intelligence ───────────────────────────────────────────────────────
+
+let costLoaded = false;
+
+async function loadCostOverview(range = '30d') {
+  try {
+    const res = await fetch(`/api/admin/cost-overview?range=${range}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderCostOverview(data);
+  } catch (err) {
+    window.showToast?.(`Cost overview: ${err.message}`, { type: 'error' });
+  }
+}
+
+function renderCostOverview(data) {
+  const t = data.totals || {};
+
+  // KPI Row with animated values
+  animateValue($('#cost-total-actual'), t.total_actual_cost ?? 0, 400, fmtCost);
+  animateValue($('#cost-total-list'), t.total_list_price ?? 0, 400, fmtCost);
+  animateValue($('#cost-total-sessions'), t.total_sessions ?? 0, 400, (v) => Number(Math.floor(v)).toLocaleString());
+
+  const totalCacheSavings = (data.cache_savings || []).reduce((sum, r) => sum + (Number(r.estimated_cache_savings_usd) || 0), 0);
+  animateValue($('#cost-total-cache-savings'), totalCacheSavings, 400, fmtCost);
+
+  // Avg cost per session sub label
+  const avgSessCost = t.total_sessions ? (t.total_actual_cost / t.total_sessions) : 0;
+  const avgSessCostEl = $('#cost-per-session-avg');
+  if (avgSessCostEl) {
+    avgSessCostEl.textContent = fmtCost(avgSessCost) + ' avg/session';
+  }
+
+  // Cost trend line chart
+  const costSvg = $('#cost-trend-chart');
+  const costTooltip = $('#cost-tooltip');
+  if (costSvg) {
+    const trend = data.cost_trend || [];
+    if (!trend.length) {
+      showEmptyState(document.getElementById('cost-chart-wrap'), 'No cost data recorded in period');
+    } else {
+      const labels = trend.map(r => fmtDate(r.day));
+      const series = [
+        { label: 'List Price', color: '#fbbf24', values: trend.map(r => Number(r.list_price_total) || 0) },
+        { label: 'Actual Cost', color: '#34d399', values: trend.map(r => Number(r.actual_cost_total) || 0) },
+      ];
+      drawLineChart(costSvg, series, labels, {
+        height: 210,
+        yFormatter: (v) => fmtCost(v)
+      });
+      initInteractiveChart(costSvg, series, labels, costTooltip, (v) => fmtCost(v));
+    }
+  }
+
+  // Cache savings bar chart
+  const cacheSvg = $('#cache-savings-chart');
+  if (cacheSvg) {
+    const savings = data.cache_savings || [];
+    if (!savings.length) {
+      showEmptyState(document.getElementById('cache-chart-wrap'), 'No cache savings recorded');
+    } else {
+      drawBarChart(cacheSvg, savings.map(r => ({
+        label: r.day,
+        value: Number(r.estimated_cache_savings_usd) || 0,
+        color: '#34d399',
+      })), { height: 140 });
+    }
+  }
+
+  // Top Orgs List (rendered with beautiful visual bars instead of raw table)
+  const orgsList = $('#top-orgs-list');
+  if (orgsList) {
+    const orgs = data.top_orgs || [];
+    if (!orgs.length) {
+      showEmptyState(orgsList, 'No spend data recorded');
+    } else {
+      const maxCost = orgs.length ? Math.max(...orgs.map(o => o.total_actual_cost), 1) : 1;
+      orgsList.innerHTML = orgs.map((o, i) => {
+        const pct = Math.max(3, (o.total_actual_cost / maxCost) * 100);
+        return `
+          <div class="org-row">
+            <div class="org-rank">#${i + 1}</div>
+            <div class="org-info">
+              <div class="org-name">${esc(o.org_name || 'Independent')}</div>
+              <div class="org-sessions">${Number(o.total_sessions).toLocaleString()} sessions · ${fmtTokens(o.total_input_tokens)} in · ${fmtTokens(o.total_output_tokens)} out</div>
+            </div>
+            <div class="org-cost-block">
+              <div class="org-cost-actual">${fmtCost(o.total_actual_cost)}</div>
+              <div class="org-cost-bar-wrap">
+                <div class="org-cost-bar-track">
+                  <div class="org-cost-bar-fill" style="width: ${pct}%"></div>
+                </div>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+  }
+
+  // Override Audit List
+  const auditList = $('#override-audit-list');
+  if (auditList) {
+    const overrides = data.override_audit || [];
+    if (!overrides.length) {
+      showEmptyState(auditList, 'No active custom pricing overrides');
+    } else {
+      auditList.innerHTML = overrides.map(o => `
+        <div class="override-row">
+          <div class="override-org">${esc(o.org_name || 'Global Override')}</div>
+          <div class="override-pattern"><code>${esc(o.model_pattern)}</code></div>
+          <div class="override-rates">
+            In: $${Number(o.cost_in_per_m).toFixed(2)}/M · Out: $${Number(o.cost_out_per_m).toFixed(2)}/M · Cache: $${Number(o.cost_cache_read_per_m).toFixed(2)}/M
+          </div>
+        </div>`).join('');
+    }
+  }
+}
+
+// ── Usage & Growth ──────────────────────────────────────────────────────────
+
+let usageLoaded = false;
+
+async function loadUsageTrends(range = '30d') {
+  try {
+    const res = await fetch(`/api/admin/usage-trends?range=${range}&groupBy=tool`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderUsageTrends(data);
+  } catch (err) {
+    window.showToast?.(`Usage trends: ${err.message}`, { type: 'error' });
+  }
+}
+
+function renderUsageTrends(data) {
+  const da = data.daemon_activity || {};
+  
+  // KPI card counter updates
+  animateValue($('#usage-active-24h'), da.active_24h ?? 0, 400, (v) => String(Math.floor(v)));
+  animateValue($('#usage-active-7d'), da.active_7d ?? 0, 400, (v) => String(Math.floor(v)));
+  animateValue($('#usage-total-registered'), da.total_registered ?? 0, 400, (v) => String(Math.floor(v)));
+
+  const totalTokens = (data.daily_summary || []).reduce((sum, r) => sum + (Number(r.total_tokens) || 0), 0);
+  animateValue($('#usage-total-tokens'), totalTokens, 400, fmtTokens);
+
+  // Token trend line chart (by tool stacked/multi-line)
+  const tokenSvg = $('#token-trend-chart');
+  const tokenTooltip = $('#token-tooltip');
+  if (tokenSvg) {
+    const byTool = data.tokens_by_tool || [];
+    if (!byTool.length) {
+      showEmptyState(document.getElementById('token-trend-wrap'), 'No token usage recorded in period');
+    } else {
+      const days = [...new Set(byTool.map(r => r.day))].sort();
+      const tools = [...new Set(byTool.map(r => r.tool))];
+      const series = tools.map(tool => ({
+        label: tool,
+        color: toolColor(tool),
+        values: days.map(day => {
+          const row = byTool.find(r => r.day === day && r.tool === tool);
+          return row ? Number(row.input_tokens) + Number(row.output_tokens) : 0;
+        }),
+      }));
+      drawLineChart(tokenSvg, series, days.map(fmtDate), {
+        height: 220,
+        yFormatter: (v) => fmtTokens(v)
+      });
+      initInteractiveChart(tokenSvg, series, days.map(fmtDate), tokenTooltip, (v) => fmtTokens(v));
+
+      // Redesigned inline tool legends
+      const legend = $('#tool-legend');
+      if (legend) {
+        legend.innerHTML = tools.map(t => `
+          <span style="display:inline-flex;align-items:center;margin-right:12px;">
+            <span class="cli-dot" style="background:${toolColor(t)}"></span>${esc(t)}
+          </span>`
+        ).join('');
+      }
+    }
+  }
+
+  // Model Leaderboard
+  const modelLeader = $('#model-punchcard-wrap');
+  if (modelLeader) {
+    const models = data.top_models || [];
+    if (!models.length) {
+      showEmptyState(modelLeader, 'No model usage recorded');
+    } else {
+      const maxTokens = models.length ? Math.max(...models.map(m => Number(m.total_tokens) || 0), 1) : 1;
+      modelLeader.innerHTML = models.slice(0, 10).map(m => {
+        const tokens = Number(m.total_tokens) || 0;
+        const pct = Math.max(3, (tokens / maxTokens) * 100);
+        return `
+          <div class="model-row">
+            <div class="model-row-header">
+              <span class="model-name">${esc(m.model)}</span>
+              <span class="model-tokens">${fmtTokens(tokens)} tokens</span>
+            </div>
+            <div class="model-bar-track">
+              <div class="model-bar-fill" style="width: ${pct}%"></div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+  }
+
+  // Daily Summary List
+  const summaryList = $('#daily-summary-list');
+  if (summaryList) {
+    const summary = [...(data.daily_summary || [])].reverse(); // most recent first
+    if (!summary.length) {
+      showEmptyState(summaryList, 'No daily summary recorded');
+    } else {
+      summaryList.innerHTML = summary.map(r => `
+        <div class="ds-row">
+          <div class="ds-date">${fmtDate(r.day)}</div>
+          <div class="ds-tokens">${fmtTokens(r.total_tokens)} tkn</div>
+          <div class="ds-sessions">${Number(r.total_sessions).toLocaleString()} sess</div>
+          <div><span class="ds-orgs">${r.active_orgs} orgs</span></div>
+        </div>`).join('');
+    }
+  }
+}
+
+// ── Wire up analytics tab lazy-loading ─────────────────────────────────────
+function setupAnalyticsTabs() {
+  $('#pipeline-range-select')?.addEventListener('change', (e) => {
+    loadPipelineHealth(e.target.value);
+  });
+
+  const costSel = $('#cost-range-select');
+  if (costSel) {
+    costSel.addEventListener('change', (e) => loadCostOverview(e.target.value));
+  }
+
+  const usageSel = $('#usage-range-select');
+  if (usageSel) {
+    usageSel.addEventListener('change', (e) => loadUsageTrends(e.target.value));
+  }
+
+  // Lazy-load on first tab activation by patching switchTab
+  const _origSwitchTab = window._switchTab || switchTab;
+  function patchedSwitchTab(tabId) {
+    _origSwitchTab(tabId);
+    if (tabId === 'tab-pipeline' && !pipelineLoaded) {
+      pipelineLoaded = true;
+      loadPipelineHealth($('#pipeline-range-select')?.value || '7d');
+    }
+    if (tabId === 'tab-cost' && !costLoaded) {
+      costLoaded = true;
+      loadCostOverview($('#cost-range-select')?.value || '30d');
+    }
+    if (tabId === 'tab-usage' && !usageLoaded) {
+      usageLoaded = true;
+      loadUsageTrends($('#usage-range-select')?.value || '30d');
+    }
+    if (tabId === 'tab-research') {
+      window.dispatchEvent(new CustomEvent('research-tab-activated'));
+    }
+  }
+
+  document.querySelectorAll('.admin-sidebar-nav button').forEach(b => {
+    b.onclick = () => patchedSwitchTab(b.dataset.tab);
+  });
+}
+
 

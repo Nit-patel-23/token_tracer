@@ -114,7 +114,139 @@ export async function ensureSchema(): Promise<void> {
 
           -- Add events JSONB column if not present
           ALTER TABLE sync_sessions ADD COLUMN IF NOT EXISTS events JSONB;
-        `);
+
+          -- ── Rollup tables for superadmin analytics ─────────────────────────
+          -- one row per org+tool+model+day (nightly rollup)
+          CREATE TABLE IF NOT EXISTS daily_org_usage (
+            day DATE NOT NULL,
+            org_id TEXT NOT NULL,
+            tool TEXT NOT NULL,
+            model TEXT NOT NULL,
+            input_tokens BIGINT DEFAULT 0,
+            output_tokens BIGINT DEFAULT 0,
+            cache_read_tokens BIGINT DEFAULT 0,
+            cache_write_tokens BIGINT DEFAULT 0,
+            list_price_cost NUMERIC(12,4) DEFAULT 0,
+            actual_cost NUMERIC(12,4) DEFAULT 0,
+            session_count INT DEFAULT 0,
+            PRIMARY KEY (day, org_id, tool, model)
+          );
+
+          -- one row per sync daemon (member) per day
+          CREATE TABLE IF NOT EXISTS daily_pipeline_health (
+            day DATE NOT NULL,
+            daemon_id TEXT NOT NULL,
+            org_id TEXT NOT NULL,
+            last_heartbeat TIMESTAMPTZ,
+            batches_received INT DEFAULT 0,
+            batches_failed INT DEFAULT 0,
+            avg_ingestion_lag_seconds INT,
+            parse_errors INT DEFAULT 0,
+            sanitize_errors INT DEFAULT 0,
+            PRIMARY KEY (day, daemon_id)
+          );
+
+          -- one row per org+tool+day for behaviour patterns
+          CREATE TABLE IF NOT EXISTS daily_behavior_rollup (
+            day DATE NOT NULL,
+            org_id TEXT NOT NULL,
+            tool TEXT NOT NULL,
+            rework_loop_count INT DEFAULT 0,
+            tool_error_count INT DEFAULT 0,
+            total_turns INT DEFAULT 0,
+            PRIMARY KEY (day, org_id, tool)
+          );
+
+           -- Indexes for fast range queries on rollup tables
+           CREATE INDEX IF NOT EXISTS idx_daily_org_usage_day ON daily_org_usage(day DESC);
+           CREATE INDEX IF NOT EXISTS idx_daily_pipeline_health_day ON daily_pipeline_health(day DESC);
+           CREATE INDEX IF NOT EXISTS idx_daily_behavior_day ON daily_behavior_rollup(day DESC);
+
+           -- ── Research Analytics Tables (Study 1-5) ─────────────────────────
+           CREATE TABLE IF NOT EXISTS session_turns (
+             id BIGSERIAL PRIMARY KEY,
+             session_id TEXT NOT NULL,
+             org_id TEXT NOT NULL,
+             user_id TEXT NOT NULL,
+             tool TEXT NOT NULL,
+             model TEXT NOT NULL,
+             turn_index INT NOT NULL,
+             turn_role TEXT NOT NULL,
+             input_tokens INT DEFAULT 0,
+             output_tokens INT DEFAULT 0,
+             cache_read_tokens INT DEFAULT 0,
+             cache_write_tokens INT DEFAULT 0,
+             cumulative_input_tokens INT,
+             prompt_text_sanitized TEXT,
+             prompt_char_len INT,
+             has_code_block BOOLEAN DEFAULT FALSE,
+             has_file_path BOOLEAN DEFAULT FALSE,
+             has_traceback BOOLEAN DEFAULT FALSE,
+             intent_category TEXT,
+             files_touched INT DEFAULT 0,
+             lines_added INT DEFAULT 0,
+             lines_removed INT DEFAULT 0,
+             tool_call_count INT DEFAULT 0,
+             tool_call_valid_count INT DEFAULT 0,
+             tool_error_flag BOOLEAN DEFAULT FALSE,
+             rework_flag BOOLEAN DEFAULT FALSE,
+             revert_flag BOOLEAN DEFAULT FALSE,
+             created_at TIMESTAMPTZ DEFAULT now()
+           );
+           CREATE INDEX IF NOT EXISTS idx_session_turns_session ON session_turns(session_id, turn_index);
+           CREATE INDEX IF NOT EXISTS idx_session_turns_org_model ON session_turns(org_id, model, tool);
+
+           CREATE TABLE IF NOT EXISTS model_context_limits (
+             model TEXT PRIMARY KEY,
+             max_context_tokens INT NOT NULL
+           );
+
+           INSERT INTO model_context_limits (model, max_context_tokens) VALUES
+             ('claude-3-7-sonnet', 200000),
+             ('claude-3-5-sonnet', 200000),
+             ('claude-3-5-haiku', 200000),
+             ('gpt-4o', 128000),
+             ('gpt-4o-mini', 128000),
+             ('o1', 200000),
+             ('o3-mini', 200000),
+             ('deepseek-r1', 64000),
+             ('deepseek-v3', 64000),
+             ('default', 200000)
+           ON CONFLICT (model) DO NOTHING;
+
+           CREATE TABLE IF NOT EXISTS session_outcomes (
+             session_id TEXT PRIMARY KEY,
+             org_id TEXT NOT NULL,
+             tool TEXT NOT NULL,
+             model TEXT NOT NULL,
+             intent_category TEXT,
+             total_input_tokens INT,
+             total_output_tokens INT,
+             total_cost NUMERIC(12,4),
+             files_touched INT,
+             lines_changed INT,
+             tool_call_count INT,
+             had_rework BOOLEAN,
+             had_revert BOOLEAN,
+             had_tool_error BOOLEAN,
+             success BOOLEAN,
+             complexity_score NUMERIC
+           );
+
+           CREATE TABLE IF NOT EXISTS prompt_embeddings (
+             turn_id BIGINT REFERENCES session_turns(id) PRIMARY KEY,
+             embedding FLOAT8[]
+           );
+
+           CREATE TABLE IF NOT EXISTS redundant_reprompt_events (
+             id BIGSERIAL PRIMARY KEY,
+             session_id TEXT NOT NULL,
+             turn_index INT NOT NULL,
+             similarity_score NUMERIC,
+             tokens_cost_of_following_turn INT,
+             created_at TIMESTAMPTZ DEFAULT now()
+           );
+         `);
         schemaChecked = true;
       } catch (err) {
         console.warn('[db auto-schema notice]', (err as Error).message);

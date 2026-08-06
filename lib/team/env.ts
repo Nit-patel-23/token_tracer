@@ -58,3 +58,8 @@ export function sessionSecret(): string {
   loadEnv();
   return process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'dev-insecure-change-me';
 }
+
+export function cronSecret(): string | null {
+  loadEnv();
+  return process.env.CRON_SECRET || null;
+}

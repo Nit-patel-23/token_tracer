@@ -5,6 +5,7 @@
  */
 import { query } from './db';
 import { recalculateTeamCosts, matchesModelPattern } from './stats';
+import { saveSessionTurns } from './research';
 
 interface SessionPayload {
   source: string;
@@ -176,6 +177,22 @@ export async function ingestSessions(
     const syncSessionId = rows[0]?.id;
     if (!syncSessionId) continue;
     accepted++;
+
+    // Hook into session turns research calculations
+    if (s.events) {
+      try {
+        await saveSessionTurns(
+          member.team_id,
+          member.member_id,
+          source,
+          model,
+          sessionId,
+          s.events
+        );
+      } catch (err) {
+        console.error('[ingest-turns-research-notice]', err);
+      }
+    }
 
     await query('DELETE FROM sync_session_tools WHERE sync_session_id = $1', [syncSessionId]);
     await query('DELETE FROM sync_session_files WHERE sync_session_id = $1', [syncSessionId]);

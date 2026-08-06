@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromCookie, hashPassword } from '@/lib/auth';
 import { query } from '@/lib/team/db';
+import { backfillResearchAnalytics } from '@/lib/team/research';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,7 +92,16 @@ export async function POST(req: NextRequest) {
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_model_pricing_global_unique ON model_pricing (LOWER(model_pattern)) WHERE team_id IS NULL`).catch(() => {});
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_model_pricing_team_unique ON model_pricing (team_id, LOWER(model_pattern)) WHERE team_id IS NOT NULL`).catch(() => {});
 
-    return NextResponse.json({ ok: true, message: 'Migration complete. Users table, multi-team memberships, and global pricing are ready.' });
+    // Parse and backfill historical session trajectories
+    const backfillStats = await backfillResearchAnalytics().catch((err) => {
+      console.warn('[research-backfill-warn]', err.message);
+      return { processed: 0 };
+    });
+
+    return NextResponse.json({
+      ok: true,
+      message: `Migration complete. Multi-team settings ready. Backfilled ${backfillStats.processed} sessions into turns research database.`
+    });
   } catch (err) {
     console.error('[admin/migrate error]', err);
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });
