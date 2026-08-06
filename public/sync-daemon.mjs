@@ -1074,8 +1074,6 @@ function sessionSummary(session, pricing, includeEvents = false) {
 
 // lib/team/sanitize.mjs
 var FORBIDDEN_KEYS = /* @__PURE__ */ new Set([
-  "events",
-  "text",
   "content",
   "prompt",
   "result",
@@ -1142,7 +1140,19 @@ function sanitizeForTeamSync(session, pricing) {
     corrections: intel.corrections ?? 0,
     abandoned: intel.abandoned ?? false,
     tools,
-    files
+    files,
+    events: (session.events ?? [])
+      .filter((e) => e.kind === "user" || e.kind === "assistant")
+      .map((e) => ({
+        kind: e.kind,
+        ts: e.ts ?? null,
+        text: e.text ?? null,
+        usage: e.usage ? {
+          tokensIn: e.usage.tokensIn,
+          tokensOut: e.usage.tokensOut,
+          cacheRead: e.usage.cacheRead
+        } : null
+      }))
   };
   assertNoPromptFields(body);
   body.payloadHash = stablePayloadHash(body);

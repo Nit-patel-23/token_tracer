@@ -126,7 +126,7 @@ export async function GET(req: NextRequest) {
       },
       tools: toolsRes.rows,
       files: filesRes.rows,
-      events: [], // Individual events not stored in DB
+      events: row.events || [], // Returned from the newly synced DB column
     });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

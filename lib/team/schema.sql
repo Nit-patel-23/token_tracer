@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS sync_sessions (
   corrections INT NOT NULL DEFAULT 0,
   abandoned BOOLEAN NOT NULL DEFAULT false,
   payload_hash TEXT NOT NULL,
+  events JSONB,
   synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (team_id, member_id, source, session_id)
 );

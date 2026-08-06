@@ -32,6 +32,7 @@ interface SessionPayload {
   payloadHash: string;
   tools?: Array<{ name: string; count: number }>;
   files?: Array<{ path: string; edits?: number; additions?: number; deletions?: number }>;
+  events?: any[];
 }
 
 interface Member {
@@ -112,9 +113,9 @@ export async function ingestSessions(
         team_id, member_id, source, session_id, agent, label, model,
         started_at, ended_at, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write,
         api_cost, priced, edits, additions, deletions, changed_lines, files_touched,
-        tool_calls, tool_errors, rework_loops, corrections, abandoned, payload_hash, synced_at
+        tool_calls, tool_errors, rework_loops, corrections, abandoned, payload_hash, events, synced_at
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26, now()
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27, now()
       )
       ON CONFLICT (team_id, member_id, source, session_id) DO UPDATE SET
         agent = EXCLUDED.agent,
@@ -138,6 +139,7 @@ export async function ingestSessions(
         corrections = EXCLUDED.corrections,
         abandoned = EXCLUDED.abandoned,
         payload_hash = EXCLUDED.payload_hash,
+        events = EXCLUDED.events,
         synced_at = now()
       RETURNING id`,
       [
@@ -167,6 +169,7 @@ export async function ingestSessions(
         Number(s.corrections || 0),
         Boolean(s.abandoned),
         s.payloadHash || s.payload_hash || `hash_${Date.now()}_${Math.random()}`,
+        s.events ? JSON.stringify(s.events) : null,
       ],
     );
 

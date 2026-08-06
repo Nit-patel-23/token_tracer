@@ -111,6 +111,9 @@ export async function ensureSchema(): Promise<void> {
           FROM members m
           WHERE m.team_id IS NOT NULL
           ON CONFLICT (team_id, member_id) DO NOTHING;
+
+          -- Add events JSONB column if not present
+          ALTER TABLE sync_sessions ADD COLUMN IF NOT EXISTS events JSONB;
         `);
         schemaChecked = true;
       } catch (err) {
