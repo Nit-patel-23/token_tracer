@@ -72,21 +72,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'session not found' }, { status: 404 });
     }
 
-    // Fetch tool breakdown
-    const { rows: tools } = await query(`
-      SELECT tool_name, call_count
-      FROM sync_session_tools
-      WHERE sync_session_id = $1
-      ORDER BY call_count DESC
-    `, [row.id]);
-
-    // Fetch file breakdown
-    const { rows: files } = await query(`
-      SELECT path, edits, additions, deletions
-      FROM sync_session_files
-      WHERE sync_session_id = $1
-      ORDER BY edits DESC
-    `, [row.id]);
+    // Fetch tool and file breakdowns in parallel
+    const [toolsRes, filesRes] = await Promise.all([
+      query(`
+        SELECT tool_name, call_count
+        FROM sync_session_tools
+        WHERE sync_session_id = $1
+        ORDER BY call_count DESC
+      `, [row.id]),
+      query(`
+        SELECT path, edits, additions, deletions
+        FROM sync_session_files
+        WHERE sync_session_id = $1
+        ORDER BY edits DESC
+      `, [row.id]),
+    ]);
 
     return NextResponse.json({
       id: row.session_id || row.id,
@@ -97,6 +97,9 @@ export async function GET(req: NextRequest) {
       startedAt: row.started_at,
       endedAt: row.ended_at,
       syncedAt: row.synced_at,
+      // parent/children: not stored in DB schema — safe defaults for app.js renderTrajectory
+      parent: null,
+      children: [],
       intelligence: {
         edits: row.edits,
         additions: row.additions,
@@ -109,16 +112,21 @@ export async function GET(req: NextRequest) {
         corrections: row.corrections,
         abandoned: row.abandoned,
         apiCost: row.api_cost,
+        // Not available from DB — return null so app.js renders '—'
+        timeToFirstEditMs: null,
+        medianToolLatencyMs: null,
       },
       stats: {
         tokensIn: Number(row.tokens_in),
         tokensOut: Number(row.tokens_out),
         tokensCacheRead: Number(row.tokens_cache_read),
         tokensCacheWrite: Number(row.tokens_cache_write),
+        toolCounts: {},
+        errors: row.tool_errors || 0,
       },
-      tools,
-      files,
-      events: [], // Not stored in DB — show empty for now
+      tools: toolsRes.rows,
+      files: filesRes.rows,
+      events: [], // Individual events not stored in DB
     });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
