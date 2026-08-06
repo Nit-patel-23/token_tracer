@@ -21,6 +21,11 @@ interface StatsOptions {
  * Team rollup stats for admin dashboard with per-member, per-project, file-level drilldowns,
  * and custom filter parameters.
  */
+// Inline SQL token approximation — matches ingest.ts fallback formula.
+// Prevents zero-token charts when sessions were synced without real token counts.
+const EFF_IN = `CASE WHEN s.tokens_in = 0 AND (s.tool_calls + s.edits) > 0 THEN GREATEST(500, (s.tool_calls + s.edits) * 350 + s.changed_lines * 10) ELSE s.tokens_in END`;
+const EFF_OUT = `CASE WHEN s.tokens_out = 0 AND (s.tool_calls + s.edits) > 0 THEN GREATEST(200, (s.tool_calls + s.edits) * 150 + s.changed_lines * 5) ELSE s.tokens_out END`;
+
 export async function buildTeamStats(
   teamId: string,
   { from = null, to = null, memberId = null, minTokens = null, maxTokens = null, source = null }: StatsOptions = {},
@@ -102,8 +107,8 @@ export async function buildTeamStats(
             coalesce(sum(s.rework_loops), 0)::int AS rework_loops,
             coalesce(sum(s.corrections), 0)::int AS corrections,
             coalesce(sum(CASE WHEN s.abandoned THEN 1 ELSE 0 END), 0)::int AS abandoned,
-            coalesce(sum(s.tokens_in), 0)::bigint AS tokens_in,
-            coalesce(sum(s.tokens_out), 0)::bigint AS tokens_out,
+            coalesce(sum(${EFF_IN}), 0)::bigint AS tokens_in,
+            coalesce(sum(${EFF_OUT}), 0)::bigint AS tokens_out,
             coalesce(sum(s.tokens_cache_read), 0)::bigint AS tokens_cache_read,
             coalesce(sum(s.tokens_cache_write), 0)::bigint AS tokens_cache_write,
             coalesce(sum(s.api_cost), 0)::float AS api_cost,
@@ -122,8 +127,8 @@ export async function buildTeamStats(
     `SELECT s.member_id,
             s.source,
             count(s.id)::int AS sessions,
-            coalesce(sum(s.tokens_in), 0)::bigint AS tokens_in,
-            coalesce(sum(s.tokens_out), 0)::bigint AS tokens_out,
+            coalesce(sum(${EFF_IN}), 0)::bigint AS tokens_in,
+            coalesce(sum(${EFF_OUT}), 0)::bigint AS tokens_out,
             coalesce(sum(s.tokens_cache_read), 0)::bigint AS tokens_cache_read,
             coalesce(sum(s.api_cost), 0)::float AS api_cost,
             coalesce(sum(s.edits), 0)::int AS edits,
@@ -141,8 +146,8 @@ export async function buildTeamStats(
             COALESCE(s.agent, 'default') AS project,
             s.source,
             count(s.id)::int AS sessions,
-            coalesce(sum(s.tokens_in), 0)::bigint AS tokens_in,
-            coalesce(sum(s.tokens_out), 0)::bigint AS tokens_out,
+            coalesce(sum(${EFF_IN}), 0)::bigint AS tokens_in,
+            coalesce(sum(${EFF_OUT}), 0)::bigint AS tokens_out,
             coalesce(sum(s.tokens_cache_read), 0)::bigint AS tokens_cache_read,
             coalesce(sum(s.api_cost), 0)::float AS api_cost,
             coalesce(sum(s.edits), 0)::int AS edits,
@@ -215,8 +220,8 @@ export async function buildTeamStats(
     `SELECT s.source,
             count(*)::int AS sessions,
             count(DISTINCT s.member_id)::int AS member_count,
-            coalesce(sum(s.tokens_in), 0)::bigint AS tokens_in,
-            coalesce(sum(s.tokens_out), 0)::bigint AS tokens_out,
+            coalesce(sum(${EFF_IN}), 0)::bigint AS tokens_in,
+            coalesce(sum(${EFF_OUT}), 0)::bigint AS tokens_out,
             coalesce(sum(s.tokens_cache_read), 0)::bigint AS tokens_cache_read,
             coalesce(sum(s.edits), 0)::int AS edits,
             coalesce(sum(s.api_cost), 0)::float AS api_cost
@@ -230,8 +235,8 @@ export async function buildTeamStats(
   const { rows: byDay } = await query(
     `SELECT to_char(COALESCE(s.ended_at, s.started_at, s.synced_at)::date, 'YYYY-MM-DD') AS date,
             count(*)::int AS sessions,
-            coalesce(sum(s.tokens_in), 0)::bigint AS tokens_in,
-            coalesce(sum(s.tokens_out), 0)::bigint AS tokens_out,
+            coalesce(sum(${EFF_IN}), 0)::bigint AS tokens_in,
+            coalesce(sum(${EFF_OUT}), 0)::bigint AS tokens_out,
             coalesce(sum(s.edits), 0)::int AS edits,
             coalesce(sum(s.api_cost), 0)::float AS api_cost
      FROM sync_sessions s

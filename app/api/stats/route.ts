@@ -5,6 +5,15 @@
  * Returns the SAME rich data shape as the local buildStats() function so
  * app.js renders correctly for DB-backed users (identical to local-file mode).
  * All independent queries run in parallel via Promise.all for performance.
+ *
+ * Token approximation: sessions synced before real token capture had tokens_in=0.
+ * We apply the same formula as ingest.ts inline in SQL so charts always show data:
+ *   effective_in  = CASE WHEN tokens_in=0 AND (tool_calls+edits)>0
+ *                        THEN GREATEST(500, (tool_calls+edits)*350 + changed_lines*10)
+ *                        ELSE tokens_in END
+ *   effective_out = CASE WHEN tokens_out=0 AND (tool_calls+edits)>0
+ *                        THEN GREATEST(200, (tool_calls+edits)*150 + changed_lines*5)
+ *                        ELSE tokens_out END
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromCookie } from '@/lib/auth';
@@ -13,6 +22,24 @@ import { normalizeDateParam } from '@/lib/analytics.mjs';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+// ── Inline SQL token approximation expressions ────────────────────────────────
+// Mirrors the logic in lib/team/ingest.ts: estimate tokens from tool+edit counts
+// when the actual token values were not captured at sync time.
+const EFF_IN = `
+  CASE
+    WHEN s.tokens_in = 0 AND (s.tool_calls + s.edits) > 0
+    THEN GREATEST(500, (s.tool_calls + s.edits) * 350 + s.changed_lines * 10)
+    ELSE s.tokens_in
+  END
+`.trim();
+const EFF_OUT = `
+  CASE
+    WHEN s.tokens_out = 0 AND (s.tool_calls + s.edits) > 0
+    THEN GREATEST(200, (s.tool_calls + s.edits) * 150 + s.changed_lines * 5)
+    ELSE s.tokens_out
+  END
+`.trim();
 
 export async function GET(req: NextRequest) {
   const session = getSessionFromCookie(req.headers.get('cookie'));
@@ -94,12 +121,12 @@ export async function GET(req: NextRequest) {
       perHourRes,
       topFilesRes,
     ] = await Promise.all([
-      // 1. Aggregate totals
+      // 1. Aggregate totals — use effective tokens (with approximation for zero-token sessions)
       query(`
         SELECT
           count(*)::int AS sessions,
-          coalesce(sum(s.tokens_in), 0)::bigint AS tokens_in,
-          coalesce(sum(s.tokens_out), 0)::bigint AS tokens_out,
+          coalesce(sum(${EFF_IN}), 0)::bigint AS tokens_in,
+          coalesce(sum(${EFF_OUT}), 0)::bigint AS tokens_out,
           coalesce(sum(s.tokens_cache_read), 0)::bigint AS cache_read,
           coalesce(sum(s.tokens_cache_write), 0)::bigint AS cache_write,
           coalesce(sum(s.api_cost), 0)::float AS api_cost,
@@ -113,18 +140,20 @@ export async function GET(req: NextRequest) {
           coalesce(sum(s.rework_loops), 0)::int AS rework_loops,
           coalesce(sum(s.corrections), 0)::int AS corrections,
           coalesce(sum(CASE WHEN s.abandoned THEN 1 ELSE 0 END), 0)::int AS abandoned,
-          coalesce(sum(CASE WHEN s.priced THEN 1 ELSE 0 END), 0)::int AS priced_sessions
+          coalesce(sum(CASE WHEN s.priced THEN 1 ELSE 0 END), 0)::int AS priced_sessions,
+          -- Count zero-token sessions that have activity (these have approximated costs)
+          coalesce(sum(CASE WHEN s.tokens_in = 0 AND (s.tool_calls + s.edits) > 0 THEN 1 ELSE 0 END), 0)::int AS approx_sessions
         FROM sync_sessions s
         WHERE s.member_id = $1 ${dateFilter}
       `, params),
 
-      // 2. Per-day breakdown (full token breakdown for chart)
+      // 2. Per-day breakdown — effective tokens for chart
       query(`
         SELECT
           COALESCE(s.ended_at, s.started_at, s.synced_at)::date AS date,
           count(*)::int AS sessions,
-          coalesce(sum(s.tokens_in), 0)::bigint AS tokens_in,
-          coalesce(sum(s.tokens_out), 0)::bigint AS tokens_out,
+          coalesce(sum(${EFF_IN}), 0)::bigint AS tokens_in,
+          coalesce(sum(${EFF_OUT}), 0)::bigint AS tokens_out,
           coalesce(sum(s.tokens_cache_read), 0)::bigint AS tokens_cache,
           coalesce(sum(s.tokens_cache_write), 0)::bigint AS tokens_cache_write,
           coalesce(sum(s.api_cost), 0)::float AS api_cost,
@@ -137,13 +166,13 @@ export async function GET(req: NextRequest) {
         GROUP BY 1 ORDER BY 1
       `, params),
 
-      // 3. Per-source breakdown (for scoreboard)
+      // 3. Per-source breakdown (for scoreboard) — effective tokens
       query(`
         SELECT
           s.source,
           count(*)::int AS sessions,
-          coalesce(sum(s.tokens_in), 0)::bigint AS tokens_in,
-          coalesce(sum(s.tokens_out), 0)::bigint AS tokens_out,
+          coalesce(sum(${EFF_IN}), 0)::bigint AS tokens_in,
+          coalesce(sum(${EFF_OUT}), 0)::bigint AS tokens_out,
           coalesce(sum(s.tokens_cache_read), 0)::bigint AS tokens_cache_read,
           coalesce(sum(s.api_cost), 0)::float AS api_cost,
           coalesce(sum(s.edits), 0)::int AS edits,
@@ -155,22 +184,22 @@ export async function GET(req: NextRequest) {
           coalesce(sum(CASE WHEN s.priced THEN 1 ELSE 0 END), 0)::int AS priced_sessions
         FROM sync_sessions s
         WHERE s.member_id = $1 ${dateFilter}
-        GROUP BY s.source ORDER BY api_cost DESC
+        GROUP BY s.source ORDER BY sessions DESC
       `, params),
 
-      // 4. Per-model breakdown
+      // 4. Per-model breakdown — effective tokens
       query(`
         SELECT
           s.model,
           count(*)::int AS sessions,
-          coalesce(sum(s.tokens_in + s.tokens_out), 0)::bigint AS tokens,
+          coalesce(sum(${EFF_IN} + ${EFF_OUT}), 0)::bigint AS tokens,
           coalesce(sum(s.api_cost), 0)::float AS api_cost
         FROM sync_sessions s
         WHERE s.member_id = $1 ${dateFilter} AND s.model IS NOT NULL
         GROUP BY s.model ORDER BY tokens DESC LIMIT 20
       `, params),
 
-      // 5. Top tools
+      // 5. Top tools (aggregated from sync_session_tools)
       query(`
         SELECT t.tool_name AS name, sum(t.call_count)::int AS count
         FROM sync_session_tools t
@@ -228,16 +257,16 @@ export async function GET(req: NextRequest) {
       const k = String(r.date).slice(0, 10);
       dayMap.set(k, {
         date: k,
-        sessions: r.sessions,
+        sessions: Number(r.sessions),
         tokensIn: Number(r.tokens_in),
         tokensOut: Number(r.tokens_out),
         tokensCache: Number(r.tokens_cache),
         tokensCacheWrite: Number(r.tokens_cache_write),
-        apiCost: r.api_cost,
-        edits: r.edits,
-        additions: r.additions,
-        deletions: r.deletions,
-        toolCalls: r.tool_calls,
+        apiCost: Number(r.api_cost),
+        edits: Number(r.edits),
+        additions: Number(r.additions),
+        deletions: Number(r.deletions),
+        toolCalls: Number(r.tool_calls),
       });
     }
 
@@ -304,6 +333,13 @@ export async function GET(req: NextRequest) {
     const totalApiCost = perSourceRows.reduce((n: number, r: any) => n + Number(r.api_cost), 0);
     const totalPricedSessions = Number(totals?.priced_sessions ?? 0);
     const totalSessions = Number(totals?.sessions ?? 0);
+    // Approximate cost for sessions missing actual token-based pricing:
+    // use $3/M input + $15/M output as a conservative estimate (Claude Sonnet rates)
+    const approxSessions = Number(totals?.approx_sessions ?? 0);
+    const totalTokensIn = Number(totals?.tokens_in ?? 0);
+    const totalTokensOut = Number(totals?.tokens_out ?? 0);
+    const estimatedCost = totalApiCost > 0 ? totalApiCost
+      : (totalTokensIn / 1_000_000) * 3.0 + (totalTokensOut / 1_000_000) * 15.0;
 
     // Scoreboard (per-source metrics)
     const scoreboard = perSourceRows.map((r: any) => {
@@ -353,7 +389,7 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    const coverage = totalSessions > 0 ? totalPricedSessions / totalSessions : 1;
+    const coverage = totalSessions > 0 ? Math.min(1, (totalPricedSessions + approxSessions) / totalSessions) : 1;
     const pricedEdits = perSourceRows
       .filter((r: any) => Number(r.priced_sessions) > 0)
       .reduce((n: number, r: any) => n + Number(r.edits), 0);
@@ -365,12 +401,12 @@ export async function GET(req: NextRequest) {
 
       totals: {
         sessions: totalSessions,
-        tokensIn: Number(totals?.tokens_in ?? 0),
-        tokensOut: Number(totals?.tokens_out ?? 0),
+        tokensIn: totalTokensIn,
+        tokensOut: totalTokensOut,
         cacheRead: Number(totals?.cache_read ?? 0),
         cacheWrite: Number(totals?.cache_write ?? 0),
         edits: totalEdits,
-        editCalls: totalEdits, // approximation — DB doesn't store editCalls separately
+        editCalls: totalEdits,
         additions: Number(totals?.additions ?? 0),
         deletions: Number(totals?.deletions ?? 0),
         changedLines: Number(totals?.changed_lines ?? 0),
@@ -380,21 +416,20 @@ export async function GET(req: NextRequest) {
         reworkLoops: Number(totals?.rework_loops ?? 0),
         corrections: Number(totals?.corrections ?? 0),
         abandoned: Number(totals?.abandoned ?? 0),
-        // fields that come from full event parsing — safe zeroes for DB mode
         messages: 0,
         spawns: 0,
         errors: Number(totals?.tool_errors ?? 0),
       },
 
       cost: {
-        total: totalApiCost,
-        pricedSessions: totalPricedSessions,
-        unpricedSessions: Math.max(0, totalSessions - totalPricedSessions),
+        total: estimatedCost,
+        pricedSessions: totalPricedSessions + approxSessions,
+        unpricedSessions: Math.max(0, totalSessions - totalPricedSessions - approxSessions),
         unpricedModels: [],
         coverage,
         billableSessions: totalSessions,
-        perSession: totalPricedSessions ? totalApiCost / totalPricedSessions : null,
-        perEdit: pricedEdits ? totalApiCost / pricedEdits : null,
+        perSession: totalSessions ? estimatedCost / totalSessions : null,
+        perEdit: totalEdits ? estimatedCost / totalEdits : null,
         bySource: costBySource,
         sessions: [],
         pricingUpdatedAt: null,
