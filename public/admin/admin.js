@@ -1625,7 +1625,10 @@ function renderPipelineHealth(data) {
           <div class="daemon-row">
             <div class="daemon-status-dot ${statusClass}" title="${labelMap[statusClass]}"></div>
             <div>
-              <div class="daemon-row-name">${esc(d.daemon_name || d.daemon_id)}</div>
+              <div class="daemon-row-name">
+                ${esc(d.daemon_name || d.daemon_id)}
+                ${d.daemon_version ? `<span class="source-tag" style="font-size: 10px; padding: 1px 5px; margin-left: 6px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 4px; font-family: monospace; font-weight: normal; color: var(--text-muted); vertical-align: middle;">v${esc(d.daemon_version)}</span>` : ''}
+              </div>
               <div class="daemon-row-org">${esc(d.org_name || 'Independent')} · ${fmtDuration(d.avg_ingestion_lag_seconds)} lag · ${Number(d.batches_received || 0).toLocaleString()} batches</div>
             </div>
             <div class="daemon-row-meta">

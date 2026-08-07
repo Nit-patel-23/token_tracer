@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
     SELECT
       m.id::text                    AS daemon_id,
       m.display_name                AS daemon_name,
+      m.daemon_version              AS daemon_version,
       t.id::text                    AS org_id,
       t.name                        AS org_name,
       MAX(ie.created_at)            AS last_heartbeat,
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
     FROM members m
     LEFT JOIN teams t ON t.id = m.team_id
     LEFT JOIN ingest_events ie ON ie.member_id = m.id
-    GROUP BY m.id, m.display_name, t.id, t.name
+    GROUP BY m.id, m.display_name, m.daemon_version, t.id, t.name
     ORDER BY last_heartbeat DESC NULLS LAST
   `, [days]);
 
