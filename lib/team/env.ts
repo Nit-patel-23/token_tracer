@@ -56,7 +56,17 @@ export function superadminPassword(): string | null {
 
 export function sessionSecret(): string {
   loadEnv();
-  return process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'dev-insecure-change-me';
+  const secret = process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'CRITICAL SECURITY ERROR: SESSION_SECRET or ADMIN_PASSWORD must be configured in production mode. ' +
+        'Refusing to fallback to insecure default secret.'
+      );
+    }
+    return 'dev-insecure-change-me';
+  }
+  return secret;
 }
 
 export function cronSecret(): string | null {

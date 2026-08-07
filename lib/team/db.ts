@@ -82,6 +82,8 @@ export async function ensureSchema(): Promise<void> {
             active        BOOLEAN NOT NULL DEFAULT true,
             api_key       TEXT,
             last_login_at TIMESTAMPTZ,
+            failed_login_attempts INT NOT NULL DEFAULT 0,
+            locked_until          TIMESTAMPTZ,
             created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
             updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
           );
@@ -263,6 +265,10 @@ export async function ensureSchema(): Promise<void> {
            -- Track per-member daemon version (updated on each ingest / update-check)
            ALTER TABLE members ADD COLUMN IF NOT EXISTS daemon_version TEXT;
            ALTER TABLE members ADD COLUMN IF NOT EXISTS daemon_last_seen_at TIMESTAMPTZ;
+
+           -- Track user login lockout state
+           ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INT NOT NULL DEFAULT 0;
+           ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
          `);
         schemaChecked = true;
       } catch (err) {

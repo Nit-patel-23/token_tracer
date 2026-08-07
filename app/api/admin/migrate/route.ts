@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
         active        BOOLEAN NOT NULL DEFAULT true,
         api_key       TEXT,
         last_login_at TIMESTAMPTZ,
+        failed_login_attempts INT NOT NULL DEFAULT 0,
+        locked_until          TIMESTAMPTZ,
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
       )
@@ -79,6 +81,10 @@ export async function POST(req: NextRequest) {
 
     // Ensure case-insensitive unique index on users.username
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (LOWER(username))`).catch((err) => console.warn('idx_users_username_lower note:', err.message));
+
+    // Ensure user lockout columns exist
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INT NOT NULL DEFAULT 0`).catch(() => {});
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ`).catch(() => {});
 
     // Ensure sync_requested_at exists on members
     await query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS sync_requested_at TIMESTAMPTZ`).catch(() => {});

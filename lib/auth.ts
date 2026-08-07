@@ -99,8 +99,8 @@ export function buildSessionCookie(payload: SessionPayload, secure: boolean): st
 }
 
 /** Build a cookie that clears the session. */
-export function clearSessionCookie(): string {
-  return `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+export function clearSessionCookie(secure?: boolean): string {
+  return `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT${secure ? '; Secure' : ''}`;
 }
 
 // ── Impersonation cookie helpers ──────────────────────────────────────────────
@@ -111,8 +111,8 @@ export function buildImpersonationCookie(originalToken: string, secure: boolean)
 }
 
 /** Clear the impersonation backup cookie. */
-export function clearImpersonationCookie(): string {
-  return `${IMPERSONATION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+export function clearImpersonationCookie(secure?: boolean): string {
+  return `${IMPERSONATION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT${secure ? '; Secure' : ''}`;
 }
 
 /** Read the original superadmin session from the backup impersonation cookie. */
@@ -150,13 +150,16 @@ export interface DbUser {
   team_id: string | null;
   role: Role;
   active: boolean;
+  failed_login_attempts?: number;
+  locked_until?: Date | string | null;
 }
 
 export async function findUserByUsername(username: string): Promise<DbUser | null> {
   const norm = String(username || '').trim().toLowerCase();
   if (!norm) return null;
   const { rows } = await query<DbUser>(
-    `SELECT id, username, password_hash, display_name, member_id, team_id, role, active
+    `SELECT id, username, password_hash, display_name, member_id, team_id, role, active,
+            failed_login_attempts, locked_until
      FROM users WHERE LOWER(username) = $1`,
     [norm],
   );
@@ -165,6 +168,25 @@ export async function findUserByUsername(username: string): Promise<DbUser | nul
 
 export async function touchLastLogin(userId: string): Promise<void> {
   await query('UPDATE users SET last_login_at = now() WHERE id = $1', [userId]);
+}
+
+export async function recordFailedLogin(userId: string, currentAttempts: number): Promise<void> {
+  const newAttempts = (currentAttempts || 0) + 1;
+  let lockedUntil: Date | null = null;
+  if (newAttempts >= 5) {
+    lockedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 mins lock
+  }
+  await query(
+    'UPDATE users SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3',
+    [newAttempts, lockedUntil, userId]
+  );
+}
+
+export async function resetFailedLogin(userId: string): Promise<void> {
+  await query(
+    'UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = now() WHERE id = $1',
+    [userId]
+  );
 }
 
 /** Fetch the active API key for a member (first non-revoked key). */

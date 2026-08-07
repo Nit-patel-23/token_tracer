@@ -105,8 +105,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const { clearImpersonationCookie } = await import('@/lib/auth');
+  const secure = process.env.VERCEL === '1' ||
+    req.headers.get('x-forwarded-proto') === 'https' ||
+    process.env.NODE_ENV === 'production';
   const res = NextResponse.json({ ok: true });
-  res.headers.append('Set-Cookie', clearSessionCookie());
-  res.headers.append('Set-Cookie', clearImpersonationCookie());
+  res.headers.append('Set-Cookie', clearSessionCookie(secure));
+  res.headers.append('Set-Cookie', clearImpersonationCookie(secure));
   return res;
 }

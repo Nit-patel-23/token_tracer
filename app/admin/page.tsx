@@ -70,7 +70,11 @@ export default async function AdminPage() {
             <button type="button" id="tabbtn-pricing" className="tab-btn" data-tab="tab-pricing" role="tab" aria-selected="false" aria-controls="tab-pricing" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">💲</span> Model Pricing
             </button>
+            <button type="button" id="tabbtn-releases" className="tab-btn" data-tab="tab-releases" role="tab" aria-selected="false" aria-controls="tab-releases" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">🔄</span> Daemon Releases
+            </button>
             <div className="sidebar-nav-divider" aria-hidden="true" />
+
             <button type="button" id="tabbtn-pipeline" className="tab-btn" data-tab="tab-pipeline" role="tab" aria-selected="false" aria-controls="tab-pipeline" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">🩺</span> Pipeline Health
             </button>
@@ -437,6 +441,64 @@ export default async function AdminPage() {
               </table>
             </div>
           </div>
+
+          {/* Daemon Releases tab */}
+          <div id="tab-releases" className="admin-tab" role="tabpanel" aria-labelledby="tabbtn-releases" hidden>
+            <div className="admin-tab-header">
+              <div>
+                <h2>🔄 Daemon Auto-Update Releases</h2>
+                <span className="admin-tab-sub">Publish and manage client daemon releases. Daemons pull version updates automatically every 24 hours.</span>
+              </div>
+              <span id="daemon-latest-version-badge" className="source-tag" style={{ alignSelf: 'center' }}>Loading…</span>
+            </div>
+
+            {/* Publish Release Form */}
+            <div className="panel" style={{ padding: '20px', marginBottom: '20px', background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '12px' }}>
+              <form id="publish-release-form" style={{ display: 'grid', gap: '12px' }}>
+                <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>PUBLISH NEW DAEMON VERSION</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 2fr auto', gap: '12px', alignItems: 'end' }}>
+                  <div className="form-field" style={{ margin: 0 }}>
+                    <label htmlFor="release-version">Version</label>
+                    <input id="release-version" placeholder="e.g. 1.2.0" required style={{ width: '100%' }} />
+                  </div>
+                  <div className="form-field" style={{ margin: 0 }}>
+                    <label htmlFor="release-url">Download URL (HTTPS)</label>
+                    <input id="release-url" type="url" placeholder="https://token-tracer-three.vercel.app/sync-daemon.mjs" required style={{ width: '100%' }} />
+                  </div>
+                  <div className="form-field" style={{ margin: 0 }}>
+                    <label htmlFor="release-sha256">SHA-256 Checksum</label>
+                    <input id="release-sha256" placeholder="64-char hex string" required style={{ width: '100%', fontFamily: 'monospace' }} />
+                  </div>
+                  <button type="submit" id="publish-release-submit" className="hbtn primary" style={{ height: '42px', whiteSpace: 'nowrap' }}>
+                    Publish Release
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                    <input id="release-mandatory" type="checkbox" style={{ width: '16px', height: '16px' }} />
+                    <span>Mandatory update — daemons will skip syncing until they update</span>
+                  </label>
+                </div>
+                <div className="form-field">
+                  <label htmlFor="release-notes">Release Notes / Changelog (optional)</label>
+                  <input id="release-notes" placeholder="e.g. Fixed Windows service file lock issue during self-update" style={{ width: '100%' }} />
+                </div>
+                <p id="publish-release-error" className="error" role="alert" hidden></p>
+              </form>
+            </div>
+
+            {/* Releases Table */}
+            <div className="panel" style={{ padding: '0', background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
+              <div id="daemon-releases-list" className="table-wrap">
+                {/* Populated dynamically */}
+              </div>
+            </div>
+
+            <p className="muted" style={{ marginTop: '14px', fontSize: '11.5px', padding: '0 8px' }}>
+              💡 <strong>CI/CD Integration:</strong> After checking in daemon code, compute the SHA-256 with <code>shasum -a 256 public/sync-daemon.mjs</code> and POST to <code>/api/internal/releases</code>.
+            </p>
+          </div>
+
 
           {/* ═══════════════════════════════════════════════════
               SUPERADMIN ANALYTICS TABS

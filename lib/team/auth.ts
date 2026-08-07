@@ -78,9 +78,8 @@ export function verifyAdminPassword(password: string | undefined | null): boolea
   const expected = adminPassword();
   if (!expected || !password) return false;
   try {
-    const a = Buffer.from(password);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length) return false;
+    const a = crypto.createHash('sha256').update(password).digest();
+    const b = crypto.createHash('sha256').update(expected).digest();
     return crypto.timingSafeEqual(a, b);
   } catch {
     return false;

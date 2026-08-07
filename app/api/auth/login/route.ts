@@ -13,6 +13,7 @@ import { verifyAdminPassword } from '@/lib/team/auth';
 import {
   findUserByUsername, verifyPassword, touchLastLogin,
   buildSessionCookie, type SessionPayload,
+  recordFailedLogin, resetFailedLogin
 } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
@@ -65,9 +66,9 @@ export async function POST(req: NextRequest) {
     if (username === 'superadmin') {
       const pwd = superadminPassword();
       if (!pwd) return NextResponse.json({ error: 'Superadmin login is not configured' }, { status: 503 });
-      const a = Buffer.from(password);
-      const b = Buffer.from(pwd);
-      const match = a.length === b.length && crypto.timingSafeEqual(a, b);
+      const a = crypto.createHash('sha256').update(password).digest();
+      const b = crypto.createHash('sha256').update(pwd).digest();
+      const match = crypto.timingSafeEqual(a, b);
       if (!match) {
         return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
       }
@@ -87,15 +88,32 @@ export async function POST(req: NextRequest) {
 
     // ── Regular user login ────────────────────────────────────────────────────
     const user = await findUserByUsername(username);
-    if (!user || !user.active) {
+    if (!user) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
-    const match = await verifyPassword(password, user.password_hash);
-    if (!match) {
+    if (!user.active) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    await touchLastLogin(user.id);
+    // Check account lockout status
+    if (user.locked_until) {
+      const lockTime = new Date(user.locked_until).getTime();
+      const now = Date.now();
+      if (lockTime > now) {
+        const remainingMinutes = Math.ceil((lockTime - now) / 60000);
+        return NextResponse.json({
+          error: `This account is temporarily locked due to too many failed login attempts. Please try again in ${remainingMinutes} minute(s).`
+        }, { status: 423 }); // 423 Locked
+      }
+    }
+
+    const match = await verifyPassword(password, user.password_hash);
+    if (!match) {
+      await recordFailedLogin(user.id, user.failed_login_attempts || 0);
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    await resetFailedLogin(user.id);
 
     payload = {
       userId: user.id,

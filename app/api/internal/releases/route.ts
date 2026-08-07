@@ -93,6 +93,36 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Domain whitelist check for security
+  try {
+    const parsedUrl = new URL(downloadUrl);
+    const host = parsedUrl.hostname.toLowerCase();
+    const requestHost = req.headers.get('host')?.split(':')[0]?.toLowerCase();
+    const envServerUrl = process.env.NEXT_PUBLIC_SERVER_URL ? new URL(process.env.NEXT_PUBLIC_SERVER_URL).hostname.toLowerCase() : null;
+
+    const isHostValid =
+      (requestHost && host === requestHost) ||
+      (envServerUrl && host === envServerUrl) ||
+      host === 'github.com' ||
+      host === 'raw.githubusercontent.com' ||
+      host.endsWith('.github.com') ||
+      host.endsWith('.githubusercontent.com') ||
+      host === 'localhost' ||
+      host === '127.0.0.1';
+
+    if (!isHostValid) {
+      return NextResponse.json(
+        { error: 'downloadUrl domain is not whitelisted. Only same-origin URLs or github.com are permitted.' },
+        { status: 400 }
+      );
+    }
+  } catch (err) {
+    return NextResponse.json(
+      { error: 'Invalid downloadUrl' },
+      { status: 400 }
+    );
+  }
+
   try {
     const { rows } = await query(
       `INSERT INTO daemon_releases (version, download_url, sha256, mandatory, active, release_notes)

@@ -1945,7 +1945,11 @@ function setupAnalyticsTabs() {
     if (tabId === 'tab-prompts') {
       window.dispatchEvent(new CustomEvent('prompts-tab-activated'));
     }
+    if (tabId === 'tab-releases') {
+      loadReleases();
+    }
   }
+
 
   document.querySelectorAll('.admin-sidebar-nav button').forEach(b => {
     b.onclick = () => patchedSwitchTab(b.dataset.tab);
@@ -1983,4 +1987,177 @@ if (typeof window !== 'undefined') {
   // Use setTimeout to ensure DOM is fully parsed if script runs early
   setTimeout(bindUserFilters, 0);
 }
+
+// ── Daemon Releases Management ────────────────────────────────────────────────
+let releasesData = [];
+
+async function loadReleases() {
+  const el = $('#daemon-releases-list');
+  try {
+    const res = await fetch('/api/internal/releases');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    releasesData = data.releases || [];
+
+    // Update latest version badge
+    const latestEl = $('#daemon-latest-version-badge');
+    if (latestEl) {
+      const active = releasesData.find((r) => r.active);
+      latestEl.textContent = active ? `Latest: v${active.version}` : 'No active release';
+    }
+
+    renderReleasesTable();
+  } catch (err) {
+    if (el) el.innerHTML = `<p class="error admin-empty" style="padding:12px">Unable to load releases: ${esc(err.message)}</p>`;
+  }
+}
+
+function renderReleasesTable() {
+  const el = $('#daemon-releases-list');
+  if (!el) return;
+
+  if (!releasesData.length) {
+    el.innerHTML = '<p class="muted admin-empty" style="padding:24px; text-align:center">No daemon releases published yet.</p>';
+    return;
+  }
+
+  el.innerHTML = `
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>Version</th>
+          <th>Status</th>
+          <th>Mandatory</th>
+          <th>Released</th>
+          <th>SHA-256 Checksum</th>
+          <th>Notes</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${releasesData.map(r => {
+          const statusBadge = r.active
+            ? '<span class="badge badge-active" style="background:rgba(34,197,94,0.15);color:#4ade80;padding:2px 6px;border-radius:4px;font-size:11px;">🟢 Active</span>'
+            : '<span class="badge badge-inactive" style="background:rgba(148,163,184,0.15);color:#94a3b8;padding:2px 6px;border-radius:4px;font-size:11px;">Inactive</span>';
+          const mandatoryBadge = r.mandatory
+            ? '<span class="badge badge-error" style="background:rgba(239,68,68,0.15);color:#f87171;padding:2px 6px;border-radius:4px;font-size:11px;">Mandatory</span>'
+            : '<span class="badge badge-inactive" style="background:rgba(148,163,184,0.15);color:#94a3b8;padding:2px 6px;border-radius:4px;font-size:11px;">Optional</span>';
+          const sha = r.sha256 ? r.sha256.slice(0, 12) + '…' : '—';
+          return `
+            <tr>
+              <td><strong>v${esc(r.version)}</strong></td>
+              <td>${statusBadge}</td>
+              <td>${mandatoryBadge}</td>
+              <td>${fmtDate(r.released_at)}</td>
+              <td><code title="${esc(r.sha256)}">${esc(sha)}</code></td>
+              <td>${esc(r.release_notes || '—')}</td>
+              <td>
+                ${r.active
+                  ? `<button type="button" class="hbtn" style="color:var(--brand-hi)" onclick="deactivateRelease('${r.id}')">⏸️ Deactivate</button>`
+                  : `<button type="button" class="hbtn primary" onclick="activateRelease('${r.id}')">▶️ Activate</button>`
+                }
+                <button type="button" class="hbtn" style="color:#f87171; border-color:#f87171" onclick="deleteRelease('${r.id}', 'v${esc(r.version)}')">🗑️ Delete</button>
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+window.activateRelease = async function (id) {
+  try {
+    const res = await fetch('/api/internal/releases', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, active: true }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    window.showToast('Release activated successfully.', { type: 'success' });
+    await loadReleases();
+  } catch (err) {
+    window.showToast('Failed to activate: ' + err.message, { type: 'error' });
+  }
+};
+
+window.deactivateRelease = async function (id) {
+  if (!confirm('Deactivate this release? running daemons will stop updating to it.')) return;
+  try {
+    const res = await fetch('/api/internal/releases', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, active: false }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    window.showToast('Release deactivated.', { type: 'success' });
+    await loadReleases();
+  } catch (err) {
+    window.showToast('Failed to deactivate: ' + err.message, { type: 'error' });
+  }
+};
+
+window.deleteRelease = async function (id, version) {
+  if (!confirm(`Permanently delete release ${version}? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`/api/internal/releases?id=${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    window.showToast(`Release ${version} deleted.`, { type: 'success' });
+    await loadReleases();
+  } catch (err) {
+    window.showToast('Failed to delete: ' + err.message, { type: 'error' });
+  }
+};
+
+function bindReleasesForm() {
+  const form = $('#publish-release-form');
+  if (!form) return;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('#publish-release-submit');
+    const errEl = $('#publish-release-error');
+    if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+
+    const version = ($('#release-version')?.value || '').trim();
+    const downloadUrl = ($('#release-url')?.value || '').trim();
+    const sha256 = ($('#release-sha256')?.value || '').trim().toLowerCase();
+    const mandatory = $('#release-mandatory')?.checked ?? false;
+    const releaseNotes = ($('#release-notes')?.value || '').trim() || null;
+
+    if (!version || !downloadUrl || !sha256) {
+      if (errEl) { errEl.textContent = 'Version, URL, and SHA-256 are required.'; errEl.hidden = false; }
+      return;
+    }
+    if (!/^[0-9a-f]{64}$/.test(sha256)) {
+      if (errEl) { errEl.textContent = 'SHA-256 must be a 64-character hex string.'; errEl.hidden = false; }
+      return;
+    }
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Publishing…'; }
+    try {
+      const res = await fetch('/api/internal/releases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version, downloadUrl, sha256, mandatory, releaseNotes }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      window.showToast(`Release v${version} published successfully.`, { type: 'success' });
+      form.reset();
+      await loadReleases();
+    } catch (err) {
+      if (errEl) { errEl.textContent = err.message; errEl.hidden = false; }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Publish Release'; }
+    }
+  });
+}
+
+// Bind form setup when script runs or DOM is ready
+if (typeof window !== 'undefined') {
+  setTimeout(bindReleasesForm, 0);
+}
+
 
