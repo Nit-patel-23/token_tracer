@@ -1615,19 +1615,43 @@ function renderPipelineHealth(data) {
     if (!daemons.length) {
       showEmptyState(grid, 'No registered daemons found');
     } else {
+      const latestVersion = data.latest_version;
+      const compareVersions = (a, b) => {
+        if (!a || !b) return 0;
+        const parse = (v) => v.split('.').map((p) => parseInt(p, 10) || 0);
+        const pa = parse(a);
+        const pb = parse(b);
+        for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+          const diff = (pa[i] || 0) - (pb[i] || 0);
+          if (diff !== 0) return diff;
+        }
+        return 0;
+      };
+
       grid.innerHTML = daemons.map(d => {
         const statusClass = daemonHealthClass(d.last_heartbeat);
         const labelMap = { healthy: 'Healthy', stale: 'Stale', dead: 'Dead', never: 'Never' };
         const hb = d.last_heartbeat
           ? new Date(d.last_heartbeat).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + new Date(d.last_heartbeat).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
           : 'Never';
+
+        let versionBadge = '';
+        if (d.daemon_version) {
+          const isOutdated = latestVersion && compareVersions(latestVersion, d.daemon_version) > 0;
+          if (isOutdated) {
+            versionBadge = `<span class="source-tag" style="font-size: 10px; padding: 1px 5px; margin-left: 6px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 4px; font-family: monospace; font-weight: normal; color: #fbbf24; vertical-align: middle;" title="Update available: v${esc(latestVersion)} is latest">v${esc(d.daemon_version)} (outdated)</span>`;
+          } else {
+            versionBadge = `<span class="source-tag" style="font-size: 10px; padding: 1px 5px; margin-left: 6px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 4px; font-family: monospace; font-weight: normal; color: #34d399; vertical-align: middle;" title="Running latest version">v${esc(d.daemon_version)} (latest)</span>`;
+          }
+        }
+
         return `
           <div class="daemon-row">
             <div class="daemon-status-dot ${statusClass}" title="${labelMap[statusClass]}"></div>
             <div>
               <div class="daemon-row-name">
                 ${esc(d.daemon_name || d.daemon_id)}
-                ${d.daemon_version ? `<span class="source-tag" style="font-size: 10px; padding: 1px 5px; margin-left: 6px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 4px; font-family: monospace; font-weight: normal; color: var(--text-muted); vertical-align: middle;">v${esc(d.daemon_version)}</span>` : ''}
+                ${versionBadge}
               </div>
               <div class="daemon-row-org">${esc(d.org_name || 'Independent')} · ${fmtDuration(d.avg_ingestion_lag_seconds)} lag · ${Number(d.batches_received || 0).toLocaleString()} batches</div>
             </div>

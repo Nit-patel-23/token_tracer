@@ -118,6 +118,15 @@ export async function GET(req: NextRequest) {
     LEFT JOIN ingest_events ie ON ie.member_id = m.id
   `);
 
+  // ── 6. Latest release version ─────────────────────────────────────────────
+  const { rows: latestReleaseRows } = await query(`
+    SELECT version FROM daemon_releases
+    WHERE active = true
+    ORDER BY released_at DESC
+    LIMIT 1
+  `);
+  const latestReleaseVersion = latestReleaseRows[0]?.version || null;
+
   return NextResponse.json({
     range_days: days,
     daemons: daemonRows,
@@ -129,5 +138,6 @@ export async function GET(req: NextRequest) {
     },
     active_24h: Number(activeRows[0]?.active_24h ?? 0),
     total_known: Number(activeRows[0]?.total_registered ?? 0),
+    latest_version: latestReleaseVersion,
   });
 }
