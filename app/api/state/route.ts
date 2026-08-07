@@ -47,8 +47,9 @@ export async function GET(req: NextRequest) {
     if (from && to && from > to) { const tmp = from; from = to; to = tmp; }
     const useAll = all || (!from && !to);
 
-    // If running locally, try to read from local filesystem first
-    if (process.env.VERCEL !== '1') {
+    // If running locally without a database, try to read from local filesystem first
+    if (process.env.VERCEL !== '1' && !process.env.DATABASE_URL && !process.env.NEON_CONNECTION_STRING) {
+
       try {
         const { scanSessions } = await import('@/lib/scan.mjs');
         const { roots, sessions: localSessions } = scanSessions({ sources: src ? [src] : null });

@@ -75,8 +75,9 @@ export async function GET(req: NextRequest) {
     if (from && to && from > to) { const tmp = from; from = to; to = tmp; }
     const useAll = all || (!from && !to);
 
-    // ── Local file fallback (dev only) ───────────────────────────────────────
-    if (process.env.VERCEL !== '1') {
+    // ── Local file fallback (dev only, only if not database-backed) ──────────
+    if (process.env.VERCEL !== '1' && !process.env.DATABASE_URL && !process.env.NEON_CONNECTION_STRING) {
+
       try {
         const { scanSessions } = await import('@/lib/scan.mjs');
         const { buildStats } = await import('@/lib/analytics.mjs');

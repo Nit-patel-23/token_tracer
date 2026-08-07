@@ -42,8 +42,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'id parameter is required' }, { status: 400 });
     }
 
-    // If running locally, try to read from the local files first to get prompts and events!
-    if (process.env.VERCEL !== '1') {
+    // If running locally without a database, try to read from the local files first to get prompts and events!
+    if (process.env.VERCEL !== '1' && !process.env.DATABASE_URL && !process.env.NEON_CONNECTION_STRING) {
+
       try {
         const { scanSessions } = await import('@/lib/scan.mjs');
         const { sessionSummary } = await import('@/lib/analytics.mjs');

@@ -1423,6 +1423,13 @@ async function loadReleases() {
     const data = await api('/api/internal/releases');
     releasesData = data.releases || [];
 
+    // Hide/show the publish form depending on superadmin role
+    const form = document.getElementById('publish-release-form');
+    if (form) {
+      const isSuper = currentUser && currentUser.role === 'superadmin';
+      form.style.display = isSuper ? 'grid' : 'none';
+    }
+
     // Update latestDaemonVersion for version badge comparisons
     const activeReleases = releasesData.filter((r) => r.active);
     if (activeReleases.length > 0) {
@@ -1444,6 +1451,8 @@ function renderReleasesTable() {
   const el = document.getElementById('daemon-releases-list');
   if (!el) return;
 
+  const isSuper = currentUser && currentUser.role === 'superadmin';
+
   // Update latest version badge in panel header
   const latestEl = document.getElementById('daemon-latest-version-badge');
   if (latestEl) {
@@ -1457,7 +1466,7 @@ function renderReleasesTable() {
   }
 
   el.innerHTML = `<table><thead><tr>
-    <th>Version</th><th>Status</th><th>Mandatory</th><th>Released</th><th>SHA-256</th><th>Notes</th><th>Actions</th>
+    <th>Version</th><th>Status</th><th>Mandatory</th><th>Released</th><th>SHA-256</th><th>Notes</th>${isSuper ? '<th>Actions</th>' : ''}
   </tr></thead><tbody>
     ${releasesData.map((r) => {
       const statusBadge = r.active
@@ -1467,6 +1476,12 @@ function renderReleasesTable() {
         ? '<span class="source-tag" style="background:rgba(239,68,68,0.15);color:#f87171;">🔴 Mandatory</span>'
         : '<span class="source-tag" style="color:#94a3b8;">Optional</span>';
       const sha = r.sha256 ? r.sha256.slice(0, 12) + '…' : '—';
+      const actionsCell = isSuper ? `<td>
+        ${r.active
+          ? `<button type="button" class="hbtn" style="color:#94a3b8" onclick="deactivateRelease('${r.id}')">⏸️ Deactivate</button>`
+          : `<button type="button" class="hbtn primary" onclick="activateRelease('${r.id}')">▶️ Activate</button>`}
+        <button type="button" class="hbtn" style="color:#ee5555" onclick="deleteRelease('${r.id}', 'v${r.version}')">🗑️ Delete</button>
+      </td>` : '';
       return `<tr>
         <td><strong>v${r.version}</strong></td>
         <td>${statusBadge}</td>
@@ -1474,16 +1489,12 @@ function renderReleasesTable() {
         <td>${fmtDate(r.released_at)}</td>
         <td><code title="${r.sha256 || ''}">${sha}</code></td>
         <td>${r.release_notes || '—'}</td>
-        <td>
-          ${r.active
-            ? `<button type="button" class="hbtn" style="color:#94a3b8" onclick="deactivateRelease('${r.id}')">⏸️ Deactivate</button>`
-            : `<button type="button" class="hbtn primary" onclick="activateRelease('${r.id}')">▶️ Activate</button>`}
-          <button type="button" class="hbtn" style="color:#ee5555" onclick="deleteRelease('${r.id}', 'v${r.version}')">🗑️ Delete</button>
-        </td>
+        ${actionsCell}
       </tr>`;
     }).join('')}
   </tbody></table>`;
 }
+
 
 window.activateRelease = async function (id) {
   try {

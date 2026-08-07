@@ -30,6 +30,11 @@ function isAdmin(session: ReturnType<typeof getSessionFromCookie>) {
   return session && (session.role === 'admin' || session.role === 'superadmin');
 }
 
+function isSuperadmin(session: ReturnType<typeof getSessionFromCookie>) {
+  return session && session.role === 'superadmin';
+}
+
+
 export async function GET(req: NextRequest) {
   const session = getSession(req);
   if (!isAdmin(session)) return unauthorized();
@@ -49,7 +54,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = getSession(req);
-  if (!isAdmin(session)) return unauthorized();
+  if (!isSuperadmin(session)) return unauthorized();
+
 
   let body: Record<string, unknown> = {};
   try {
@@ -110,7 +116,8 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const session = getSession(req);
-  if (!isAdmin(session)) return unauthorized();
+  if (!isSuperadmin(session)) return unauthorized();
+
 
   let body: Record<string, unknown> = {};
   try {
@@ -140,7 +147,8 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const session = getSession(req);
-  if (!isAdmin(session)) return unauthorized();
+  if (!isSuperadmin(session)) return unauthorized();
+
 
   const id = req.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });

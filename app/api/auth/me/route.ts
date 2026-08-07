@@ -68,8 +68,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Bypasses onboarding if running locally and local files exist
-  if (sessionCount === 0 && process.env.VERCEL !== '1') {
+  // Bypasses onboarding if running locally without a database and local files exist
+  if (sessionCount === 0 && process.env.VERCEL !== '1' && !process.env.DATABASE_URL && !process.env.NEON_CONNECTION_STRING) {
+
     try {
       const { scanSessions } = await import('@/lib/scan.mjs');
       const local = scanSessions({});
