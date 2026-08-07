@@ -560,7 +560,7 @@ function renderMain() {
         <div class="sub"><b>${fmtNum(freshIn)}</b> in · <b>${fmtNum(t.tokensOut)}</b> out · <b>${fmtNum(t.cacheRead)}</b> cache-read</div>
       </div>
       <div class="hero-side">
-        active <b>${stats.records.activeDays}</b> of ${stats.perDay.length} days · streak <b>${stats.records.streak}d</b><br/>
+        active <b>${stats.records?.activeDays || 0}</b> of ${stats.perDay?.length || 0} days · streak <b>${stats.records?.streak || 0}d</b><br/>
         ${topModel ? `mostly <b>${esc(topModel)}</b>` : ''}
       </div>
     </div>

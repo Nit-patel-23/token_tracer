@@ -19,6 +19,7 @@ export default async function AdminPage() {
 
   return (
     <div suppressHydrationWarning>
+      <Script src="/impersonation.js" strategy="afterInteractive" />
       <div id="boot-loading" className="boot-loading" aria-busy="true" suppressHydrationWarning>
         <div className="tt-loader" role="status">
           <div className="tt-loader-orbit" aria-hidden="true">
@@ -170,15 +171,25 @@ export default async function AdminPage() {
               </form>
             </div>
 
+            <div className="admin-filters" style={{ display: 'flex', gap: '12px', marginBottom: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input type="text" id="filter-user-input" placeholder="Search name or username..." style={{ flex: '1', minWidth: '200px', maxWidth: '300px', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--page)', color: 'var(--ink)', fontSize: '13px' }} />
+              <select id="filter-team-select" style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--page)', color: 'var(--ink)', fontSize: '13px', minWidth: '150px' }}>
+                <option value="">All Teams</option>
+                {/* Populated dynamically */}
+              </select>
+              <select id="filter-status-select" style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--page)', color: 'var(--ink)', fontSize: '13px', minWidth: '150px' }}>
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
             <div className="admin-table-wrap">
               <table className="admin-table" id="users-table">
                 <thead>
                   <tr>
-                    <th>Username</th>
-                    <th>Display Name</th>
-                    <th>Role</th>
+                    <th>User</th>
                     <th>Teams</th>
-                    <th>Member</th>
                     <th>Sessions</th>
                     <th>Last Login</th>
                     <th>Status</th>
@@ -188,7 +199,7 @@ export default async function AdminPage() {
                 <tbody id="users-tbody" aria-busy="true">
                   {[0, 1, 2, 3].map((i) => (
                     <tr key={i} aria-hidden="true">
-                      {Array.from({ length: 9 }).map((_, j) => (
+                      {Array.from({ length: 6 }).map((_, j) => (
                         <td key={j}><div className="skeleton" style={{ height: '14px', width: j === 0 ? '80%' : '60%' }} /></td>
                       ))}
                     </tr>
@@ -1168,6 +1179,23 @@ export default async function AdminPage() {
 
         </main>
       </div>
+
+      {/* ── Impersonate Dialog ── */}
+      <dialog id="impersonate-dialog" aria-labelledby="impersonate-dialog-title">
+        <form method="dialog" id="impersonate-form" noValidate>
+          <h2 id="impersonate-dialog-title" style={{ margin: '0 0 10px', fontSize: '20px', fontWeight: '600', color: 'var(--ink)' }}>Login as User?</h2>
+          <p id="impersonate-dialog-desc" style={{ fontSize: '13px', lineHeight: '1.5', marginTop: '10px', color: 'var(--ink)' }}>
+            You are about to log in as <strong id="impersonate-target-name"></strong> (<span id="impersonate-target-role" className="role-badge"></span>).
+            <br/><br/>
+            You will see their exact dashboard and analytics as if you were them. You can return to your superadmin account at any time using the banner at the top of the screen.
+          </p>
+          <div id="impersonate-error-msg" className="dialog-error" hidden style={{ color: 'var(--critical)', marginTop: '10px' }} />
+          <menu className="dialog-actions" style={{ marginTop: '20px' }}>
+            <button type="button" className="hbtn outline-btn" id="impersonate-cancel-btn">Cancel</button>
+            <button type="submit" className="hbtn primary" id="impersonate-confirm-btn">Login as User</button>
+          </menu>
+        </form>
+      </dialog>
 
       {/* Superadmin Profile Dialog */}
       <dialog id="admin-profile-dialog" aria-labelledby="admin-profile-title">

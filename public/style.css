@@ -98,7 +98,47 @@ body {
   background: var(--page);
   color: var(--ink);
   font: 14px/1.55 var(--font-body);
+  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body.is-impersonating {
+  padding-top: 40px;
+}
+
+.impersonation-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: var(--brand);
+  color: var(--brand-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 10000;
+  box-shadow: var(--shadow-md);
+}
+
+.impersonation-banner button {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  height: 26px;
+  cursor: pointer;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  transition: opacity var(--duration-fast) var(--ease);
+}
+.impersonation-banner button:hover {
+  opacity: 0.8;
 }
 button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
