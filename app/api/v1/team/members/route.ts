@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
 
     const { rows: members } = await query(
       `SELECT m.id, m.display_name, tm.role, m.created_at, m.sync_requested_at,
+              m.daemon_version, m.daemon_last_seen_at,
               GREATEST(
                 (SELECT max(created_at) FROM ingest_events e WHERE e.member_id = m.id),
                 (SELECT max(COALESCE(s.ended_at, s.started_at, s.synced_at)) FROM sync_sessions s WHERE s.member_id = m.id),
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
       [teamId],
     );
     return NextResponse.json({ members });
+
   } catch (err) {
     console.error('[team/members GET error]', err);
     return NextResponse.json({ error: String((err as Error).message || err) }, { status: 500 });

@@ -25,8 +25,8 @@ if (process.platform === 'darwin' && fs.existsSync(plistPath)) {
 }
 
 if (purge) {
-  const configDir = path.join(os.homedir(), '.devmetrics');
-  for (const f of ['config.json', 'sync-state.json', 'sync.log', 'daemon.log']) {
+  const configDir = path.join(os.homedir(), '.token-tracer');
+  for (const f of ['config.json', 'sync-state.json', 'sync.log', 'update.log', 'daemon.log', 'launchd.stdout.log', 'launchd.stderr.log']) {
     const p = path.join(configDir, f);
     if (fs.existsSync(p)) {
       fs.unlinkSync(p);
@@ -34,5 +34,6 @@ if (purge) {
     }
   }
 }
+
 
 console.log('uninstall complete');

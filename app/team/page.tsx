@@ -463,6 +463,60 @@ export default async function TeamDashboardPage() {
                   </div>
                   <p id="new-key" className="key-banner" hidden></p>
                 </section>
+
+                 {/* Daemon Releases Panel */}
+                 <section className="panel" style={{ marginTop: '24px' }}>
+                   <div className="panel-head">
+                     <div>
+                       <h2>🔄 Daemon Releases</h2>
+                       <span className="muted">
+                         Publish and manage auto-update releases for the background sync daemon.
+                         {' '}Developers&apos; daemons check for updates every 24 hours and self-update automatically.
+                       </span>
+                     </div>
+                     <span id="daemon-latest-version-badge" className="source-tag" style={{ alignSelf: 'center' }}>Loading…</span>
+                   </div>
+
+                   {/* Publish Release Form */}
+                   <form id="publish-release-form" style={{ margin: '16px 0 20px', display: 'grid', gap: '12px' }}>
+                     <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>
+                       PUBLISH NEW RELEASE
+                     </h3>
+                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 2fr auto', gap: '8px', alignItems: 'end' }}>
+                       <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+                         Version <input id="release-version" placeholder="e.g. 1.2.0" required style={{ fontSize: '13px' }} />
+                       </label>
+                       <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+                         Download URL (HTTPS) <input id="release-url" type="url" placeholder="https://your-domain.com/sync-daemon.mjs" required style={{ fontSize: '13px' }} />
+                       </label>
+                       <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+                         SHA-256 Checksum <input id="release-sha256" placeholder="64-char hex — run: shasum -a 256 sync-daemon.mjs" required style={{ fontSize: '13px', fontFamily: 'monospace' }} />
+                       </label>
+                       <button type="submit" id="publish-release-submit" className="hbtn primary" style={{ whiteSpace: 'nowrap' }}>
+                         Publish Release
+                       </button>
+                     </div>
+                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
+                       <input id="release-mandatory" type="checkbox" />
+                       <span>Mandatory update — daemons will skip syncing until they update</span>
+                     </label>
+                     <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+                       Release Notes (optional)
+                       <input id="release-notes" placeholder="What changed in this release?" style={{ fontSize: '13px' }} />
+                     </label>
+                     <p id="publish-release-error" className="error" role="alert" hidden></p>
+                   </form>
+
+                   {/* Releases List */}
+                   <div id="daemon-releases-list" className="table-wrap"></div>
+
+                   <p className="muted" style={{ marginTop: '14px', fontSize: '11px' }}>
+                     💡 <strong>CI/CD tip:</strong> After building, compute the SHA-256 with{' '}
+                     <code>shasum -a 256 sync-daemon.mjs | cut -d&apos; &apos; -f1</code> (macOS/Linux) or{' '}
+                     <code>Get-FileHash sync-daemon.mjs -Algorithm SHA256</code> (Windows), then POST to{' '}
+                     <code>POST /api/internal/releases</code> with your admin session cookie.
+                   </p>
+                 </section>
               </section>
 
             </div>

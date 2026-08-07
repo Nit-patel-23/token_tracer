@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { memberFromAuthHeader } from '@/lib/team/auth';
 import { ingestSessions } from '@/lib/team/ingest';
+import { query } from '@/lib/team/db';
+
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +21,16 @@ export async function POST(req: NextRequest) {
     const member = await memberFromAuthHeader(req.headers.get('authorization'));
     if (!member) {
       return NextResponse.json({ error: 'invalid API key' }, { status: 401, headers: corsHeaders });
+    }
+
+    // Record daemon version whenever the daemon syncs (belt-and-suspenders alongside /update-check)
+    const daemonVersion = (req.headers.get('x-daemon-version') || '').trim() || null;
+    if (daemonVersion) {
+      // Fire-and-forget — don't block ingest on this
+      query(
+        `UPDATE members SET daemon_version = $1, daemon_last_seen_at = now() WHERE id = $2`,
+        [daemonVersion, member.member_id],
+      ).catch((e: unknown) => console.warn('[ingest version-track warn]', e));
     }
     let body: Record<string, unknown> = {};
     try {

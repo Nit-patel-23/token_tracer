@@ -3,7 +3,8 @@
 // bin/sync-daemon.mjs
 import fs3 from "node:fs";
 import path4 from "node:path";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
+
 import { fileURLToPath } from "node:url";
 
 // lib/scan.mjs
@@ -1159,14 +1160,20 @@ function sanitizeForTeamSync(session, pricing) {
   return body;
 }
 
+// ── Daemon version (single source of truth) ──────────────────────────────
+// Bump this string when you publish a new release to /api/internal/releases.
+var DAEMON_VERSION = "1.1.0";
+
 // bin/sync-daemon.mjs
 var __dirname = path4.dirname(fileURLToPath(import.meta.url));
 var ROOT = path4.join(__dirname, "..");
-var DEFAULT_CONFIG = path4.join(os.homedir(), ".devmetrics", "config.json");
-var DEFAULT_STATE = path4.join(os.homedir(), ".devmetrics", "sync-state.json");
-var DEFAULT_LOG = path4.join(os.homedir(), ".devmetrics", "sync.log");
+var DEFAULT_CONFIG = path4.join(os.homedir(), ".token-tracer", "config.json");
+var DEFAULT_STATE = path4.join(os.homedir(), ".token-tracer", "sync-state.json");
+var DEFAULT_LOG = path4.join(os.homedir(), ".token-tracer", "sync.log");
+var DEFAULT_UPDATE_LOG = path4.join(os.homedir(), ".token-tracer", "update.log");
 var BATCH_SIZE = 100;
 var MAX_LOG_BYTES = 256 * 1024;
+var UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 var args = process.argv.slice(2);
 var once = args.includes("--once");
 var arg = (name) => {
@@ -1221,7 +1228,8 @@ async function postBatch(apiUrl, apiKey, sessions) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
+      Authorization: `Bearer ${apiKey}`,
+      "X-Daemon-Version": DAEMON_VERSION,
     },
     body: JSON.stringify({ sessions })
   });
@@ -1229,6 +1237,114 @@ async function postBatch(apiUrl, apiKey, sessions) {
   if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
   return body;
 }
+
+// ── Self-update logic ─────────────────────────────────────────────────────
+// crypto is already imported above (from the bundled lib/team/auth.ts path).
+// spawn is imported at the top of this file alongside execSync.
+
+/**
+ * Check the backend for a newer daemon version.
+ * Downloads, verifies SHA-256, atomically replaces the running daemon,
+ * then re-execs the new version as a detached child and exits.
+ *
+ * Returns true if a self-replace-and-restart happened (caller should not
+ * continue after this returns true — process.exit(0) is called internally).
+ * Returns false if no update is needed or the update failed non-fatally.
+ * Throws if update is mandatory and failed (caller should skip sync).
+ *
+ * @param {object} config   - loaded config.json { apiUrl, apiKey }
+ * @param {string} updateLogPath - path to update.log
+ */
+async function checkForUpdate(config, updateLogPath) {
+  const url = `${config.apiUrl.replace(/\/$/, "")}/api/v1/update-check`;
+  let data;
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        "X-Daemon-Version": DAEMON_VERSION,
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+    data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      appendLog(updateLogPath, `update-check warn: HTTP ${res.status} — ${data?.error || "unknown"}`);
+      return false;
+    }
+  } catch (err) {
+    // Network failure — non-fatal, continue with current version
+    appendLog(updateLogPath, `update-check warn: ${err.message}`);
+    return false;
+  }
+
+  if (!data.updateAvailable) {
+    appendLog(updateLogPath, `update: up-to-date v${DAEMON_VERSION}`);
+    return false;
+  }
+
+  appendLog(updateLogPath, `update: new version v${data.latest} available (mandatory=${data.mandatory}), downloading…`);
+
+  // Determine paths for atomic swap
+  const currentPath = fileURLToPath(import.meta.url);
+  const tempPath = currentPath + ".tmp";
+
+  try {
+    // 1. Download to temp file
+    const dlRes = await fetch(data.url, { signal: AbortSignal.timeout(60000) });
+    if (!dlRes.ok) throw new Error(`download HTTP ${dlRes.status}`);
+    const buffer = Buffer.from(await dlRes.arrayBuffer());
+
+    // 2. Verify SHA-256 checksum
+    const actualHash = crypto.createHash("sha256").update(buffer).digest("hex");
+    if (actualHash.toLowerCase() !== data.sha256.toLowerCase()) {
+      throw new Error(
+        `checksum mismatch: expected ${data.sha256}, got ${actualHash}`
+      );
+    }
+
+    // 3. Write to temp file (mode 0o755 so new file is executable)
+    fs3.writeFileSync(tempPath, buffer, { mode: 0o755 });
+
+    // 4. Atomic replace
+    //    On POSIX (macOS/Linux): fs.renameSync is atomic.
+    //    On Windows: rename across processes can fail if the file is locked;
+    //    fall back to copy+delete.
+    try {
+      fs3.renameSync(tempPath, currentPath);
+    } catch {
+      // Windows fallback: copy then delete temp
+      fs3.copyFileSync(tempPath, currentPath);
+      try { fs3.unlinkSync(tempPath); } catch { /* ignore */ }
+    }
+
+    appendLog(updateLogPath, `update: v${data.latest} installed, restarting…`);
+
+    // 5. Re-exec: spawn the new daemon as a detached child with same args,
+    //    then exit this process so the OS service manager restarts us cleanly.
+    //    The service manager (launchd / systemd / Task Scheduler) will keep the
+    //    service alive; we just need to hand off.
+    const child = spawn(process.execPath, [currentPath, ...process.argv.slice(2)], {
+      detached: true,
+      stdio: "inherit",
+      env: process.env,
+    });
+    child.unref();
+    process.exit(0);
+    return true; // never reached, but satisfies linters
+  } catch (err) {
+    // Clean up temp file if it exists
+    try { fs3.unlinkSync(tempPath); } catch { /* ignore */ }
+
+    appendLog(updateLogPath, `update error: ${err.message}`);
+    if (data.mandatory) {
+      throw new Error(`mandatory update to v${data.latest} failed: ${err.message}`);
+    }
+    // Non-mandatory failure: log and continue running current version
+    return false;
+  }
+}
+
 async function runSync(configPath, statePath, logPath) {
   const config = loadJson(configPath, null);
   if (!config?.apiUrl || !config?.apiKey) {
@@ -1271,7 +1387,33 @@ async function main() {
   const configPath = arg("--config") || process.env.DEVMETRICS_CONFIG || DEFAULT_CONFIG;
   const statePath = arg("--state") || process.env.DEVMETRICS_STATE || DEFAULT_STATE;
   const logPath = arg("--log") || process.env.DEVMETRICS_LOG || DEFAULT_LOG;
+  const updateLogPath = arg("--update-log") || process.env.DEVMETRICS_UPDATE_LOG || DEFAULT_UPDATE_LOG;
   const intervalMin = Number(arg("--interval-min") || loadJson(configPath, {})?.intervalMin || 10);
+
+  // Attempt an update check before the very first sync.
+  // checkForUpdate() re-execs and exits if an update is applied, so if we
+  // reach the line after this call, either no update was needed or the update
+  // was non-mandatory and failed (both safe to continue).
+  const config = loadJson(configPath, null);
+  if (config?.apiUrl && config?.apiKey) {
+    try {
+      await checkForUpdate(config, updateLogPath);
+    } catch (err) {
+      // Mandatory update failure — log and skip first sync; do NOT crash the daemon
+      appendLog(updateLogPath, `update mandatory-fail: ${err.message}`);
+      appendLog(logPath, `skip: mandatory update required but failed (see update.log)`);
+      if (!once) {
+        // Keep the update-check interval alive; skip sync until updated
+        setInterval(async () => {
+          const cfg = loadJson(configPath, null);
+          if (!cfg?.apiUrl || !cfg?.apiKey) return;
+          try { await checkForUpdate(cfg, updateLogPath); } catch { /* retry next interval */ }
+        }, UPDATE_CHECK_INTERVAL_MS);
+      }
+      return;
+    }
+  }
+
   const tick = async () => {
     try {
       await runSync(configPath, statePath, logPath);
@@ -1279,11 +1421,28 @@ async function main() {
       appendLog(logPath, `error: ${err.message}`);
     }
   };
+
   await tick();
   if (once) return;
+
+  // Sync interval (e.g. every 10 minutes)
   setInterval(tick, Math.max(1, intervalMin) * 6e4);
+
+  // Independent 24-hour update-check interval
+  setInterval(async () => {
+    const cfg = loadJson(configPath, null);
+    if (!cfg?.apiUrl || !cfg?.apiKey) return;
+    try {
+      await checkForUpdate(cfg, updateLogPath);
+    } catch (err) {
+      // Mandatory update failed during long-running session: log, don't crash
+      appendLog(updateLogPath, `update mandatory-fail (runtime): ${err.message}`);
+      appendLog(logPath, `warn: mandatory update required but failed \u2014 see update.log`);
+    }
+  }, UPDATE_CHECK_INTERVAL_MS);
 }
 main().catch((err) => {
   console.error(err.message);
   process.exit(1);
 });
+

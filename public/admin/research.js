@@ -754,12 +754,12 @@
     $('#reprompt-event-count').textContent = String(events.length);
 
     if (!events.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="admin-empty">No redundant reprompt events flagged for this org in selected period</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="admin-empty">No redundant reprompt events flagged for this org in selected period</td></tr>';
       return;
     }
 
-    tbody.innerHTML = events.map(e => `
-      <tr>
+    tbody.innerHTML = events.map((e, idx) => `
+      <tr class="reprompt-row" data-idx="${idx}" style="cursor: pointer;">
         <td><code>${esc(e.sessionId.slice(0,8))}...</code></td>
         <td><strong style="color: var(--brand);">${esc(e.userName)}</strong></td>
         <td><span class="badge-pill" style="font-size: 11px; padding: 2px 8px; background: rgba(255,255,255,0.05);">${esc(e.projectName)}</span></td>
@@ -768,8 +768,49 @@
         <td>${formatTokens(e.tokensCost)}</td>
         <td><strong style="color: #ef4444;">${formatCost(e.costWasted)}</strong></td>
         <td>${new Date(e.createdAt).toLocaleDateString()}</td>
+        <td style="color: var(--brand); font-size: 12px; font-weight: 500;">View Prompts 📂</td>
       </tr>
     `).join('');
+
+    // Add click listeners to toggle detailed prompts
+    tbody.querySelectorAll('.reprompt-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const idx = Number(row.dataset.idx);
+        const e = events[idx];
+        const nextRow = row.nextElementSibling;
+        
+        if (nextRow && nextRow.classList.contains('prompt-detail-row')) {
+          nextRow.remove();
+          row.querySelector('td:last-child').innerHTML = 'View Prompts 📂';
+        } else {
+          // Remove any open ones first for single-accordion feel
+          tbody.querySelectorAll('.prompt-detail-row').forEach(el => {
+            el.previousElementSibling.querySelector('td:last-child').innerHTML = 'View Prompts 📂';
+            el.remove();
+          });
+
+          const detailRow = document.createElement('tr');
+          detailRow.className = 'prompt-detail-row';
+          detailRow.style.background = 'rgba(0,0,0,0.15)';
+          detailRow.innerHTML = `
+            <td colspan="9" style="padding: 16px 20px;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: left;">
+                  <div style="font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Previous Prompt (Turn #${e.turnIndex - 1})</div>
+                  <pre style="white-space: pre-wrap; font-family: var(--font-mono); font-size: 12px; margin: 0; max-height: 200px; overflow-y: auto; color: var(--ink); line-height: 1.5; padding: 4px 0;">${esc(e.prevPromptText || '—')}</pre>
+                </div>
+                <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px; text-align: left;">
+                  <div style="font-size: 11px; font-weight: 600; color: #ef4444; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">Redundant Prompt (Turn #${e.turnIndex})</div>
+                  <pre style="white-space: pre-wrap; font-family: var(--font-mono); font-size: 12px; margin: 0; max-height: 200px; overflow-y: auto; color: var(--ink); line-height: 1.5; padding: 4px 0;">${esc(e.promptText || '—')}</pre>
+                </div>
+              </div>
+            </td>
+          `;
+          row.after(detailRow);
+          row.querySelector('td:last-child').innerHTML = 'Hide Prompts ❌';
+        }
+      });
+    });
   }
 
   // Self-initialization

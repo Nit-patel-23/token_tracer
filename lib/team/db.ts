@@ -246,6 +246,23 @@ export async function ensureSchema(): Promise<void> {
              tokens_cost_of_following_turn INT,
              created_at TIMESTAMPTZ DEFAULT now()
            );
+           -- ── Daemon auto-update tables ─────────────────────────────────
+           -- Stores admin-controlled daemon release records
+           CREATE TABLE IF NOT EXISTS daemon_releases (
+             id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+             version      TEXT NOT NULL UNIQUE,
+             download_url TEXT NOT NULL,
+             sha256       TEXT NOT NULL,
+             mandatory    BOOLEAN NOT NULL DEFAULT false,
+             active       BOOLEAN NOT NULL DEFAULT true,
+             release_notes TEXT,
+             released_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+           );
+           CREATE INDEX IF NOT EXISTS idx_daemon_releases_active ON daemon_releases(active, released_at DESC);
+
+           -- Track per-member daemon version (updated on each ingest / update-check)
+           ALTER TABLE members ADD COLUMN IF NOT EXISTS daemon_version TEXT;
+           ALTER TABLE members ADD COLUMN IF NOT EXISTS daemon_last_seen_at TIMESTAMPTZ;
          `);
         schemaChecked = true;
       } catch (err) {

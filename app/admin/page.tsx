@@ -82,6 +82,9 @@ export default async function AdminPage() {
             <button type="button" id="tabbtn-research" className="tab-btn" data-tab="tab-research" role="tab" aria-selected="false" aria-controls="tab-research" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">🔍</span> Research Analytics
             </button>
+            <button type="button" id="tabbtn-prompts" className="tab-btn" data-tab="tab-prompts" role="tab" aria-selected="false" aria-controls="tab-prompts" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">📝</span> Prompt Explorer
+            </button>
           </nav>
           <div className="sidebar-footer">
             <button type="button" id="admin-profile-btn" className="hbtn sidebar-profile-btn" title="Account &amp; Profile Settings">
@@ -1026,6 +1029,7 @@ export default async function AdminPage() {
                       <th>Tokens Cost</th>
                       <th>Estimated Cost Wasted</th>
                       <th>Logged Date</th>
+                      <th>Prompts</th>
                     </tr>
                   </thead>
                   <tbody id="reprompt-tbody"></tbody>
@@ -1034,6 +1038,134 @@ export default async function AdminPage() {
             </div>
 
           </div>
+
+          {/* Prompt Explorer Tab */}
+          <div id="tab-prompts" className="admin-tab" role="tabpanel" aria-labelledby="tabbtn-prompts" hidden>
+            <div className="admin-section-header">
+              <div>
+                <h2 className="admin-section-title">Prompt Explorer</h2>
+                <p className="admin-section-desc">Search, filter, and inspect user prompt trajectories with cache and token metrics.</p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button type="button" id="prompts-refresh-btn" className="btn btn-secondary">🔄 Refresh</button>
+              </div>
+            </div>
+
+            {/* Daemon Upgrade Alert Banner */}
+            <div className="new-password-banner" style={{ marginBottom: '16px', border: '1px solid rgba(96,165,250,0.3)', background: 'rgba(96,165,250,0.03)', padding: '12px 16px', borderRadius: 'var(--radius-sm)' }}>
+              <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--brand)', marginBottom: '4px' }}>💡 How to collect full prompt texts from developers:</div>
+              <p className="muted" style={{ fontSize: '12px', margin: '0 0 10px', lineHeight: 1.5 }}>
+                Some historical data was synced using older daemon versions which only report token counts (visualized as fallback labels). 
+                To collect full sanitized prompt texts, developers must update to the latest daemon. Instruct them to run the following command on their machine:
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>macOS / Linux (Bash)</div>
+                  <code style={{ fontSize: '11px', wordBreak: 'break-all', display: 'block' }}>curl -fsSL https://token-tracer-three.vercel.app/install.sh | bash -s -- --key &lt;ApiKey&gt;</code>
+                </div>
+                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '4px' }}>Windows (PowerShell)</div>
+                  <code style={{ fontSize: '11px', wordBreak: 'break-all', display: 'block' }}>$ApiKey="&lt;ApiKey&gt;"; iex (irm https://token-tracer-three.vercel.app/install.ps1)</code>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter bar */}
+            <div className="panel-card research-filter-bar" style={{ padding: '14px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', marginBottom: '16px', overflow: 'visible' }}>
+              <div className="form-field" style={{ margin: 0, minWidth: '160px' }}>
+                <label htmlFor="prompt-org-select" style={{ fontSize: '11px', marginBottom: '4px' }}>Organization</label>
+                <select id="prompt-org-select">
+                  <option value="">— All Orgs —</option>
+                </select>
+              </div>
+              <div className="form-field" style={{ margin: 0, minWidth: '180px', position: 'relative' }}>
+                <label style={{ fontSize: '11px', marginBottom: '4px' }}>Developers</label>
+                <button type="button" id="prompt-member-multiselect-btn" style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--ink)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', outline: 'none', fontSize: '13px', width: '100%', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', height: '30px' }}>
+                  <span id="prompt-member-multiselect-label" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>All Developers</span>
+                  <span style={{ fontSize: '8px', color: 'var(--muted)' }}>▼</span>
+                </button>
+                <div id="prompt-member-multiselect-dropdown" className="panel-card" style={{ display: 'none', position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000, maxHeight: '200px', overflowY: 'auto', padding: '8px', marginTop: '4px', background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+                  {/* Dynamic checkbox elements will be rendered here */}
+                </div>
+              </div>
+              <div className="form-field" style={{ margin: 0, minWidth: '110px' }}>
+                <label htmlFor="prompt-range-select" style={{ fontSize: '11px', marginBottom: '4px' }}>Time Range</label>
+                <select id="prompt-range-select" defaultValue="30d">
+                  <option value="7d">Last 7 days</option>
+                  <option value="30d">Last 30 days</option>
+                  <option value="60d">Last 60 days</option>
+                  <option value="90d">Last 90 days</option>
+                </select>
+              </div>
+              <div className="form-field" style={{ margin: 0, minWidth: '110px' }}>
+                <label htmlFor="prompt-tool-select" style={{ fontSize: '11px', marginBottom: '4px' }}>Tool</label>
+                <select id="prompt-tool-select">
+                  <option value="">— All Tools —</option>
+                  <option value="claude_code">Claude Code</option>
+                  <option value="cursor">Cursor</option>
+                  <option value="codex">Codex</option>
+                </select>
+              </div>
+              <div className="form-field" style={{ margin: 0, flex: 1, minWidth: '200px' }}>
+                <label htmlFor="prompt-search-input" style={{ fontSize: '11px', marginBottom: '4px' }}>Search Prompts</label>
+                <input type="text" id="prompt-search-input" placeholder="Search keywords..." style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--ink)', padding: '6px 10px', borderRadius: 'var(--radius-sm)', outline: 'none', fontSize: '13px', width: '100%' }} />
+              </div>
+            </div>
+
+            {/* Stats summary */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '16px' }}>
+              <div className="panel-card" style={{ padding: '16px' }}>
+                <h4 style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--muted)', textTransform: 'uppercase' }}>Prompts Matching</h4>
+                <div style={{ fontSize: '24px', fontWeight: 700 }} id="prompt-stat-count">0</div>
+              </div>
+              <div className="panel-card" style={{ padding: '16px' }}>
+                <h4 style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--muted)', textTransform: 'uppercase' }}>Total Input Tokens</h4>
+                <div style={{ fontSize: '24px', fontWeight: 700 }} id="prompt-stat-input">0</div>
+              </div>
+              <div className="panel-card" style={{ padding: '16px' }}>
+                <h4 style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--muted)', textTransform: 'uppercase' }}>Total Output Tokens</h4>
+                <div style={{ fontSize: '24px', fontWeight: 700 }} id="prompt-stat-output">0</div>
+              </div>
+              <div className="panel-card" style={{ padding: '16px' }}>
+                <h4 style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--muted)', textTransform: 'uppercase' }}>Cache Read Ratio</h4>
+                <div style={{ fontSize: '24px', fontWeight: 700 }} id="prompt-stat-cache">0%</div>
+              </div>
+            </div>
+
+            {/* List Table */}
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Session ID</th>
+                    <th>Developer</th>
+                    <th>Project</th>
+                    <th>Tool</th>
+                    <th>Model</th>
+                    <th>Input</th>
+                    <th>Output</th>
+                    <th>Cache Read</th>
+                    <th>Cache Write</th>
+                    <th>Date</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="prompt-explorer-tbody">
+                  <tr><td colSpan={11} style={{ textAlign: 'center', padding: '30px' }} className="muted">Loading prompts...</td></tr>
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Pagination Controls */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', flexWrap: 'wrap', gap: '12px' }}>
+              <span className="muted" id="prompts-pagination-info" style={{ fontSize: '13px' }}>Showing 0-0 of 0 prompts</span>
+              <div style={{ display: 'flex', gap: '8px' }} id="prompts-pagination-buttons">
+                <button type="button" id="prompts-prev-btn" className="preset-pill" style={{ padding: '6px 12px' }}>◀ Previous</button>
+                <button type="button" id="prompts-next-btn" className="preset-pill" style={{ padding: '6px 12px' }}>Next ▶</button>
+              </div>
+            </div>
+          </div>
+
         </main>
       </div>
 
@@ -1124,6 +1256,7 @@ export default async function AdminPage() {
       <Script src="/loader.js" strategy="afterInteractive" />
       <Script src="/admin/admin.js" strategy="afterInteractive" />
       <Script src="/admin/research.js" strategy="afterInteractive" />
+      <Script src="/admin/prompts.js" strategy="afterInteractive" />
     </div>
   );
 }

@@ -44,12 +44,20 @@ export async function GET(req: NextRequest) {
         rre.created_at AS "createdAt",
         ss.source AS tool,
         ss.model,
-        COALESCE(m.display_name, m.username, 'Unknown User') AS "userName",
-        COALESCE(t.name, 'Unknown Team') AS "projectName"
+        COALESCE(m.display_name, 'Unknown User') AS "userName",
+        COALESCE(t.name, 'Unknown Team') AS "projectName",
+        st.prompt_text_sanitized AS "promptText",
+        prev_st.prompt_text_sanitized AS "prevPromptText"
       FROM redundant_reprompt_events rre
       JOIN sync_sessions ss ON ss.session_id = rre.session_id
       LEFT JOIN members m ON m.id = ss.member_id
       LEFT JOIN teams t ON t.id = ss.team_id
+      LEFT JOIN session_turns st ON st.session_id = rre.session_id 
+        AND st.turn_index = rre.turn_index 
+        AND st.turn_role = 'user'
+      LEFT JOIN session_turns prev_st ON prev_st.session_id = rre.session_id 
+        AND prev_st.turn_index = rre.turn_index - 1 
+        AND prev_st.turn_role = 'user'
       WHERE ss.team_id::text = $1
         AND ss.started_at >= NOW() - $2::int * INTERVAL '1 day'
       ORDER BY rre.tokens_cost_of_following_turn DESC

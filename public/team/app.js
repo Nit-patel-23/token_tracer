@@ -731,11 +731,12 @@ function renderMembersTable(rows) {
   const host = window.location.origin;
 
   el.innerHTML = `<table><thead><tr>
-    <th>Member Name</th><th>Role</th><th>Sessions</th><th>Tokens Used</th><th>Total API Cost</th><th>Last Sync</th><th>Actions</th>
+    <th>Member Name</th><th>Role</th><th>Sessions</th><th>Tokens Used</th><th>Total API Cost</th><th>Last Sync</th><th>Daemon</th><th>Actions</th>
   </tr></thead><tbody>
     ${rows.map((m) => {
       const installCmd = `curl -fsSL ${host}/install.sh | bash -s -- --key ${m.api_key || 'av_live_YOUR_KEY'}`;
       const winInstallCmd = `$ApiKey="${m.api_key || 'av_live_YOUR_KEY'}"; iex (irm ${host}/install.ps1)`;
+      const daemonBadge = renderDaemonVersionBadge(m.daemon_version, m.daemon_last_seen_at);
       return `<tr>
         <td><strong>👤 ${m.display_name}</strong></td>
         <td><span class="source-tag">${m.role}</span></td>
@@ -743,6 +744,7 @@ function renderMembersTable(rows) {
         <td>${fmt(m.total_tokens || 0)}</td>
         <td><strong>${fmtCost(m.total_cost || 0)}</strong></td>
         <td>${fmtDate(m.last_sync_at)}</td>
+        <td>${daemonBadge}</td>
         <td>
           <button type="button" class="hbtn" style="border-color:var(--brand);color:var(--brand-hi);" onclick="triggerMemberSync('${m.id}', '${encodeURIComponent(m.display_name)}')">⚡ Trigger Sync</button>
           <button type="button" class="hbtn primary" onclick="copyInstallCmd('${encodeURIComponent(installCmd)}', 'Mac')">📋 Mac Cmd</button>
@@ -754,6 +756,37 @@ function renderMembersTable(rows) {
     }).join('')}
   </tbody></table>`;
 }
+
+// ── Daemon version badge ──────────────────────────────────────────────────────
+// latestDaemonVersion is populated by loadReleases() when the releases panel loads.
+let latestDaemonVersion = null;
+
+function compareVersionParts(a, b) {
+  const pa = (a || '').split('.').map((x) => parseInt(x, 10) || 0);
+  const pb = (b || '').split('.').map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function renderDaemonVersionBadge(daemonVersion, lastSeenAt) {
+  if (!daemonVersion) {
+    return `<span class="source-tag daemon-badge daemon-badge--unknown" title="Daemon version unknown — pre-update install">⬜ unknown</span>`;
+  }
+  let colorClass = 'daemon-badge--current';
+  let icon = '🟢';
+  let hint = 'Up to date';
+  if (latestDaemonVersion && daemonVersion !== latestDaemonVersion) {
+    const delta = compareVersionParts(latestDaemonVersion, daemonVersion);
+    if (delta >= 2) { colorClass = 'daemon-badge--outdated'; icon = '🔴'; hint = `Outdated — latest is v${latestDaemonVersion}`; }
+    else if (delta === 1) { colorClass = 'daemon-badge--behind'; icon = '🟡'; hint = `1 version behind — latest is v${latestDaemonVersion}`; }
+  }
+  const seenStr = lastSeenAt ? `Last seen: ${fmtDate(lastSeenAt)}` : 'Never synced';
+  return `<span class="source-tag daemon-badge ${colorClass}" title="${hint} | ${seenStr}">${icon} v${daemonVersion}</span>`;
+}
+
 
 window.copyInstallCmd = function (encodedCmd, osName) {
   const cmd = decodeURIComponent(encodedCmd);
@@ -857,7 +890,7 @@ async function loadDashboardData() {
   } else {
     if (selectDiv) selectDiv.style.display = 'flex';
   }
-  await Promise.all([loadStats({ soft: false }), loadMembers()]);
+  await Promise.all([loadStats({ soft: false }), loadMembers(), loadReleases()]);
 }
 
 async function showApp() {
@@ -1378,3 +1411,155 @@ updateFiltersBadge();
     console.error('Failed to load dashboard:', err);
   });
 })();
+// ── Daemon Releases Panel ─────────────────────────────────────────────────────
+// Loads release records, renders a table with activate/deactivate/delete,
+// and wires the "Publish Release" form.
+
+let releasesData = [];
+
+async function loadReleases() {
+  const el = document.getElementById('daemon-releases-list');
+  try {
+    const data = await api('/api/internal/releases');
+    releasesData = data.releases || [];
+
+    // Update latestDaemonVersion for version badge comparisons
+    const activeReleases = releasesData.filter((r) => r.active);
+    if (activeReleases.length > 0) {
+      latestDaemonVersion = activeReleases[0].version;
+      // Re-render members table to update badges
+      const memberEl = document.getElementById('members');
+      if (memberEl && memberEl.querySelector('tbody')) {
+        loadMembers();
+      }
+    }
+
+    renderReleasesTable();
+  } catch {
+    if (el) el.innerHTML = '<p class="muted" style="padding:12px">Unable to load releases (admin access required).</p>';
+  }
+}
+
+function renderReleasesTable() {
+  const el = document.getElementById('daemon-releases-list');
+  if (!el) return;
+
+  // Update latest version badge in panel header
+  const latestEl = document.getElementById('daemon-latest-version-badge');
+  if (latestEl) {
+    const active = releasesData.find((r) => r.active);
+    latestEl.textContent = active ? `Latest: v${active.version}` : 'No active release';
+  }
+
+  if (!releasesData.length) {
+    el.innerHTML = '<p class="muted" style="padding:12px 0">No daemon releases published yet. Use the form above to publish the first release.</p>';
+    return;
+  }
+
+  el.innerHTML = `<table><thead><tr>
+    <th>Version</th><th>Status</th><th>Mandatory</th><th>Released</th><th>SHA-256</th><th>Notes</th><th>Actions</th>
+  </tr></thead><tbody>
+    ${releasesData.map((r) => {
+      const statusBadge = r.active
+        ? '<span class="source-tag" style="background:rgba(34,197,94,0.15);color:#4ade80;">🟢 Active</span>'
+        : '<span class="source-tag" style="background:rgba(100,116,139,0.15);color:#94a3b8;">⬛ Inactive</span>';
+      const mandatoryBadge = r.mandatory
+        ? '<span class="source-tag" style="background:rgba(239,68,68,0.15);color:#f87171;">🔴 Mandatory</span>'
+        : '<span class="source-tag" style="color:#94a3b8;">Optional</span>';
+      const sha = r.sha256 ? r.sha256.slice(0, 12) + '…' : '—';
+      return `<tr>
+        <td><strong>v${r.version}</strong></td>
+        <td>${statusBadge}</td>
+        <td>${mandatoryBadge}</td>
+        <td>${fmtDate(r.released_at)}</td>
+        <td><code title="${r.sha256 || ''}">${sha}</code></td>
+        <td>${r.release_notes || '—'}</td>
+        <td>
+          ${r.active
+            ? `<button type="button" class="hbtn" style="color:#94a3b8" onclick="deactivateRelease('${r.id}')">⏸️ Deactivate</button>`
+            : `<button type="button" class="hbtn primary" onclick="activateRelease('${r.id}')">▶️ Activate</button>`}
+          <button type="button" class="hbtn" style="color:#ee5555" onclick="deleteRelease('${r.id}', 'v${r.version}')">🗑️ Delete</button>
+        </td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+
+window.activateRelease = async function (id) {
+  try {
+    await api('/api/internal/releases', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, active: true }),
+    });
+    window.showToast('Release activated — daemons will update on next check.', { type: 'success' });
+    await loadReleases();
+  } catch (err) {
+    window.showToast('Failed to activate: ' + err.message, { type: 'error' });
+  }
+};
+
+window.deactivateRelease = async function (id) {
+  if (!confirm('Deactivate this release? Running daemons will stop updating to it.')) return;
+  try {
+    await api('/api/internal/releases', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, active: false }),
+    });
+    window.showToast('Release deactivated.', { type: 'success' });
+    await loadReleases();
+  } catch (err) {
+    window.showToast('Failed to deactivate: ' + err.message, { type: 'error' });
+  }
+};
+
+window.deleteRelease = async function (id, label) {
+  if (!confirm(`Permanently delete release ${label}? This cannot be undone.`)) return;
+  try {
+    await api(`/api/internal/releases?id=${id}`, { method: 'DELETE' });
+    window.showToast(`Release ${label} deleted.`, { type: 'success' });
+    await loadReleases();
+  } catch (err) {
+    window.showToast('Failed to delete: ' + err.message, { type: 'error' });
+  }
+};
+
+// Publish Release form handler
+document.getElementById('publish-release-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('publish-release-submit');
+  const errEl = document.getElementById('publish-release-error');
+  if (errEl) { errEl.hidden = true; errEl.textContent = ''; }
+
+  const version = document.getElementById('release-version')?.value.trim();
+  const downloadUrl = document.getElementById('release-url')?.value.trim();
+  const sha256 = document.getElementById('release-sha256')?.value.trim().toLowerCase();
+  const mandatory = document.getElementById('release-mandatory')?.checked ?? false;
+  const releaseNotes = document.getElementById('release-notes')?.value.trim() || null;
+
+  if (!version || !downloadUrl || !sha256) {
+    if (errEl) { errEl.textContent = 'Version, URL, and SHA-256 are required.'; errEl.hidden = false; }
+    return;
+  }
+  if (!/^[0-9a-f]{64}$/.test(sha256)) {
+    if (errEl) { errEl.textContent = 'SHA-256 must be 64 lowercase hex characters.'; errEl.hidden = false; }
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Publishing…'; }
+  try {
+    await api('/api/internal/releases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version, downloadUrl, sha256, mandatory, releaseNotes }),
+    });
+    window.showToast(`Release v${version} published successfully.`, { type: 'success' });
+    e.target.reset();
+    await loadReleases();
+  } catch (err) {
+    if (errEl) { errEl.textContent = err.message; errEl.hidden = false; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Publish Release'; }
+  }
+});

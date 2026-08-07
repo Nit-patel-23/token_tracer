@@ -1806,6 +1806,9 @@ function setupAnalyticsTabs() {
     if (tabId === 'tab-research') {
       window.dispatchEvent(new CustomEvent('research-tab-activated'));
     }
+    if (tabId === 'tab-prompts') {
+      window.dispatchEvent(new CustomEvent('prompts-tab-activated'));
+    }
   }
 
   document.querySelectorAll('.admin-sidebar-nav button').forEach(b => {
