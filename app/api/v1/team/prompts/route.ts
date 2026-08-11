@@ -24,6 +24,11 @@ export async function GET(req: NextRequest) {
       memberId = session.memberId || 'all';
     }
 
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    const source = searchParams.get('source');
+    const minTokens = searchParams.get('minTokens');
+
     const conditions = ["ss.team_id = $1", "st.turn_role = 'user'"];
     const params: any[] = [teamId];
     let paramIdx = 2;
@@ -31,6 +36,26 @@ export async function GET(req: NextRequest) {
     if (memberId && memberId !== 'all') {
       conditions.push(`ss.member_id = $${paramIdx}`);
       params.push(memberId);
+      paramIdx++;
+    }
+    if (from) {
+      conditions.push(`COALESCE(ss.ended_at, ss.started_at, ss.synced_at)::date >= $${paramIdx}::date`);
+      params.push(from);
+      paramIdx++;
+    }
+    if (to) {
+      conditions.push(`COALESCE(ss.ended_at, ss.started_at, ss.synced_at)::date <= $${paramIdx}::date`);
+      params.push(to);
+      paramIdx++;
+    }
+    if (source && source !== 'all') {
+      conditions.push(`ss.source = $${paramIdx}`);
+      params.push(source);
+      paramIdx++;
+    }
+    if (minTokens && Number(minTokens) > 0) {
+      conditions.push(`(ss.tokens_in + ss.tokens_out) >= $${paramIdx}`);
+      params.push(Number(minTokens));
       paramIdx++;
     }
 
