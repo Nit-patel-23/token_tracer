@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { adminPassword, superadminPassword } from '@/lib/team/env';
 import { verifyAdminPassword } from '@/lib/team/auth';
+import { query } from '@/lib/team/db';
 import {
   findUserByUsername, verifyPassword, touchLastLogin,
   buildSessionCookie, type SessionPayload,
@@ -115,13 +116,24 @@ export async function POST(req: NextRequest) {
 
     await resetFailedLogin(user.id);
 
+    let userTeamId = user.team_id;
+    if (!userTeamId && user.member_id) {
+      const { rows: tmRows } = await query(
+        'SELECT team_id FROM team_members WHERE member_id = $1 LIMIT 1',
+        [user.member_id]
+      );
+      if (tmRows[0]?.team_id) {
+        userTeamId = tmRows[0].team_id;
+      }
+    }
+
     payload = {
       userId: user.id,
       username: user.username,
       displayName: user.display_name,
       role: user.role,
       memberId: user.member_id,
-      teamId: user.team_id,
+      teamId: userTeamId,
       issuedAt: Date.now(),
     };
 
