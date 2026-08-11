@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
       issuedAt: Date.now(),
     };
 
-    let redirectUrl = '/dashboard';
+    let redirectUrl = '/';
     if (user.role === 'admin') {
       redirectUrl = '/team';
     } else if (user.role === 'superadmin') {

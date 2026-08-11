@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getSessionFromCookie } from '@/lib/auth';
 
 export const metadata: Metadata = {
-  title: 'Sign In — Token Tracer',
-  description: 'Sign in to your Token Tracer dashboard.',
+  title: 'Visualisation Dashboard',
+  description: 'Personal token tracing and visualization dashboard.',
 };
 
 export default async function LoginPage() {
@@ -19,316 +20,1006 @@ export default async function LoginPage() {
     if (session.role === 'superadmin') {
       redirect('/admin');
     }
-    if (session.role === 'user') {
-      redirect('/dashboard');
-    }
   }
 
-  return (
-    <div suppressHydrationWarning>
-      <div className="login-page" id="login-page">
-        <div className="login-glow" aria-hidden="true" />
-        <div className="login-card" id="login-card">
-          <div className="login-brand">
-            <div className="login-mark" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
-                <circle cx="12" cy="12" r="4" />
-              </svg>
-            </div>
-            <div className="wordmark">
-              <h1>token<span>tracer</span></h1>
-            </div>
-            <p className="login-tagline">Sign in to your analytics workspace</p>
-          </div>
-
-          <form id="login-form" autoComplete="on" noValidate>
-            <div className="login-field" id="field-displayname" hidden>
-              <label htmlFor="login-displayname">Display Name</label>
-              <input
-                id="login-displayname"
-                name="displayName"
-                type="text"
-                placeholder="your name"
-              />
-            </div>
-            <div className="login-field" id="field-role" hidden>
-              <label htmlFor="login-role">Account Type</label>
-              <select id="login-role" name="role" style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--wash)', color: 'var(--ink)' }}>
-                <option value="user">Member (View Personal Metrics)</option>
-                <option value="admin">Team Admin (Manage a Team)</option>
-              </select>
-            </div>
-            <div className="login-field" id="field-teamname" hidden>
-              <label htmlFor="login-teamname">Team Name</label>
-              <input
-                id="login-teamname"
-                name="teamName"
-                type="text"
-                placeholder="e.g. Paymore"
-              />
-            </div>
-            <div className="login-field">
-              <label htmlFor="login-username">Username</label>
-              <input
-                id="login-username"
-                name="username"
-                type="text"
-                autoComplete="username"
-                placeholder="your username"
-                required
-                autoFocus
-              />
-            </div>
-            <div className="login-field">
-              <label htmlFor="login-password">Password</label>
-              <div className="login-password-wrap">
-                <input
-                  id="login-password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  required
-                />
-                <button
-                  type="button"
-                  id="login-password-toggle"
-                  className="login-password-toggle"
-                  aria-label="Show password"
-                  aria-pressed="false"
-                >
-                  <svg className="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                  <svg className="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...({ hidden: true } as any)}>
-                    <path d="M3 3l18 18" />
-                    <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
-                    <path d="M9.4 5.1A10.3 10.3 0 0 1 12 5c6.5 0 10 7 10 7a18.4 18.4 0 0 1-2.2 3.2" />
-                    <path d="M6.7 6.7C4.2 8.4 2.7 11 2.7 11S6.2 18 12 18c1.1 0 2.1-.2 3-.5" />
-                  </svg>
-                </button>
+  // If there is no session, render the sign-in form
+  if (!session) {
+    return (
+      <div suppressHydrationWarning>
+        <div className="login-page" id="login-page">
+          <div className="login-glow" aria-hidden="true" />
+          <div className="login-card" id="login-card">
+            <div className="login-brand">
+              <div className="login-mark" aria-hidden="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+                  <circle cx="12" cy="12" r="4" />
+                </svg>
               </div>
+              <div className="wordmark">
+                <h1>token<span>tracer</span></h1>
+              </div>
+              <p className="login-tagline">Sign in to your analytics workspace</p>
             </div>
-            <button type="submit" className="login-submit" id="login-submit">
-              <span className="login-submit-spinner" aria-hidden="true" />
-              <span className="login-submit-label">Sign in</span>
-            </button>
-            <div id="login-error" className="login-error" role="alert" aria-live="assertive" hidden>
-              <span aria-hidden="true">!</span>
-              <span id="login-error-text"></span>
+
+            <form id="login-form" autoComplete="on" noValidate>
+              <div className="login-field" id="field-displayname" hidden>
+                <label htmlFor="login-displayname">Display Name</label>
+                <input
+                  id="login-displayname"
+                  name="displayName"
+                  type="text"
+                  placeholder="your name"
+                />
+              </div>
+              <div className="login-field" id="field-role" hidden>
+                <label htmlFor="login-role">Account Type</label>
+                <select id="login-role" name="role" style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--wash)', color: 'var(--ink)' }}>
+                  <option value="user">Member (View Personal Metrics)</option>
+                  <option value="admin">Team Admin (Manage a Team)</option>
+                </select>
+              </div>
+              <div className="login-field" id="field-teamname" hidden>
+                <label htmlFor="login-teamname">Team Name</label>
+                <input
+                  id="login-teamname"
+                  name="teamName"
+                  type="text"
+                  placeholder="e.g. Paymore"
+                />
+              </div>
+              <div className="login-field">
+                <label htmlFor="login-username">Username</label>
+                <input
+                  id="login-username"
+                  name="username"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="your username"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="login-field">
+                <label htmlFor="login-password">Password</label>
+                <div className="login-password-wrap">
+                  <input
+                    id="login-password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    required
+                  />
+                  <button
+                    type="button"
+                    id="login-password-toggle"
+                    className="login-password-toggle"
+                    aria-label="Show password"
+                    aria-pressed="false"
+                  >
+                    <svg className="eye-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <svg className="eye-closed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...({ hidden: true } as any)}>
+                      <path d="M3 3l18 18" />
+                      <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                      <path d="M9.4 5.1A10.3 10.3 0 0 1 12 5c6.5 0 10 7 10 7a18.4 18.4 0 0 1-2.2 3.2" />
+                      <path d="M6.7 6.7C4.2 8.4 2.7 11 2.7 11S6.2 18 12 18c1.1 0 2.1-.2 3-.5" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <button type="submit" className="login-submit" id="login-submit">
+                <span className="login-submit-spinner" aria-hidden="true" />
+                <span className="login-submit-label">Sign in</span>
+              </button>
+              <div id="login-error" className="login-error" role="alert" aria-live="assertive" hidden>
+                <span aria-hidden="true">!</span>
+                <span id="login-error-text"></span>
+              </div>
+            </form>
+            <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--muted)' }}>
+              <a href="#" id="auth-mode-toggle" style={{ color: 'var(--brand)', textDecoration: 'none', fontWeight: '500' }}>
+                Don't have an account? Sign up
+              </a>
             </div>
-          </form>
-          <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--muted)' }}>
-            <a href="#" id="auth-mode-toggle" style={{ color: 'var(--brand)', textDecoration: 'none', fontWeight: '500' }}>
-              Don't have an account? Sign up
-            </a>
+            <div id="signup-success-wrap" className="signup-success-wrap" hidden style={{ marginTop: '16px', padding: '16px', borderRadius: '12px', background: 'var(--raised)', border: '1px solid var(--border)' }}>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '15px', color: 'var(--brand)' }}>Signup Successful!</h3>
+              <p className="muted" style={{ fontSize: '12.5px', margin: '0 0 12px 0' }}>Your member account is created. Copy your API Key and setup command now to start tracking your tokens:</p>
+              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12px', marginBottom: '16px' }}>
+                <div style={{ wordBreak: 'break-all', marginBottom: '8px' }}><strong>API Key:</strong> <code id="su-api-key" style={{ color: 'var(--brand-hi)', userSelect: 'all', fontWeight: 'bold' }}></code></div>
+                <div style={{ marginTop: '8px' }}><strong>🍎 Mac Command:</strong><br/><pre id="su-cmd-mac" style={{ background: 'rgba(0,0,0,0.4)', padding: '6px', borderRadius: '4px', overflowX: 'auto', margin: '4px 0 0 0', fontFamily: 'monospace', userSelect: 'all', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}></pre></div>
+                <div style={{ marginTop: '8px' }}><strong>🪟 Windows Command:</strong><br/><pre id="su-cmd-win" style={{ background: 'rgba(0,0,0,0.4)', padding: '6px', borderRadius: '4px', overflowX: 'auto', margin: '4px 0 0 0', fontFamily: 'monospace', userSelect: 'all', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}></pre></div>
+              </div>
+              <button type="button" className="login-submit" id="su-continue-btn" style={{ width: '100%', cursor: 'pointer' }}>
+                Continue to Dashboard
+              </button>
+            </div>
           </div>
-          <div id="signup-success-wrap" className="signup-success-wrap" hidden style={{ marginTop: '16px', padding: '16px', borderRadius: '12px', background: 'var(--raised)', border: '1px solid var(--border)' }}>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '15px', color: 'var(--brand)' }}>Signup Successful!</h3>
-            <p className="muted" style={{ fontSize: '12.5px', margin: '0 0 12px 0' }}>Your member account is created. Copy your API Key and setup command now to start tracking your tokens:</p>
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '12px', marginBottom: '16px' }}>
-              <div style={{ wordBreak: 'break-all', marginBottom: '8px' }}><strong>API Key:</strong> <code id="su-api-key" style={{ color: 'var(--brand-hi)', userSelect: 'all', fontWeight: 'bold' }}></code></div>
-              <div style={{ marginTop: '8px' }}><strong>🍎 Mac Command:</strong><br/><pre id="su-cmd-mac" style={{ background: 'rgba(0,0,0,0.4)', padding: '6px', borderRadius: '4px', overflowX: 'auto', margin: '4px 0 0 0', fontFamily: 'monospace', userSelect: 'all', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}></pre></div>
-              <div style={{ marginTop: '8px' }}><strong>🪟 Windows Command:</strong><br/><pre id="su-cmd-win" style={{ background: 'rgba(0,0,0,0.4)', padding: '6px', borderRadius: '4px', overflowX: 'auto', margin: '4px 0 0 0', fontFamily: 'monospace', userSelect: 'all', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}></pre></div>
-            </div>
-            <button type="button" className="login-submit" id="su-continue-btn" style={{ width: '100%', cursor: 'pointer' }}>
-              Continue to Dashboard
-            </button>
-          </div>
+          <p className="login-footer">Token usage analytics for AI coding agents</p>
         </div>
-        <p className="login-footer">Token usage analytics for AI coding agents</p>
-      </div>
 
-      <script dangerouslySetInnerHTML={{ __html: `
-        (function() {
-          var form = document.getElementById('login-form');
-          var errEl = document.getElementById('login-error');
-          var errText = document.getElementById('login-error-text');
-          var btn = document.getElementById('login-submit');
-          var pwInput = document.getElementById('login-password');
-          var pwToggle = document.getElementById('login-password-toggle');
-          if (!form) return;
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function() {
+            var form = document.getElementById('login-form');
+            var errEl = document.getElementById('login-error');
+            var errText = document.getElementById('login-error-text');
+            var btn = document.getElementById('login-submit');
+            var pwInput = document.getElementById('login-password');
+            var pwToggle = document.getElementById('login-password-toggle');
+            if (!form) return;
 
-          var mode = 'login';
-          var modeToggle = document.getElementById('auth-mode-toggle');
-          var taglineEl = document.querySelector('.login-brand .login-tagline');
-          var submitLabel = document.querySelector('#login-submit .login-submit-label');
-          var fieldDisplayName = document.getElementById('field-displayname');
-          var fieldRole = document.getElementById('field-role');
-          var fieldTeamName = document.getElementById('field-teamname');
-          var inputRole = document.getElementById('login-role');
-          var successWrap = document.getElementById('signup-success-wrap');
-          var continueBtn = document.getElementById('su-continue-btn');
-          
-          var usernameInput = document.getElementById('login-username');
-          var displayNameInput = document.getElementById('login-displayname');
-          var teamNameInput = document.getElementById('login-teamname');
+            var mode = 'login';
+            var modeToggle = document.getElementById('auth-mode-toggle');
+            var taglineEl = document.querySelector('.login-brand .login-tagline');
+            var submitLabel = document.querySelector('#login-submit .login-submit-label');
+            var fieldDisplayName = document.getElementById('field-displayname');
+            var fieldRole = document.getElementById('field-role');
+            var fieldTeamName = document.getElementById('field-teamname');
+            var inputRole = document.getElementById('login-role');
+            var successWrap = document.getElementById('signup-success-wrap');
+            var continueBtn = document.getElementById('su-continue-btn');
+            
+            var usernameInput = document.getElementById('login-username');
+            var displayNameInput = document.getElementById('login-displayname');
+            var teamNameInput = document.getElementById('login-teamname');
 
-          if (pwToggle) {
-            var eyeOpen = pwToggle.querySelector('.eye-open');
-            var eyeClosed = pwToggle.querySelector('.eye-closed');
-            pwToggle.addEventListener('click', function() {
-              var show = pwInput.type === 'password';
-              pwInput.type = show ? 'text' : 'password';
-              pwToggle.setAttribute('aria-pressed', String(show));
-              pwToggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-              if (eyeOpen) eyeOpen.hidden = show;
-              if (eyeClosed) eyeClosed.hidden = !show;
-            });
-          }
+            if (pwToggle) {
+              var eyeOpen = pwToggle.querySelector('.eye-open');
+              var eyeClosed = pwToggle.querySelector('.eye-closed');
+              pwToggle.addEventListener('click', function() {
+                var show = pwInput.type === 'password';
+                pwInput.type = show ? 'text' : 'password';
+                pwToggle.setAttribute('aria-pressed', String(show));
+                pwToggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+                if (eyeOpen) eyeOpen.hidden = show;
+                if (eyeClosed) eyeClosed.hidden = !show;
+              });
+            }
 
-          if (modeToggle) {
-            modeToggle.addEventListener('click', function(e) {
+            if (modeToggle) {
+              modeToggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                errEl.hidden = true;
+                if (mode === 'login') {
+                  mode = 'signup';
+                  modeToggle.textContent = 'Already have an account? Sign in';
+                  if (taglineEl) taglineEl.textContent = 'Create a free user or admin account';
+                  if (submitLabel) submitLabel.textContent = 'Sign up';
+                  if (fieldDisplayName) fieldDisplayName.hidden = false;
+                  if (fieldRole) fieldRole.hidden = false;
+                  if (inputRole) inputRole.value = 'user';
+                  if (fieldTeamName) fieldTeamName.hidden = true;
+                  if (displayNameInput) displayNameInput.required = true;
+                  if (teamNameInput) teamNameInput.required = false;
+                } else {
+                  mode = 'login';
+                  modeToggle.textContent = "Don't have an account? Sign up";
+                  if (taglineEl) taglineEl.textContent = 'Sign in to your analytics workspace';
+                  if (submitLabel) submitLabel.textContent = 'Sign in';
+                  if (fieldDisplayName) fieldDisplayName.hidden = true;
+                  if (fieldRole) fieldRole.hidden = true;
+                  if (fieldTeamName) fieldTeamName.hidden = true;
+                  if (displayNameInput) displayNameInput.required = false;
+                  if (teamNameInput) teamNameInput.required = false;
+                }
+              });
+            }
+
+            if (inputRole) {
+              inputRole.addEventListener('change', function() {
+                var isAdmin = inputRole.value === 'admin';
+                if (fieldTeamName) fieldTeamName.hidden = !isAdmin;
+                if (teamNameInput) teamNameInput.required = isAdmin;
+              });
+            }
+
+            function setBusy(busy) {
+              btn.disabled = busy;
+              btn.classList.toggle('is-busy', busy);
+            }
+
+            form.addEventListener('submit', async function(e) {
               e.preventDefault();
               errEl.hidden = true;
-              if (mode === 'login') {
-                mode = 'signup';
-                modeToggle.textContent = 'Already have an account? Sign in';
-                if (taglineEl) taglineEl.textContent = 'Create a free user or admin account';
-                if (submitLabel) submitLabel.textContent = 'Sign up';
-                if (fieldDisplayName) fieldDisplayName.hidden = false;
-                if (fieldRole) fieldRole.hidden = false;
-                if (inputRole) inputRole.value = 'user';
-                if (fieldTeamName) fieldTeamName.hidden = true;
-                if (displayNameInput) displayNameInput.required = true;
-                if (teamNameInput) teamNameInput.required = false;
-              } else {
-                mode = 'login';
-                modeToggle.textContent = "Don't have an account? Sign up";
-                if (taglineEl) taglineEl.textContent = 'Sign in to your analytics workspace';
-                if (submitLabel) submitLabel.textContent = 'Sign in';
-                if (fieldDisplayName) fieldDisplayName.hidden = true;
-                if (fieldRole) fieldRole.hidden = true;
-                if (fieldTeamName) fieldTeamName.hidden = true;
-                if (displayNameInput) displayNameInput.required = false;
-                if (teamNameInput) teamNameInput.required = false;
-              }
-            });
-          }
+              setBusy(true);
+              try {
+                var username = usernameInput.value.trim();
+                var password = pwInput.value;
 
-          if (inputRole) {
-            inputRole.addEventListener('change', function() {
-              var isAdmin = inputRole.value === 'admin';
-              if (fieldTeamName) fieldTeamName.hidden = !isAdmin;
-              if (teamNameInput) teamNameInput.required = isAdmin;
-            });
-          }
-
-          function setBusy(busy) {
-            btn.disabled = busy;
-            btn.classList.toggle('is-busy', busy);
-          }
-
-          form.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            errEl.hidden = true;
-            setBusy(true);
-            try {
-              var username = usernameInput.value.trim();
-              var password = pwInput.value;
-
-              if (mode === 'login') {
-                var res = await fetch('/api/auth/login', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ username: username, password: password }),
-                  credentials: 'same-origin',
-                });
-                var data = await res.json().catch(function() { return {}; });
-                if (res.ok && data.redirect) {
-                  window.location.href = data.redirect;
-                } else {
-                  errText.textContent = data.error || 'Sign in failed. Please try again.';
-                  errEl.hidden = false;
-                  setBusy(false);
-                }
-              } else {
-                var displayName = displayNameInput.value.trim();
-                var role = inputRole.value;
-                var teamName = teamNameInput.value.trim();
-
-                if (!username || !password || !displayName || (role === 'admin' && !teamName)) {
-                  errText.textContent = 'Please fill out all required fields.';
-                  errEl.hidden = false;
-                  setBusy(false);
-                  return;
-                }
-
-                var res = await fetch('/api/auth/signup', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    username: username,
-                    password: password,
-                    displayName: displayName,
-                    role: role,
-                    teamName: teamName
-                  }),
-                });
-
-                var data = await res.json().catch(function() { return {}; });
-                if (!res.ok) {
-                  throw new Error(data.error || 'Sign up failed.');
-                }
-
-                if (role === 'admin') {
-                  // Admin auto-login
-                  var loginRes = await fetch('/api/auth/login', {
+                if (mode === 'login') {
+                  var res = await fetch('/api/auth/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: username, password: password }),
                     credentials: 'same-origin',
                   });
-                  var loginData = await loginRes.json().catch(function() { return {}; });
-                  if (loginRes.ok && loginData.redirect) {
-                    window.location.href = loginData.redirect;
+                  var data = await res.json().catch(function() { return {}; });
+                  if (res.ok && data.redirect) {
+                    window.location.href = data.redirect;
                   } else {
-                    window.location.reload();
+                    errText.textContent = data.error || 'Sign in failed. Please try again.';
+                    errEl.hidden = false;
+                    setBusy(false);
                   }
                 } else {
-                  form.hidden = true;
-                  if (modeToggle) modeToggle.parentElement.hidden = true;
-                  
-                  document.getElementById('su-api-key').textContent = data.apiKey;
-                  document.getElementById('su-cmd-mac').textContent = data.installCommandMac;
-                  document.getElementById('su-cmd-win').textContent = data.installCommandWin;
-                  
-                  if (successWrap) successWrap.hidden = false;
+                  var displayName = displayNameInput.value.trim();
+                  var role = inputRole.value;
+                  var teamName = teamNameInput.value.trim();
 
-                  if (continueBtn) {
-                    continueBtn.addEventListener('click', async function() {
-                      continueBtn.disabled = true;
-                      continueBtn.textContent = 'Logging in...';
-                      try {
-                        var loginRes = await fetch('/api/auth/login', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ username: username, password: password }),
-                          credentials: 'same-origin',
-                        });
-                        var loginData = await loginRes.json().catch(function() { return {}; });
-                        if (loginRes.ok && loginData.redirect) {
-                          window.location.href = loginData.redirect;
-                        } else {
-                          window.location.href = '/dashboard';
-                        }
-                      } catch (err) {
-                        window.location.href = '/dashboard';
-                      }
+                  if (!username || !password || !displayName || (role === 'admin' && !teamName)) {
+                    errText.textContent = 'Please fill out all required fields.';
+                    errEl.hidden = false;
+                    setBusy(false);
+                    return;
+                  }
+
+                  var res = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      username: username,
+                      password: password,
+                      displayName: displayName,
+                      role: role,
+                      teamName: teamName
+                    }),
+                  });
+
+                  var data = await res.json().catch(function() { return {}; });
+                  if (!res.ok) {
+                    throw new Error(data.error || 'Sign up failed.');
+                  }
+
+                  if (role === 'admin') {
+                    // Admin auto-login
+                    var loginRes = await fetch('/api/auth/login', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ username: username, password: password }),
+                      credentials: 'same-origin',
                     });
+                    var loginData = await loginRes.json().catch(function() { return {}; });
+                    if (loginRes.ok && loginData.redirect) {
+                      window.location.href = loginData.redirect;
+                    } else {
+                      window.location.reload();
+                    }
+                  } else {
+                    form.hidden = true;
+                    if (modeToggle) modeToggle.parentElement.hidden = true;
+                    
+                    document.getElementById('su-api-key').textContent = data.apiKey;
+                    document.getElementById('su-cmd-mac').textContent = data.installCommandMac;
+                    document.getElementById('su-cmd-win').textContent = data.installCommandWin;
+                    
+                    if (successWrap) successWrap.hidden = false;
+
+                    if (continueBtn) {
+                      continueBtn.addEventListener('click', async function() {
+                        continueBtn.disabled = true;
+                        continueBtn.textContent = 'Logging in...';
+                        try {
+                          var loginRes = await fetch('/api/auth/login', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username: username, password: password }),
+                            credentials: 'same-origin',
+                          });
+                          var loginData = await loginRes.json().catch(function() { return {}; });
+                          if (loginRes.ok && loginData.redirect) {
+                            window.location.href = loginData.redirect;
+                          } else {
+                            window.location.href = '/';
+                          }
+                        } catch (err) {
+                          window.location.href = '/';
+                        }
+                      });
+                    }
                   }
                 }
+              } catch (err) {
+                errText.textContent = err.message || 'Network error. Please try again.';
+                errEl.hidden = false;
+                setBusy(false);
               }
-            } catch (err) {
-              errText.textContent = err.message || 'Network error. Please try again.';
-              errEl.hidden = false;
-              setBusy(false);
-            }
-          });
-        })();
-      ` }} />
+            });
+          })();
+        ` }} />
+      </div>
+    );
+  }
+
+  // If there is an active session for standard user, render personal dashboard
+  return (
+    <div suppressHydrationWarning>
+      <Script src="/impersonation.js" strategy="afterInteractive" />
+      {/* Shown only until the cookie session check resolves */}
+      <div id="boot-loading" className="boot-loading" aria-busy="true" suppressHydrationWarning>
+        <div className="tt-loader" role="status">
+          <div className="tt-loader-orbit" aria-hidden="true">
+            <div className="tt-loader-ring" />
+            <div className="tt-loader-ring tt-loader-ring--inner" />
+            <div className="tt-loader-core">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+                <circle cx="12" cy="12" r="4" />
+              </svg>
+            </div>
+            <i className="tt-loader-token t1" />
+            <i className="tt-loader-token t2" />
+            <i className="tt-loader-token t3" />
+          </div>
+          <p className="tt-loader-label">Tracing <em>your</em> tokens…</p>
+        </div>
+      </div>
+
+      <div id="login-screen" className="team-login" hidden suppressHydrationWarning>
+        <form id="login-form">
+          <h1>Team analytics</h1>
+          <p className="muted">Admin login — personal dashboard is at <code>/</code></p>
+          <label>
+            Password
+            <input id="login-password" type="password" autoComplete="current-password" required />
+          </label>
+          <button type="submit" className="hbtn primary" id="login-submit">Sign in</button>
+          <p id="login-error" className="error" role="alert" aria-live="assertive" hidden></p>
+        </form>
+      </div>
+
+      <div id="app" hidden className="team-app-layout">
+        {/* Mobile-only topbar: shown under 880px, hosts the hamburger toggle */}
+        <div className="mobile-topbar">
+          <button type="button" id="team-nav-toggle" className="mobile-nav-toggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="team-sidebar-nav">
+            <span></span><span></span><span></span>
+          </button>
+          <div className="wordmark">
+            <h1>team</h1>
+          </div>
+          <div className="mobile-topbar-spacer" />
+        </div>
+        <div id="team-nav-overlay" className="nav-overlay"></div>
+
+        {/* Left Vertical Sidebar */}
+        <aside className="team-sidebar" id="team-sidebar-nav">
+          <div className="sidebar-brand">
+            <div className="wordmark">
+              <h1>team</h1>
+              <span className="eyebrow">Analytics</span>
+            </div>
+          </div>
+
+          <div className="sidebar-team-select">
+            <label className="muted">Current Team</label>
+            <select id="team-select" aria-label="Team"></select>
+          </div>
+
+          <nav className="team-sidebar-nav" id="team-tabs" role="tablist" aria-label="Team analytics sections">
+            <button type="button" id="tabbtn-overview" className="tab-btn active" data-tab="tab-overview" data-title="Overview & Stats" role="tab" aria-selected="true" aria-controls="tab-overview" tabIndex={0}>
+              <span className="nav-icon" aria-hidden="true">📊</span> Overview & Stats
+            </button>
+            <button type="button" id="tabbtn-token-leaderboard" className="tab-btn" data-tab="tab-token-leaderboard" data-title="Token Leaderboard" role="tab" aria-selected="false" aria-controls="tab-token-leaderboard" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">🏆</span> Token Leaderboard
+            </button>
+            <button type="button" id="tabbtn-head-to-head" className="tab-btn" data-tab="tab-head-to-head" data-title="Head-to-Head" role="tab" aria-selected="false" aria-controls="tab-head-to-head" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">⚔️</span> Head-to-Head
+            </button>
+            <button type="button" id="tabbtn-members" className="tab-btn" data-tab="tab-members" data-title="Member Token Logs" role="tab" aria-selected="false" aria-controls="tab-members" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">👥</span> Member Token Logs
+            </button>
+            <button type="button" id="tabbtn-projects" className="tab-btn" data-tab="tab-projects" data-title="Projects & Repos" role="tab" aria-selected="false" aria-controls="tab-projects" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">📁</span> Projects & Repos
+            </button>
+            <button type="button" id="tabbtn-files" className="tab-btn" data-tab="tab-files" data-title="Code Impact Map" role="tab" aria-selected="false" aria-controls="tab-files" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">📄</span> Code Impact Map
+            </button>
+            <button type="button" id="tabbtn-logs" className="tab-btn" data-tab="tab-logs" data-title="Session Logs" role="tab" aria-selected="false" aria-controls="tab-logs" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">📜</span> Session Logs
+            </button>
+            <button type="button" id="tabbtn-pricing" className="tab-btn" data-tab="tab-pricing" data-title="Model Pricing" role="tab" aria-selected="false" aria-controls="tab-pricing" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">💲</span> Model Pricing Rates
+            </button>
+            <button type="button" id="tabbtn-settings" className="tab-btn" data-tab="tab-settings" data-title="Manage Members" role="tab" aria-selected="false" aria-controls="tab-settings" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">⚙️</span> Manage Members
+            </button>
+          </nav>
+
+          <div className="sidebar-footer">
+            <button type="button" id="team-profile-btn" className="hbtn sidebar-profile-btn" title="Account & Profile Settings">
+              <span className="profile-btn-icon" aria-hidden="true">👤</span>
+              <span id="team-admin-name" className="sidebar-user-name">Profile</span>
+            </button>
+            <div className="sidebar-footer-links">
+              <a href="/" className="sidebar-link">← Personal Dashboard</a>
+              <button id="team-logout-btn" className="hbtn sidebar-logout-btn">Sign out</button>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content Area */}
+        <div className="team-main-wrapper">
+          {/* Header Controls & Filters */}
+          <header className="team-header">
+            <div className="team-header-top">
+              <h1 id="team-page-title" className="team-page-title">Overview &amp; Stats</h1>
+            </div>
+            <div className="header-filters-row">
+              {/* Date Presets */}
+              <div id="range-presets" className="range-presets" role="tablist"></div>
+
+              {/* Mobile-only collapsible trigger for the remaining filters */}
+              <button
+                type="button"
+                id="filters-toggle"
+                className="hbtn filters-toggle-btn"
+                aria-expanded="false"
+                aria-controls="filters-more"
+              >
+                <span aria-hidden="true">⚙️</span> Filters
+                <span id="filters-badge" className="filters-badge" hidden>0</span>
+              </button>
+
+              <div id="filters-more" className="filters-more">
+                <div className="filters-more-grid">
+                  <label className="filter-label">From <input id="range-from" type="date" /></label>
+                  <label className="filter-label">To <input id="range-to" type="date" /></label>
+
+                  {/* Member Filter */}
+                  <label className="filter-label">Member
+                    <select id="global-member-filter">
+                      <option value="all">All Members</option>
+                    </select>
+                  </label>
+
+                  {/* Source Filter */}
+                  <label className="filter-label">AI Tool
+                    <select id="global-source-filter">
+                      <option value="all">All Tools</option>
+                      <option value="cursor">Cursor</option>
+                      <option value="claude-code">Claude Code</option>
+                      <option value="codex">Codex</option>
+                    </select>
+                  </label>
+
+                  {/* Token Usage Range Filter */}
+                  <label className="filter-label filter-label-wide">Min Tokens
+                    <select id="global-min-tokens-filter">
+                      <option value="0">All Usage (0+)</option>
+                      <option value="10000">&gt; 10k Tokens</option>
+                      <option value="100000">&gt; 100k Tokens</option>
+                      <option value="1000000">&gt; 1M Tokens</option>
+                      <option value="10000000">&gt; 10M Tokens</option>
+                    </select>
+                  </label>
+                </div>
+
+                <button id="refresh" className="hbtn primary" title="Refresh stats">↻ Apply Filters</button>
+              </div>
+            </div>
+          </header>
+
+          <main className="team-main">
+            <div id="app-error" className="app-error" role="alert" aria-live="assertive" hidden></div>
+            <div id="data-loading" className="data-loading" hidden aria-busy="true"></div>
+            <div id="app-loading" className="app-loading" hidden aria-busy="true">
+              <div className="app-loading-hero">
+                <div className="tt-loader" role="status">
+                  <div className="tt-loader-orbit" aria-hidden="true">
+                    <div className="tt-loader-ring" />
+                    <div className="tt-loader-ring tt-loader-ring--inner" />
+                    <div className="tt-loader-core">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+                        <circle cx="12" cy="12" r="4" />
+                      </svg>
+                    </div>
+                    <i className="tt-loader-token t1" />
+                    <i className="tt-loader-token t2" />
+                    <i className="tt-loader-token t3" />
+                  </div>
+                  <p className="tt-loader-label">Gathering <em>analytics</em>…</p>
+                </div>
+              </div>
+              <div className="skeleton-cards" aria-hidden="true">
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+                <div className="skeleton-stat"><div className="skeleton" /><div className="skeleton" /></div>
+              </div>
+              <div className="grid-2" aria-hidden="true">
+                <div className="skeleton-panel">
+                  <div className="skeleton skeleton-title" />
+                  <div className="skeleton skeleton-row" />
+                  <div className="skeleton skeleton-row" />
+                  <div className="skeleton skeleton-row" />
+                </div>
+                <div className="skeleton-panel">
+                  <div className="skeleton skeleton-title" />
+                  <div className="skeleton skeleton-row" style={{ height: '160px' }} />
+                </div>
+              </div>
+              <span className="visually-hidden">Loading team analytics…</span>
+            </div>
+            <div id="app-content">
+
+              {/* TAB 1: OVERVIEW & KEY STATS */}
+              <section id="tab-overview" className="tab-content active" role="tabpanel" aria-labelledby="tabbtn-overview">
+                <div className="cards" id="totals"></div>
+
+                <div className="grid-2">
+                  <section className="panel">
+                    <h2>Member Token & Cost Summary</h2>
+                    <div id="leaderboard" className="table-wrap"></div>
+                  </section>
+                  <section className="panel">
+                    <h2>AI Tools & Accounts Distribution</h2>
+                    <div id="by-source"></div>
+                  </section>
+                </div>
+
+                <div className="grid-2">
+                  <section className="panel">
+                    <h2>Daily Token Flow</h2>
+                    <div id="by-day"></div>
+                  </section>
+                  <section className="panel">
+                    <h2>Top Tools Called</h2>
+                    <div id="top-tools"></div>
+                  </section>
+                </div>
+              </section>
+
+              {/* TAB 2: TOKEN LEADERBOARD */}
+              <section id="tab-token-leaderboard" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-token-leaderboard" hidden>
+                <div className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h2>Token Consumption Leaderboard</h2>
+                      <span className="muted">Ranked by total tokens exchanged (input + output + cache)</span>
+                    </div>
+                  </div>
+                  <div id="token-leaderboard-table" className="table-wrap"></div>
+                </div>
+              </section>
+
+              {/* TAB 3: HEAD-TO-HEAD SCOREBOARD */}
+              <section id="tab-head-to-head" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-head-to-head" hidden>
+                <div className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h2>Member Head-to-Head</h2>
+                      <span className="muted">Normalized efficiency metrics across team members</span>
+                    </div>
+                  </div>
+                  <div id="head-to-head-table" className="table-wrap"></div>
+                </div>
+              </section>
+
+              {/* TAB 4: MEMBER DEEP DIVE & FILES */}
+              <section id="tab-members" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-members" hidden>
+                <div className="panel-head">
+                  <div>
+                    <h2>Per-Member Drilldown</h2>
+                    <span className="muted">Token, project, model, and edit activity by member</span>
+                  </div>
+                  <div className="filter-group">
+                    <button type="button" id="collapse-all-members" className="hbtn hbtn-sm">
+                      Collapse all
+                    </button>
+                    <button type="button" id="expand-all-members" className="hbtn hbtn-sm">
+                      Expand all
+                    </button>
+                    <label className="member-filter-label" htmlFor="member-filter-select">Member</label>
+                    <select id="member-filter-select" aria-label="Filter by member"></select>
+                  </div>
+                </div>
+                <div id="member-drilldown-cards"></div>
+              </section>
+
+              {/* TAB 5: PROJECTS & WORKSPACES */}
+              <section id="tab-projects" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-projects" hidden>
+                <div className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h2>Projects & Workspaces</h2>
+                      <span className="muted">Which accounts and members worked on which repositories</span>
+                    </div>
+                  </div>
+                  <div id="projects-table" className="table-wrap"></div>
+                </div>
+              </section>
+
+              {/* TAB 6: FILE IMPACT RISK MAP */}
+              <section id="tab-files" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-files" hidden>
+                <div className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h2>Code Impact Map</h2>
+                      <span className="muted">Most-modified paths, line diffs, and contributor counts</span>
+                    </div>
+                  </div>
+                  <div id="top-files" className="table-wrap"></div>
+                </div>
+              </section>
+
+              {/* TAB 7: SESSION ACTIVITY LOGS */}
+              <section id="tab-logs" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-logs" hidden>
+                <div className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h2>Session Activity Logs</h2>
+                      <span className="muted">Recent agent sessions across the team</span>
+                    </div>
+                  </div>
+                  <div id="session-logs-table" className="table-wrap"></div>
+                </div>
+              </section>
+
+              {/* TAB 8: MODEL PRICING RATES */}
+              <section id="tab-pricing" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-pricing" hidden>
+                <div className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h2>Model Pricing</h2>
+                      <span className="muted">Custom LLM rates in $ per million tokens</span>
+                    </div>
+                    <div className="inline-actions">
+                      <button id="recalculate-costs-btn" className="hbtn hbtn-accent">
+                        Recalculate costs
+                      </button>
+                      <button id="add-pricing-btn" className="hbtn primary">+ Add pricing rule</button>
+                    </div>
+                  </div>
+                  <p className="panel-intro">
+                    Configure pricing rules, then recalculate to refresh estimated costs across member sessions.
+                  </p>
+                  <div id="model-pricing-table" className="table-wrap"></div>
+
+                  <div className="panel-subsection">
+                    <div className="panel-head panel-head-tight">
+                      <div>
+                        <h2>Member Model Usage</h2>
+                        <span className="muted">Spend breakdown by model for each team member</span>
+                      </div>
+                    </div>
+                    <div id="member-models-table" className="table-wrap"></div>
+                  </div>
+                </div>
+              </section>
+
+              {/* TAB 9: SETTINGS & MEMBER KEYS */}
+              <section id="tab-settings" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-settings" hidden>
+                <section className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h2>Team Members & API Keys</h2>
+                      <span className="muted">Manage members, roles, and ingest keys</span>
+                    </div>
+                    <div className="inline-actions">
+                      <button id="trigger-sync-all-btn" className="hbtn hbtn-accent">
+                        Sync all members
+                      </button>
+                      <button id="link-member-btn" className="hbtn">Link existing</button>
+                      <button id="add-member-btn" className="hbtn primary">+ Add member</button>
+                    </div>
+                  </div>
+                  <div id="members" className="table-wrap"></div>
+                  <div id="new-member-banner" className="credentials-banner" hidden>
+                    <div className="credentials-head">
+                      <div className="credentials-badge">🎉 User Created Successfully</div>
+                      <button type="button" id="close-credentials-banner" className="hbtn small-btn">✕ Dismiss</button>
+                    </div>
+
+                    <div className="credentials-grid">
+                      <div className="credential-item">
+                        <span className="credential-label">Username</span>
+                        <div className="credential-val-row">
+                          <code id="cred-username" className="cred-code">—</code>
+                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-username">Copy</button>
+                        </div>
+                      </div>
+
+                      <div className="credential-item">
+                        <span className="credential-label">Temporary Password</span>
+                        <div className="credential-val-row">
+                          <code id="cred-password" className="cred-code cred-password">—</code>
+                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-password">Copy</button>
+                        </div>
+                      </div>
+
+                      <div className="credential-item">
+                        <span className="credential-label">API Key</span>
+                        <div className="credential-val-row">
+                          <code id="cred-apikey" className="cred-code">—</code>
+                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-apikey">Copy</button>
+                        </div>
+                      </div>
+
+                      <div className="credential-item">
+                        <span className="credential-label">Assigned Workspaces</span>
+                        <div className="credential-val-row">
+                          <span id="cred-teams" className="cred-teams-badge">—</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="credentials-commands">
+                      <div className="cmd-box">
+                        <div className="cmd-box-head">
+                          <span>🍎 <strong>macOS / Linux Setup Command</strong></span>
+                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-cmd-mac">Copy Mac Command</button>
+                        </div>
+                        <pre id="cred-cmd-mac" className="cmd-pre">—</pre>
+                      </div>
+
+                      <div className="cmd-box">
+                        <div className="cmd-box-head">
+                          <span>🪟 <strong>Windows PowerShell Setup Command</strong></span>
+                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-cmd-win">Copy Windows Command</button>
+                        </div>
+                        <pre id="cred-cmd-win" className="cmd-pre">—</pre>
+                      </div>
+                    </div>
+
+                    <div className="credentials-foot">
+                      <button type="button" id="copy-all-credentials-btn" className="hbtn hbtn-accent">📋 Copy All Onboarding Details</button>
+                      <span className="muted" style={{ fontSize: '11.5px' }}>Share these credentials and one-line setup command with the developer.</span>
+                    </div>
+                  </div>
+                  <p id="new-key" className="key-banner" hidden></p>
+                </section>
+
+                 {/* Daemon Releases Panel */}
+                 <section className="panel" style={{ marginTop: '24px' }}>
+                    <div className="panel-head">
+                      <div>
+                        <h2>🔄 Daemon Releases</h2>
+                        <span className="muted">
+                          Publish and manage auto-update releases for the background sync daemon.
+                          {' '}Developers&apos; daemons check for updates every 24 hours and self-update automatically.
+                        </span>
+                      </div>
+                      <span id="daemon-latest-version-badge" className="source-tag" style={{ alignSelf: 'center' }}>Loading…</span>
+                    </div>
+
+                    {/* Publish Release Form */}
+                    <form id="publish-release-form" style={{ margin: '16px 0 20px', display: 'grid', gap: '12px' }}>
+                      <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>
+                        PUBLISH NEW RELEASE
+                      </h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 2fr auto', gap: '8px', alignItems: 'end' }}>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+                          Version <input id="release-version" placeholder="e.g. 1.2.0" required style={{ fontSize: '13px' }} />
+                        </label>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+                          Download URL (HTTPS) <input id="release-url" type="url" placeholder="https://your-domain.com/sync-daemon.mjs" required style={{ fontSize: '13px' }} />
+                        </label>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+                          SHA-256 Checksum <input id="release-sha256" placeholder="64-char hex — run: shasum -a 256 sync-daemon.mjs" required style={{ fontSize: '13px', fontFamily: 'monospace' }} />
+                        </label>
+                        <button type="submit" id="publish-release-submit" className="hbtn primary" style={{ whiteSpace: 'nowrap' }}>
+                          Publish Release
+                        </button>
+                      </div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
+                        <input id="release-mandatory" type="checkbox" />
+                        <span>Mandatory update — daemons will skip syncing until they update</span>
+                      </label>
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+                        Release Notes (optional)
+                        <input id="release-notes" placeholder="What changed in this release?" style={{ fontSize: '13px' }} />
+                      </label>
+                      <p id="publish-release-error" className="error" role="alert" hidden></p>
+                    </form>
+
+                    {/* Releases List */}
+                    <div id="daemon-releases-list" className="table-wrap"></div>
+
+                    <p className="muted" style={{ marginTop: '14px', fontSize: '11px' }}>
+                      💡 <strong>CI/CD tip:</strong> After building, compute the SHA-256 with{' '}
+                      <code>shasum -a 256 sync-daemon.mjs | cut -d&apos; &apos; -f1</code> (macOS/Linux) or{' '}
+                      <code>Get-FileHash sync-daemon.mjs -Algorithm SHA256</code> (Windows), then POST to{' '}
+                      <code>POST /api/internal/releases</code> with your admin session cookie.
+                    </p>
+                  </section>
+              </section>
+
+            </div>
+          </main>
+        </div>
+      </div>
+
+      {/* Add Member Dialog */}
+      <dialog id="add-member-dialog">
+        <form method="dialog" id="add-member-form">
+          <h3>Add User &amp; Team Member</h3>
+          <p className="muted" style={{ margin: '0 0 14px 0', fontSize: '12px' }}>
+            Creates a complete user account and API key. Automatically assigned to this team and the Independent workspace.
+          </p>
+          
+          <label>Display name
+            <input id="member-name" required placeholder="e.g. Alex Smith" autoComplete="off" />
+          </label>
+
+          <label>Username <span className="muted" style={{ fontWeight: 'normal', fontSize: '11px' }}>(optional)</span>
+            <input id="member-username" placeholder="Leave blank to auto-generate (e.g. alex.smith)" autoComplete="off" />
+          </label>
+
+          <label>Temporary Password <span className="muted" style={{ fontWeight: 'normal', fontSize: '11px' }}>(optional)</span>
+            <input id="member-password" type="text" placeholder="Leave blank to auto-generate secure password" autoComplete="off" />
+          </label>
+
+          <label>Role
+            <select id="member-role">
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+
+          <div className="form-hint-box" style={{ background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '6px', padding: '8px 12px', fontSize: '11.5px', color: 'var(--text-muted, #94a3b8)', margin: '8px 0 14px 0' }}>
+            👥 <strong>Default Workspaces:</strong> This user will be linked to <span id="add-member-team-hint" style={{ color: '#fff', fontWeight: 600 }}>this team</span> and <code style={{ color: '#818cf8' }}>Independent</code> by default.
+          </div>
+
+          <menu>
+            <button type="button" id="cancel-member" className="hbtn">Cancel</button>
+            <button type="submit" id="add-member-submit" className="hbtn primary">Create User + Key</button>
+          </menu>
+        </form>
+      </dialog>
+
+      {/* Edit Member Dialog */}
+      <dialog id="edit-member-dialog">
+        <form method="dialog" id="edit-member-form">
+          <h3>Edit team member</h3>
+          <input type="hidden" id="edit-member-id" />
+          <label>Display name<input id="edit-member-name" required /></label>
+          <label>Role
+            <select id="edit-member-role">
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <menu>
+            <button type="button" id="cancel-edit-member" className="hbtn">Cancel</button>
+            <button type="submit" className="hbtn primary">Save Changes</button>
+          </menu>
+        </form>
+      </dialog>
+
+      {/* Link Member Dialog */}
+      <dialog id="link-member-dialog">
+        <form method="dialog" id="link-member-form">
+          <h3>Link existing member</h3>
+          <label>Select Member
+            <select id="link-member-select" required>
+              <option value="">— select member —</option>
+            </select>
+          </label>
+          <menu>
+            <button type="button" id="cancel-link-member" className="hbtn">Cancel</button>
+            <button type="submit" className="hbtn primary">Link to Team</button>
+          </menu>
+        </form>
+      </dialog>
+
+      {/* Add Model Pricing Dialog */}
+      <dialog id="add-pricing-dialog">
+        <form method="dialog" id="add-pricing-form">
+          <h3>Add / Update Model Pricing Rule</h3>
+          <label>Model Pattern / Name
+            <input id="pricing-model-pattern" required placeholder="e.g. claude-3-5-sonnet or deepseek-r1" />
+          </label>
+          <label>Input Tokens Cost ($ per 1 Million tokens)
+            <input id="pricing-cost-in" type="number" step="0.01" min="0" required placeholder="e.g. 3.00" />
+          </label>
+          <label>Output Tokens Cost ($ per 1 Million tokens)
+            <input id="pricing-cost-out" type="number" step="0.01" min="0" required placeholder="e.g. 15.00" />
+          </label>
+          <label>Cache Read Tokens Cost ($ per 1 Million tokens)
+            <input id="pricing-cost-cache" type="number" step="0.01" min="0" required placeholder="e.g. 0.30" />
+          </label>
+          <menu>
+            <button type="button" id="cancel-pricing" className="hbtn">Cancel</button>
+            <button type="submit" className="hbtn primary">Save Pricing Rule</button>
+          </menu>
+        </form>
+      </dialog>
+
+      {/* Team Admin Profile Dialog */}
+      <dialog id="team-profile-dialog" aria-labelledby="team-profile-title">
+        <form method="dialog" id="team-profile-form" noValidate>
+          <div className="profile-modal-header">
+            <div className="profile-modal-title-row">
+              <span className="profile-icon" aria-hidden="true">👤</span>
+              <h3 id="team-profile-title">Admin Account &amp; Profile</h3>
+            </div>
+            <p className="profile-modal-sub">Manage your display name and update your administrator login password.</p>
+          </div>
+
+          <div className="profile-info-card">
+            <div className="profile-info-row">
+              <span className="profile-info-label">Username:</span>
+              <code id="team-profile-username-val" className="profile-code-pill">—</code>
+            </div>
+            <div className="profile-info-row">
+              <span className="profile-info-label">Account Role:</span>
+              <span id="team-profile-role-val" className="badge-pill">Team Admin</span>
+            </div>
+            <div className="profile-info-row">
+              <span className="profile-info-label">Assigned Workspaces:</span>
+              <span id="team-profile-teams-val" className="profile-teams-list">—</span>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="team-profile-display-name">
+              <strong>Display Name</strong>
+              <span className="field-hint">Visible across the team dashboard and admin logs</span>
+            </label>
+            <input
+              id="team-profile-display-name"
+              type="text"
+              required
+              minLength={2}
+              placeholder="e.g. Sarah Jenkins"
+              autoComplete="name"
+            />
+          </div>
+
+          <div className="profile-password-section">
+            <div className="password-section-title">
+              <span>Change Password</span>
+              <span className="field-hint">(Leave blank to keep current password)</span>
+            </div>
+            <div className="form-group">
+              <label htmlFor="team-profile-current-password">Current Password</label>
+              <input
+                id="team-profile-current-password"
+                type="password"
+                placeholder="Enter current password"
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="password-fields-grid">
+              <div className="form-group">
+                <label htmlFor="team-profile-new-password">New Password</label>
+                <input
+                  id="team-profile-new-password"
+                  type="password"
+                  minLength={6}
+                  placeholder="Min 6 characters"
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="team-profile-confirm-password">Confirm New Password</label>
+                <input
+                  id="team-profile-confirm-password"
+                  type="password"
+                  placeholder="Repeat new password"
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div id="team-profile-error-msg" className="dialog-error" hidden />
+
+          <menu className="dialog-actions">
+            <button type="button" id="cancel-team-profile-btn" className="hbtn">Cancel</button>
+            <button type="submit" id="save-team-profile-btn" className="hbtn primary">Save Changes</button>
+          </menu>
+        </form>
+      </dialog>
+
+      <Script src="/toast.js" strategy="afterInteractive" />
+      <Script src="/loader.js" strategy="afterInteractive" />
+      <Script src="/team/app.js" strategy="afterInteractive" />
     </div>
   );
 }

@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Determine redirect based on target role
-    let redirectUrl = '/dashboard';
+    let redirectUrl = '/';
     if (targetUser.role === 'admin') {
       redirectUrl = '/team';
     } else if (targetUser.role === 'superadmin') {
