@@ -114,6 +114,13 @@ export async function ensureSchema(): Promise<void> {
           WHERE m.team_id IS NOT NULL
           ON CONFLICT (team_id, member_id) DO NOTHING;
 
+          -- Backfill team_members from users table team_id & member_id
+          INSERT INTO team_members (team_id, member_id, role, created_at)
+          SELECT u.team_id, u.member_id, 'member', u.created_at
+          FROM users u
+          WHERE u.team_id IS NOT NULL AND u.member_id IS NOT NULL
+          ON CONFLICT (team_id, member_id) DO NOTHING;
+
           -- Add events JSONB column if not present
           ALTER TABLE sync_sessions ADD COLUMN IF NOT EXISTS events JSONB;
 

@@ -66,12 +66,21 @@ export async function GET(req: NextRequest) {
     const statsQuery = `
       SELECT 
         COUNT(*)::int AS "totalPrompts",
-        COALESCE(SUM(st.input_tokens), 0)::bigint AS "totalInput",
-        COALESCE(SUM(st.output_tokens), 0)::bigint AS "totalOutput",
-        COALESCE(SUM(st.cache_read_tokens), 0)::bigint AS "totalCacheRead",
-        COALESCE(SUM(st.cache_write_tokens), 0)::bigint AS "totalCacheWrite"
+        COALESCE(SUM(ast.input_tokens), 0)::bigint AS "totalInput",
+        COALESCE(SUM(ast.output_tokens), 0)::bigint AS "totalOutput",
+        COALESCE(SUM(ast.cache_read_tokens), 0)::bigint AS "totalCacheRead",
+        COALESCE(SUM(ast.cache_write_tokens), 0)::bigint AS "totalCacheWrite"
       FROM session_turns st
       JOIN sync_sessions ss ON ss.session_id = st.session_id
+                           AND st.org_id = ss.team_id::text
+                           AND st.user_id = ss.member_id::text
+                           AND st.tool = ss.source
+      LEFT JOIN session_turns ast ON ast.session_id = st.session_id 
+                                 AND ast.org_id = st.org_id
+                                 AND ast.user_id = st.user_id
+                                 AND ast.tool = st.tool
+                                 AND ast.turn_index = st.turn_index 
+                                 AND ast.turn_role = 'assistant'
       WHERE st.turn_role = 'user' AND ${whereClause}
     `;
     const statsResult = await query(statsQuery, params);
@@ -97,7 +106,13 @@ export async function GET(req: NextRequest) {
         ss.started_at AS "createdAt"
       FROM session_turns st
       JOIN sync_sessions ss ON ss.session_id = st.session_id
+                           AND st.org_id = ss.team_id::text
+                           AND st.user_id = ss.member_id::text
+                           AND st.tool = ss.source
       LEFT JOIN session_turns ast ON ast.session_id = st.session_id 
+                                 AND ast.org_id = st.org_id
+                                 AND ast.user_id = st.user_id
+                                 AND ast.tool = st.tool
                                  AND ast.turn_index = st.turn_index 
                                  AND ast.turn_role = 'assistant'
       LEFT JOIN members m ON m.id = ss.member_id

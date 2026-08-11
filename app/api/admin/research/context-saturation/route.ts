@@ -51,6 +51,9 @@ export async function GET(req: NextRequest) {
         COUNT(*)::int AS "sampleSize"
       FROM session_turns st
       JOIN sync_sessions ss ON ss.session_id = st.session_id
+                           AND st.org_id = ss.team_id::text
+                           AND st.user_id = ss.member_id::text
+                           AND st.tool = ss.source
       LEFT JOIN model_context_limits mcl ON mcl.model = st.model
       WHERE st.turn_role = 'assistant'
         AND st.cumulative_input_tokens > 0

@@ -336,7 +336,7 @@ export async function runResearchRollup(): Promise<void> {
       SUM(st.input_tokens)::int AS total_input_tokens,
       SUM(st.output_tokens)::int AS total_output_tokens,
       COALESCE(ss.api_cost, 0)::numeric(12,4) AS total_cost,
-      COUNT(DISTINCT ft.path)::int AS files_touched,
+      COALESCE((SELECT COUNT(DISTINCT path)::int FROM sync_session_files WHERE sync_session_id = ss.id), 0) AS files_touched,
       SUM(st.lines_added + st.lines_removed)::int AS lines_changed,
       SUM(st.tool_call_count)::int AS tool_call_count,
       BOOL_OR(st.rework_flag) AS had_rework,
@@ -345,8 +345,10 @@ export async function runResearchRollup(): Promise<void> {
       NOT (BOOL_OR(st.rework_flag) OR BOOL_OR(st.revert_flag) OR BOOL_OR(st.tool_error_flag)) AS success
     FROM session_turns st
     LEFT JOIN sync_sessions ss ON ss.session_id = st.session_id
-    LEFT JOIN sync_session_files ft ON ft.sync_session_id = ss.id
-    GROUP BY st.session_id, st.org_id, st.tool, st.model, ss.api_cost
+                              AND ss.team_id::text = st.org_id
+                              AND ss.member_id::text = st.user_id
+                              AND ss.source = st.tool
+    GROUP BY st.session_id, st.org_id, st.tool, st.model, ss.id, ss.api_cost
     ON CONFLICT (session_id) DO UPDATE SET
       org_id = EXCLUDED.org_id,
       tool = EXCLUDED.tool,

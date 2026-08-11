@@ -117,7 +117,15 @@ export async function POST(req: NextRequest) {
     await resetFailedLogin(user.id);
 
     let userTeamId = user.team_id;
-    if (!userTeamId && user.member_id) {
+    if (user.role === 'user' && user.member_id) {
+      const { rows: tmRows } = await query(
+        'SELECT team_id FROM team_members WHERE member_id = $1 ORDER BY created_at ASC LIMIT 1',
+        [user.member_id]
+      );
+      if (tmRows[0]?.team_id) {
+        userTeamId = tmRows[0].team_id;
+      }
+    } else if (!userTeamId && user.member_id) {
       const { rows: tmRows } = await query(
         'SELECT team_id FROM team_members WHERE member_id = $1 LIMIT 1',
         [user.member_id]

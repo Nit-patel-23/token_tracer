@@ -53,9 +53,15 @@ export async function GET(req: NextRequest) {
       LEFT JOIN members m ON m.id = ss.member_id
       LEFT JOIN teams t ON t.id = ss.team_id
       LEFT JOIN session_turns st ON st.session_id = rre.session_id 
+        AND st.org_id = ss.team_id::text
+        AND st.user_id = ss.member_id::text
+        AND st.tool = ss.source
         AND st.turn_index = rre.turn_index 
         AND st.turn_role = 'user'
       LEFT JOIN session_turns prev_st ON prev_st.session_id = rre.session_id 
+        AND prev_st.org_id = ss.team_id::text
+        AND prev_st.user_id = ss.member_id::text
+        AND prev_st.tool = ss.source
         AND prev_st.turn_index = rre.turn_index - 1 
         AND prev_st.turn_role = 'user'
       WHERE ss.team_id::text = $1

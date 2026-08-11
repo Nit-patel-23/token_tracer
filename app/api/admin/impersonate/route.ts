@@ -70,6 +70,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Cannot impersonate an inactive user' }, { status: 400 });
     }
 
+    let targetTeamId = targetUser.team_id;
+    if (targetUser.role === 'user' && targetUser.member_id) {
+      const { rows: tmRows } = await query(
+        'SELECT team_id FROM team_members WHERE member_id = $1 ORDER BY created_at ASC LIMIT 1',
+        [targetUser.member_id]
+      );
+      if (tmRows[0]?.team_id) {
+        targetTeamId = tmRows[0].team_id;
+      }
+    } else if (!targetTeamId && targetUser.member_id) {
+      const { rows: tmRows } = await query(
+        'SELECT team_id FROM team_members WHERE member_id = $1 LIMIT 1',
+        [targetUser.member_id]
+      );
+      if (tmRows[0]?.team_id) {
+        targetTeamId = tmRows[0].team_id;
+      }
+    }
+
     // Build the impersonated session payload
     const impersonatedPayload: SessionPayload = {
       userId: targetUser.id,
@@ -77,7 +96,7 @@ export async function POST(req: NextRequest) {
       displayName: targetUser.display_name,
       role: targetUser.role,
       memberId: targetUser.member_id,
-      teamId: targetUser.team_id,
+      teamId: targetTeamId,
       issuedAt: Date.now(),
       impersonatedBy: session.userId,
       impersonatedByName: session.displayName || session.username,

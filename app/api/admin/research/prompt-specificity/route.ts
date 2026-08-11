@@ -52,6 +52,8 @@ export async function GET(req: NextRequest) {
       WITH ranked_sessions AS (
         SELECT 
           so.session_id,
+          so.org_id,
+          so.tool,
           so.had_rework,
           so.had_revert,
           so.total_input_tokens,
@@ -60,6 +62,8 @@ export async function GET(req: NextRequest) {
           NTILE(3) OVER (ORDER BY so.complexity_score) AS complexity_bucket
         FROM session_outcomes so
         JOIN sync_sessions ss ON ss.session_id = so.session_id
+                             AND ss.team_id::text = so.org_id
+                             AND ss.source = so.tool
         WHERE ${whereClause}
       )
       SELECT 
@@ -83,6 +87,8 @@ export async function GET(req: NextRequest) {
         COALESCE(COUNT(DISTINCT r.session_id) FILTER (WHERE r.had_revert)::float / NULLIF(COUNT(DISTINCT r.session_id), 0), 0) AS "revertRate"
       FROM session_turns st
       JOIN ranked_sessions r ON r.session_id = st.session_id
+                           AND r.org_id = st.org_id
+                           AND r.tool = st.tool
       WHERE st.turn_role = 'user'
       GROUP BY tier, "complexityBucket"
       ORDER BY tier, "complexityBucket"

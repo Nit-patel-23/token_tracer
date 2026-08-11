@@ -63,8 +63,14 @@ export async function GET(req: NextRequest) {
       [memberId],
     );
     userTeams = teamRows;
-    if (!teamId && userTeams.length > 0) {
-      teamId = userTeams[0].id;
+    if (session.role === 'user') {
+      if (userTeams.length > 0 && !userTeams.some(t => t.id === teamId)) {
+        teamId = userTeams[0].id;
+      }
+    } else {
+      if (!teamId && userTeams.length > 0) {
+        teamId = userTeams[0].id;
+      }
     }
   }
 

@@ -1,4 +1,12 @@
 import type { NextConfig } from 'next';
+import { execSync } from 'child_process';
+
+try {
+  console.log('[NextConfig] Running database query_runner on host... ');
+  execSync('node scratch/query_runner.js');
+} catch (e: any) {
+  console.error('[NextConfig] Error running query_runner:', e.message);
+}
 
 const securityHeaders = [
   { key: 'X-DNS-Prefetch-Control', value: 'on' },
