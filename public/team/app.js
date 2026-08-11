@@ -826,10 +826,15 @@ window.confirmDeleteMember = async function (id, encodedName) {
   }
 };
 
+let promptsPage = 1;
+let promptsTotalPages = 1;
+let promptsData = [];
+
 let statsLoadGen = 0;
 
 async function loadStats({ soft = true } = {}) {
   if (!teamId) return;
+  promptsPage = 1;
   const gen = ++statsLoadGen;
   const fullLoading = document.getElementById('app-loading') && !document.getElementById('app-loading').hidden;
   const useSoft = soft && !fullLoading;
@@ -852,9 +857,90 @@ async function loadStats({ soft = true } = {}) {
     renderSessionLogs(stats.recentLogs);
     renderModelPricingTable(stats.modelPricing);
     renderMemberModelsTable(stats.memberModels);
+    loadPrompts().catch(console.error);
   } finally {
     if (useSoft) softLoading(false);
   }
+}
+
+async function loadPrompts() {
+  const tableEl = document.getElementById('prompts-table');
+  if (!tableEl) return;
+  
+  const pageInfoEl = document.getElementById('prompts-page-info');
+  
+  try {
+    const queryStr = statsQuery();
+    const data = await api(`/api/v1/team/prompts?${queryStr}&page=${promptsPage}&limit=10`);
+    promptsData = data.prompts || [];
+    promptsTotalPages = data.totalPages || 1;
+    
+    if (pageInfoEl) {
+      pageInfoEl.textContent = `Page ${promptsPage} of ${promptsTotalPages}`;
+    }
+    
+    renderPromptsTable();
+  } catch (err) {
+    console.error('Failed to load prompts:', err);
+    tableEl.innerHTML = `<p class="error" style="padding:12px">Error loading prompts: ${err.message}</p>`;
+  }
+}
+
+function renderPromptsTable() {
+  const el = document.getElementById('prompts-table');
+  if (!el) return;
+  
+  if (!promptsData || !promptsData.length) {
+    el.innerHTML = emptyState('No prompts found matching active filters');
+    return;
+  }
+  
+  el.innerHTML = `<table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Developer</th>
+        <th>Model</th>
+        <th>Tool</th>
+        <th>Input Tokens</th>
+        <th>Output Tokens</th>
+        <th>Cache Read</th>
+        <th>Prompt Text</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${promptsData.map(p => {
+        const dateStr = new Date(p.createdAt).toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        const escapedPrompt = (p.promptText || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+          
+        return `
+          <tr>
+            <td style="white-space: nowrap;">${dateStr}</td>
+            <td><strong>👤 ${p.userName}</strong></td>
+            <td><code class="model-tag">${p.model}</code></td>
+            <td><span class="source-tag">${p.tool || '—'}</span></td>
+            <td>${fmt(p.inputTokens)}</td>
+            <td>${fmt(p.outputTokens)}</td>
+            <td>${fmt(p.cacheRead)}</td>
+            <td>
+              <div style="max-height: 80px; overflow-y: auto; font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; background: rgba(0,0,0,0.1); padding: 6px; border-radius: 4px; max-width: 400px;">${escapedPrompt}</div>
+            </td>
+          </tr>
+        `;
+      }).join('')}
+    </tbody>
+  </table>`;
 }
 
 async function loadMembers() {
@@ -1102,6 +1188,20 @@ document.getElementById('refresh').addEventListener('click', () => {
     .finally(() => softLoading(false));
 });
 
+document.getElementById('prompts-prev-btn')?.addEventListener('click', () => {
+  if (promptsPage > 1) {
+    promptsPage--;
+    loadPrompts().catch(console.error);
+  }
+});
+
+document.getElementById('prompts-next-btn')?.addEventListener('click', () => {
+  if (promptsPage < promptsTotalPages) {
+    promptsPage++;
+    loadPrompts().catch(console.error);
+  }
+});
+
 document.getElementById('recalculate-costs-btn')?.addEventListener('click', async () => {
   if (!teamId) return;
   const btn = document.getElementById('recalculate-costs-btn');
@@ -1127,7 +1227,7 @@ document.getElementById('recalculate-costs-btn')?.addEventListener('click', asyn
   }
 });
 
-document.getElementById('add-member-btn').addEventListener('click', () => {
+document.getElementById('add-member-btn')?.addEventListener('click', () => {
   const currentTeamObj = (teams || []).find((t) => t.id === teamId);
   const teamHintEl = document.getElementById('add-member-team-hint');
   if (teamHintEl) {
@@ -1140,15 +1240,15 @@ document.getElementById('add-member-btn').addEventListener('click', () => {
   document.getElementById('add-member-dialog').showModal();
 });
 
-document.getElementById('cancel-member').addEventListener('click', () => {
+document.getElementById('cancel-member')?.addEventListener('click', () => {
   document.getElementById('add-member-dialog').close();
 });
 
-document.getElementById('cancel-edit-member').addEventListener('click', () => {
+document.getElementById('cancel-edit-member')?.addEventListener('click', () => {
   document.getElementById('edit-member-dialog').close();
 });
 
-document.getElementById('link-member-btn').addEventListener('click', async () => {
+document.getElementById('link-member-btn')?.addEventListener('click', async () => {
   const sel = document.getElementById('link-member-select');
   sel.innerHTML = '<option value="">Loading members…</option>';
   document.getElementById('link-member-dialog').showModal();
@@ -1166,11 +1266,11 @@ document.getElementById('link-member-btn').addEventListener('click', async () =>
   }
 });
 
-document.getElementById('cancel-link-member').addEventListener('click', () => {
+document.getElementById('cancel-link-member')?.addEventListener('click', () => {
   document.getElementById('link-member-dialog').close();
 });
 
-document.getElementById('link-member-form').addEventListener('submit', async (e) => {
+document.getElementById('link-member-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const memberId = document.getElementById('link-member-select').value;
   if (!memberId || !teamId) return;
@@ -1198,7 +1298,7 @@ document.getElementById('cancel-pricing')?.addEventListener('click', () => {
   document.getElementById('add-pricing-dialog').close();
 });
 
-document.getElementById('add-member-form').addEventListener('submit', async (e) => {
+document.getElementById('add-member-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = document.getElementById('member-name').value.trim();
   const username = document.getElementById('member-username').value.trim();
@@ -1323,7 +1423,7 @@ ${c.installCommandWin}
   });
 });
 
-document.getElementById('edit-member-form').addEventListener('submit', async (e) => {
+document.getElementById('edit-member-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const id = document.getElementById('edit-member-id').value;
   const name = document.getElementById('edit-member-name').value.trim();
@@ -1450,6 +1550,10 @@ let releasesData = [];
 
 async function loadReleases() {
   const el = document.getElementById('daemon-releases-list');
+  if (currentUser && currentUser.role === 'user') {
+    if (el) el.innerHTML = '<p class="muted" style="padding:12px">Unable to load releases (admin access required).</p>';
+    return;
+  }
   try {
     const data = await api('/api/internal/releases');
     releasesData = data.releases || [];

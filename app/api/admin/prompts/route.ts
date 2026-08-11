@@ -85,10 +85,10 @@ export async function GET(req: NextRequest) {
         st.session_id AS "sessionId",
         st.turn_index AS "turnIndex",
         st.prompt_text_sanitized AS "promptText",
-        st.input_tokens AS "inputTokens",
-        st.output_tokens AS "outputTokens",
-        st.cache_read_tokens AS "cacheRead",
-        st.cache_write_tokens AS "cacheWrite",
+        COALESCE(ast.input_tokens, 0) AS "inputTokens",
+        COALESCE(ast.output_tokens, 0) AS "outputTokens",
+        COALESCE(ast.cache_read_tokens, 0) AS "cacheRead",
+        COALESCE(ast.cache_write_tokens, 0) AS "cacheWrite",
         st.model,
         st.tool,
         st.intent_category AS "intentCategory",
@@ -97,6 +97,9 @@ export async function GET(req: NextRequest) {
         ss.started_at AS "createdAt"
       FROM session_turns st
       JOIN sync_sessions ss ON ss.session_id = st.session_id
+      LEFT JOIN session_turns ast ON ast.session_id = st.session_id 
+                                 AND ast.turn_index = st.turn_index 
+                                 AND ast.turn_role = 'assistant'
       LEFT JOIN members m ON m.id = ss.member_id
       LEFT JOIN teams t ON t.id = ss.team_id
       WHERE st.turn_role = 'user' AND ${whereClause}

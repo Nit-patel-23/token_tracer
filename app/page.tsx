@@ -401,11 +401,8 @@ export default async function LoginPage() {
             <button type="button" id="tabbtn-overview" className="tab-btn active" data-tab="tab-overview" data-title="Overview & Stats" role="tab" aria-selected="true" aria-controls="tab-overview" tabIndex={0}>
               <span className="nav-icon" aria-hidden="true">📊</span> Overview & Stats
             </button>
-            <button type="button" id="tabbtn-token-leaderboard" className="tab-btn" data-tab="tab-token-leaderboard" data-title="Token Leaderboard" role="tab" aria-selected="false" aria-controls="tab-token-leaderboard" tabIndex={-1}>
-              <span className="nav-icon" aria-hidden="true">🏆</span> Token Leaderboard
-            </button>
-            <button type="button" id="tabbtn-head-to-head" className="tab-btn" data-tab="tab-head-to-head" data-title="Head-to-Head" role="tab" aria-selected="false" aria-controls="tab-head-to-head" tabIndex={-1}>
-              <span className="nav-icon" aria-hidden="true">⚔️</span> Head-to-Head
+            <button type="button" id="tabbtn-prompts" className="tab-btn" data-tab="tab-prompts" data-title="Prompts & Trajectories" role="tab" aria-selected="false" aria-controls="tab-prompts" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">📝</span> Prompt Explorer
             </button>
             <button type="button" id="tabbtn-members" className="tab-btn" data-tab="tab-members" data-title="Member Token Logs" role="tab" aria-selected="false" aria-controls="tab-members" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">👥</span> Member Token Logs
@@ -421,9 +418,6 @@ export default async function LoginPage() {
             </button>
             <button type="button" id="tabbtn-pricing" className="tab-btn" data-tab="tab-pricing" data-title="Model Pricing" role="tab" aria-selected="false" aria-controls="tab-pricing" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">💲</span> Model Pricing Rates
-            </button>
-            <button type="button" id="tabbtn-settings" className="tab-btn" data-tab="tab-settings" data-title="Manage Members" role="tab" aria-selected="false" aria-controls="tab-settings" tabIndex={-1}>
-              <span className="nav-icon" aria-hidden="true">⚙️</span> Manage Members
             </button>
           </nav>
 
@@ -574,29 +568,21 @@ export default async function LoginPage() {
                 </div>
               </section>
 
-              {/* TAB 2: TOKEN LEADERBOARD */}
-              <section id="tab-token-leaderboard" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-token-leaderboard" hidden>
+              {/* TAB: PROMPTS & TRAJECTORIES */}
+              <section id="tab-prompts" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-prompts" hidden>
                 <div className="panel">
                   <div className="panel-head">
                     <div>
-                      <h2>Token Consumption Leaderboard</h2>
-                      <span className="muted">Ranked by total tokens exchanged (input + output + cache)</span>
+                      <h2>Prompt Trajectories</h2>
+                      <span className="muted">Recent AI coding agent prompts, models, and token metrics</span>
                     </div>
                   </div>
-                  <div id="token-leaderboard-table" className="table-wrap"></div>
-                </div>
-              </section>
-
-              {/* TAB 3: HEAD-TO-HEAD SCOREBOARD */}
-              <section id="tab-head-to-head" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-head-to-head" hidden>
-                <div className="panel">
-                  <div className="panel-head">
-                    <div>
-                      <h2>Member Head-to-Head</h2>
-                      <span className="muted">Normalized efficiency metrics across team members</span>
-                    </div>
+                  <div id="prompts-table" className="table-wrap"></div>
+                  <div className="pagination" style={{ display: 'flex', gap: '12px', marginTop: '16px', justifyContent: 'center', alignItems: 'center' }}>
+                    <button id="prompts-prev-btn" className="hbtn small-btn">&larr; Previous</button>
+                    <span id="prompts-page-info" style={{ alignSelf: 'center', fontSize: '13px' }}>Page 1 of 1</span>
+                    <button id="prompts-next-btn" className="hbtn small-btn">Next &rarr;</button>
                   </div>
-                  <div id="head-to-head-table" className="table-wrap"></div>
                 </div>
               </section>
 
@@ -692,243 +678,12 @@ export default async function LoginPage() {
                 </div>
               </section>
 
-              {/* TAB 9: SETTINGS & MEMBER KEYS */}
-              <section id="tab-settings" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-settings" hidden>
-                <section className="panel">
-                  <div className="panel-head">
-                    <div>
-                      <h2>Team Members & API Keys</h2>
-                      <span className="muted">Manage members, roles, and ingest keys</span>
-                    </div>
-                    <div className="inline-actions">
-                      <button id="trigger-sync-all-btn" className="hbtn hbtn-accent">
-                        Sync all members
-                      </button>
-                      <button id="link-member-btn" className="hbtn">Link existing</button>
-                      <button id="add-member-btn" className="hbtn primary">+ Add member</button>
-                    </div>
-                  </div>
-                  <div id="members" className="table-wrap"></div>
-                  <div id="new-member-banner" className="credentials-banner" hidden>
-                    <div className="credentials-head">
-                      <div className="credentials-badge">🎉 User Created Successfully</div>
-                      <button type="button" id="close-credentials-banner" className="hbtn small-btn">✕ Dismiss</button>
-                    </div>
-
-                    <div className="credentials-grid">
-                      <div className="credential-item">
-                        <span className="credential-label">Username</span>
-                        <div className="credential-val-row">
-                          <code id="cred-username" className="cred-code">—</code>
-                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-username">Copy</button>
-                        </div>
-                      </div>
-
-                      <div className="credential-item">
-                        <span className="credential-label">Temporary Password</span>
-                        <div className="credential-val-row">
-                          <code id="cred-password" className="cred-code cred-password">—</code>
-                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-password">Copy</button>
-                        </div>
-                      </div>
-
-                      <div className="credential-item">
-                        <span className="credential-label">API Key</span>
-                        <div className="credential-val-row">
-                          <code id="cred-apikey" className="cred-code">—</code>
-                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-apikey">Copy</button>
-                        </div>
-                      </div>
-
-                      <div className="credential-item">
-                        <span className="credential-label">Assigned Workspaces</span>
-                        <div className="credential-val-row">
-                          <span id="cred-teams" className="cred-teams-badge">—</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="credentials-commands">
-                      <div className="cmd-box">
-                        <div className="cmd-box-head">
-                          <span>🍎 <strong>macOS / Linux Setup Command</strong></span>
-                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-cmd-mac">Copy Mac Command</button>
-                        </div>
-                        <pre id="cred-cmd-mac" className="cmd-pre">—</pre>
-                      </div>
-
-                      <div className="cmd-box">
-                        <div className="cmd-box-head">
-                          <span>🪟 <strong>Windows PowerShell Setup Command</strong></span>
-                          <button type="button" className="hbtn small-btn copy-field-btn" data-target="cred-cmd-win">Copy Windows Command</button>
-                        </div>
-                        <pre id="cred-cmd-win" className="cmd-pre">—</pre>
-                      </div>
-                    </div>
-
-                    <div className="credentials-foot">
-                      <button type="button" id="copy-all-credentials-btn" className="hbtn hbtn-accent">📋 Copy All Onboarding Details</button>
-                      <span className="muted" style={{ fontSize: '11.5px' }}>Share these credentials and one-line setup command with the developer.</span>
-                    </div>
-                  </div>
-                  <p id="new-key" className="key-banner" hidden></p>
-                </section>
-
-                 {/* Daemon Releases Panel */}
-                 <section className="panel" style={{ marginTop: '24px' }}>
-                    <div className="panel-head">
-                      <div>
-                        <h2>🔄 Daemon Releases</h2>
-                        <span className="muted">
-                          Publish and manage auto-update releases for the background sync daemon.
-                          {' '}Developers&apos; daemons check for updates every 24 hours and self-update automatically.
-                        </span>
-                      </div>
-                      <span id="daemon-latest-version-badge" className="source-tag" style={{ alignSelf: 'center' }}>Loading…</span>
-                    </div>
-
-                    {/* Publish Release Form */}
-                    <form id="publish-release-form" style={{ margin: '16px 0 20px', display: 'grid', gap: '12px' }}>
-                      <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>
-                        PUBLISH NEW RELEASE
-                      </h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 2fr auto', gap: '8px', alignItems: 'end' }}>
-                        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
-                          Version <input id="release-version" placeholder="e.g. 1.2.0" required style={{ fontSize: '13px' }} />
-                        </label>
-                        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
-                          Download URL (HTTPS) <input id="release-url" type="url" placeholder="https://your-domain.com/sync-daemon.mjs" required style={{ fontSize: '13px' }} />
-                        </label>
-                        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
-                          SHA-256 Checksum <input id="release-sha256" placeholder="64-char hex — run: shasum -a 256 sync-daemon.mjs" required style={{ fontSize: '13px', fontFamily: 'monospace' }} />
-                        </label>
-                        <button type="submit" id="publish-release-submit" className="hbtn primary" style={{ whiteSpace: 'nowrap' }}>
-                          Publish Release
-                        </button>
-                      </div>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
-                        <input id="release-mandatory" type="checkbox" />
-                        <span>Mandatory update — daemons will skip syncing until they update</span>
-                      </label>
-                      <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
-                        Release Notes (optional)
-                        <input id="release-notes" placeholder="What changed in this release?" style={{ fontSize: '13px' }} />
-                      </label>
-                      <p id="publish-release-error" className="error" role="alert" hidden></p>
-                    </form>
-
-                    {/* Releases List */}
-                    <div id="daemon-releases-list" className="table-wrap"></div>
-
-                    <p className="muted" style={{ marginTop: '14px', fontSize: '11px' }}>
-                      💡 <strong>CI/CD tip:</strong> After building, compute the SHA-256 with{' '}
-                      <code>shasum -a 256 sync-daemon.mjs | cut -d&apos; &apos; -f1</code> (macOS/Linux) or{' '}
-                      <code>Get-FileHash sync-daemon.mjs -Algorithm SHA256</code> (Windows), then POST to{' '}
-                      <code>POST /api/internal/releases</code> with your admin session cookie.
-                    </p>
-                  </section>
-              </section>
-
             </div>
           </main>
         </div>
       </div>
 
-      {/* Add Member Dialog */}
-      <dialog id="add-member-dialog">
-        <form method="dialog" id="add-member-form">
-          <h3>Add User &amp; Team Member</h3>
-          <p className="muted" style={{ margin: '0 0 14px 0', fontSize: '12px' }}>
-            Creates a complete user account and API key. Automatically assigned to this team and the Independent workspace.
-          </p>
-          
-          <label>Display name
-            <input id="member-name" required placeholder="e.g. Alex Smith" autoComplete="off" />
-          </label>
 
-          <label>Username <span className="muted" style={{ fontWeight: 'normal', fontSize: '11px' }}>(optional)</span>
-            <input id="member-username" placeholder="Leave blank to auto-generate (e.g. alex.smith)" autoComplete="off" />
-          </label>
-
-          <label>Temporary Password <span className="muted" style={{ fontWeight: 'normal', fontSize: '11px' }}>(optional)</span>
-            <input id="member-password" type="text" placeholder="Leave blank to auto-generate secure password" autoComplete="off" />
-          </label>
-
-          <label>Role
-            <select id="member-role">
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-            </select>
-          </label>
-
-          <div className="form-hint-box" style={{ background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '6px', padding: '8px 12px', fontSize: '11.5px', color: 'var(--text-muted, #94a3b8)', margin: '8px 0 14px 0' }}>
-            👥 <strong>Default Workspaces:</strong> This user will be linked to <span id="add-member-team-hint" style={{ color: '#fff', fontWeight: 600 }}>this team</span> and <code style={{ color: '#818cf8' }}>Independent</code> by default.
-          </div>
-
-          <menu>
-            <button type="button" id="cancel-member" className="hbtn">Cancel</button>
-            <button type="submit" id="add-member-submit" className="hbtn primary">Create User + Key</button>
-          </menu>
-        </form>
-      </dialog>
-
-      {/* Edit Member Dialog */}
-      <dialog id="edit-member-dialog">
-        <form method="dialog" id="edit-member-form">
-          <h3>Edit team member</h3>
-          <input type="hidden" id="edit-member-id" />
-          <label>Display name<input id="edit-member-name" required /></label>
-          <label>Role
-            <select id="edit-member-role">
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-            </select>
-          </label>
-          <menu>
-            <button type="button" id="cancel-edit-member" className="hbtn">Cancel</button>
-            <button type="submit" className="hbtn primary">Save Changes</button>
-          </menu>
-        </form>
-      </dialog>
-
-      {/* Link Member Dialog */}
-      <dialog id="link-member-dialog">
-        <form method="dialog" id="link-member-form">
-          <h3>Link existing member</h3>
-          <label>Select Member
-            <select id="link-member-select" required>
-              <option value="">— select member —</option>
-            </select>
-          </label>
-          <menu>
-            <button type="button" id="cancel-link-member" className="hbtn">Cancel</button>
-            <button type="submit" className="hbtn primary">Link to Team</button>
-          </menu>
-        </form>
-      </dialog>
-
-      {/* Add Model Pricing Dialog */}
-      <dialog id="add-pricing-dialog">
-        <form method="dialog" id="add-pricing-form">
-          <h3>Add / Update Model Pricing Rule</h3>
-          <label>Model Pattern / Name
-            <input id="pricing-model-pattern" required placeholder="e.g. claude-3-5-sonnet or deepseek-r1" />
-          </label>
-          <label>Input Tokens Cost ($ per 1 Million tokens)
-            <input id="pricing-cost-in" type="number" step="0.01" min="0" required placeholder="e.g. 3.00" />
-          </label>
-          <label>Output Tokens Cost ($ per 1 Million tokens)
-            <input id="pricing-cost-out" type="number" step="0.01" min="0" required placeholder="e.g. 15.00" />
-          </label>
-          <label>Cache Read Tokens Cost ($ per 1 Million tokens)
-            <input id="pricing-cost-cache" type="number" step="0.01" min="0" required placeholder="e.g. 0.30" />
-          </label>
-          <menu>
-            <button type="button" id="cancel-pricing" className="hbtn">Cancel</button>
-            <button type="submit" className="hbtn primary">Save Pricing Rule</button>
-          </menu>
-        </form>
-      </dialog>
 
       {/* Team Admin Profile Dialog */}
       <dialog id="team-profile-dialog" aria-labelledby="team-profile-title">

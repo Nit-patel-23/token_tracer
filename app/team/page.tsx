@@ -92,11 +92,8 @@ export default async function TeamDashboardPage() {
             <button type="button" id="tabbtn-overview" className="tab-btn active" data-tab="tab-overview" data-title="Overview & Stats" role="tab" aria-selected="true" aria-controls="tab-overview" tabIndex={0}>
               <span className="nav-icon" aria-hidden="true">📊</span> Overview & Stats
             </button>
-            <button type="button" id="tabbtn-token-leaderboard" className="tab-btn" data-tab="tab-token-leaderboard" data-title="Token Leaderboard" role="tab" aria-selected="false" aria-controls="tab-token-leaderboard" tabIndex={-1}>
-              <span className="nav-icon" aria-hidden="true">🏆</span> Token Leaderboard
-            </button>
-            <button type="button" id="tabbtn-head-to-head" className="tab-btn" data-tab="tab-head-to-head" data-title="Head-to-Head" role="tab" aria-selected="false" aria-controls="tab-head-to-head" tabIndex={-1}>
-              <span className="nav-icon" aria-hidden="true">⚔️</span> Head-to-Head
+            <button type="button" id="tabbtn-prompts" className="tab-btn" data-tab="tab-prompts" data-title="Prompts & Trajectories" role="tab" aria-selected="false" aria-controls="tab-prompts" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">📝</span> Prompt Explorer
             </button>
             <button type="button" id="tabbtn-members" className="tab-btn" data-tab="tab-members" data-title="Member Token Logs" role="tab" aria-selected="false" aria-controls="tab-members" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">👥</span> Member Token Logs
@@ -265,29 +262,21 @@ export default async function TeamDashboardPage() {
                 </div>
               </section>
 
-              {/* TAB 2: TOKEN LEADERBOARD */}
-              <section id="tab-token-leaderboard" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-token-leaderboard" hidden>
+              {/* TAB: PROMPTS & TRAJECTORIES */}
+              <section id="tab-prompts" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-prompts" hidden>
                 <div className="panel">
                   <div className="panel-head">
                     <div>
-                      <h2>Token Consumption Leaderboard</h2>
-                      <span className="muted">Ranked by total tokens exchanged (input + output + cache)</span>
+                      <h2>Prompt Trajectories</h2>
+                      <span className="muted">Recent AI coding agent prompts, models, and token metrics</span>
                     </div>
                   </div>
-                  <div id="token-leaderboard-table" className="table-wrap"></div>
-                </div>
-              </section>
-
-              {/* TAB 3: HEAD-TO-HEAD SCOREBOARD */}
-              <section id="tab-head-to-head" className="tab-content" role="tabpanel" aria-labelledby="tabbtn-head-to-head" hidden>
-                <div className="panel">
-                  <div className="panel-head">
-                    <div>
-                      <h2>Member Head-to-Head</h2>
-                      <span className="muted">Normalized efficiency metrics across team members</span>
-                    </div>
+                  <div id="prompts-table" className="table-wrap"></div>
+                  <div className="pagination" style={{ display: 'flex', gap: '12px', marginTop: '16px', justifyContent: 'center', alignItems: 'center' }}>
+                    <button id="prompts-prev-btn" className="hbtn small-btn">&larr; Previous</button>
+                    <span id="prompts-page-info" style={{ alignSelf: 'center', fontSize: '13px' }}>Page 1 of 1</span>
+                    <button id="prompts-next-btn" className="hbtn small-btn">Next &rarr;</button>
                   </div>
-                  <div id="head-to-head-table" className="table-wrap"></div>
                 </div>
               </section>
 
