@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
     // Check if username exists (case-insensitive)
     const { rows: existing } = await query('SELECT id FROM users WHERE LOWER(username) = $1', [username]);
     if (existing.length > 0) {
-      return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
+      return NextResponse.json({ error: `Username '${username}' is already taken. Please choose another one.` }, { status: 409 });
     }
 
     const passwordHash = await hashPassword(password);
@@ -143,17 +143,31 @@ export async function POST(req: NextRequest) {
     let rawApiKey: string | null = null;
     let apiKeyHash: string | null = null;
 
-    if (role === 'user' && memberId === 'new') {
-      let teamRes = await query("SELECT id FROM teams WHERE name = 'Independent' LIMIT 1");
-      let independentTeamId = teamRes.rows[0]?.id;
-      if (!independentTeamId) {
-        const newTeamRes = await query("INSERT INTO teams (name) VALUES ('Independent') RETURNING id");
-        independentTeamId = newTeamRes.rows[0].id;
+    let finalTeamId = teamId;
+    if (role === 'admin' && newTeamName) {
+      const { rows: teamRows } = await query(
+        'INSERT INTO teams (name) VALUES ($1) RETURNING id',
+        [newTeamName]
+      );
+      finalTeamId = teamRows[0].id;
+    } else if (role !== 'admin') {
+      finalTeamId = null;
+    }
+
+    if (memberId === 'new') {
+      let memberTeamId = finalTeamId;
+      if (!memberTeamId) {
+        let teamRes = await query("SELECT id FROM teams WHERE name = 'Independent' LIMIT 1");
+        memberTeamId = teamRes.rows[0]?.id;
+        if (!memberTeamId) {
+          const newTeamRes = await query("INSERT INTO teams (name) VALUES ('Independent') RETURNING id");
+          memberTeamId = newTeamRes.rows[0].id;
+        }
       }
 
       const memberRes = await query(
         "INSERT INTO members (team_id, display_name, role) VALUES ($1, $2, 'member') RETURNING id",
-        [independentTeamId, displayName]
+        [memberTeamId, displayName]
       );
       finalMemberId = memberRes.rows[0].id;
 
@@ -161,7 +175,7 @@ export async function POST(req: NextRequest) {
         `INSERT INTO team_members (team_id, member_id, role)
          VALUES ($1, $2, 'member')
          ON CONFLICT (team_id, member_id) DO NOTHING`,
-        [independentTeamId, finalMemberId],
+        [memberTeamId, finalMemberId],
       );
     }
 
@@ -233,7 +247,7 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
   } catch (err: any) {
     if (err?.code === '23505') {
-      return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
+      return NextResponse.json({ error: 'Username is already taken. Please choose another one.' }, { status: 409 });
     }
     console.error('[admin/users POST error]', err);
     return NextResponse.json({ error: String(err.message || err) }, { status: 500 });
@@ -264,7 +278,7 @@ export async function PUT(req: NextRequest) {
       }
       const { rows: existing } = await query('SELECT id FROM users WHERE LOWER(username) = $1 AND id != $2', [username, id]);
       if (existing.length > 0) {
-        return NextResponse.json({ error: 'Username already exists' }, { status: 409 });
+        return NextResponse.json({ error: `Username '${username}' is already taken. Please choose another one.` }, { status: 409 });
       }
     }
 
@@ -281,17 +295,20 @@ export async function PUT(req: NextRequest) {
     }
 
     let finalMemberId = memberId;
-    if (role === 'user' && memberId === 'new') {
-      let teamRes = await query("SELECT id FROM teams WHERE name = 'Independent' LIMIT 1");
-      let independentTeamId = teamRes.rows[0]?.id;
-      if (!independentTeamId) {
-        const newTeamRes = await query("INSERT INTO teams (name) VALUES ('Independent') RETURNING id");
-        independentTeamId = newTeamRes.rows[0].id;
+    if (memberId === 'new') {
+      let memberTeamId = finalTeamId;
+      if (!memberTeamId) {
+        let teamRes = await query("SELECT id FROM teams WHERE name = 'Independent' LIMIT 1");
+        memberTeamId = teamRes.rows[0]?.id;
+        if (!memberTeamId) {
+          const newTeamRes = await query("INSERT INTO teams (name) VALUES ('Independent') RETURNING id");
+          memberTeamId = newTeamRes.rows[0].id;
+        }
       }
 
       const memberRes = await query(
         "INSERT INTO members (team_id, display_name, role) VALUES ($1, $2, 'member') RETURNING id",
-        [independentTeamId, displayName || 'Unnamed Member']
+        [memberTeamId, displayName || 'Unnamed Member']
       );
       finalMemberId = memberRes.rows[0].id;
 
@@ -299,7 +316,7 @@ export async function PUT(req: NextRequest) {
         `INSERT INTO team_members (team_id, member_id, role)
          VALUES ($1, $2, 'member')
          ON CONFLICT (team_id, member_id) DO NOTHING`,
-        [independentTeamId, finalMemberId],
+        [memberTeamId, finalMemberId],
       );
     }
 

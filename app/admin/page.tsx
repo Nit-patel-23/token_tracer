@@ -228,6 +228,9 @@ export default async function AdminPage() {
                 <h2>Unlinked Members</h2>
                 <span className="admin-tab-sub">Members not yet connected to a user account</span>
               </div>
+              <div className="admin-header-actions">
+                <button type="button" className="hbtn primary" id="create-member-btn">+ Add member</button>
+              </div>
             </div>
 
             <div id="member-form-wrap" className="user-form-wrap" hidden>

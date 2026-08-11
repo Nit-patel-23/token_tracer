@@ -516,6 +516,9 @@ async function handleFormSubmit(e) {
   if (!displayName || (!id && !username) || (!id && !password)) {
     errorEl.textContent = 'Please fill out all required fields';
     errorEl.hidden = false;
+    if (!displayName) $('#uf-displayname')?.classList.add('invalid-field');
+    if (!id && !username) $('#uf-username')?.classList.add('invalid-field');
+    if (!id && !password) $('#uf-password')?.classList.add('invalid-field');
     return;
   }
 
@@ -524,11 +527,13 @@ async function handleFormSubmit(e) {
     if (username.length < 2) {
       errorEl.textContent = 'Username must be at least 2 characters long';
       errorEl.hidden = false;
+      $('#uf-username')?.classList.add('invalid-field');
       return;
     }
     if (!/^[a-z0-9_.-]+$/.test(username)) {
       errorEl.textContent = 'Username can only contain letters, numbers, dots, hyphens, and underscores';
       errorEl.hidden = false;
+      $('#uf-username')?.classList.add('invalid-field');
       return;
     }
   }
@@ -577,7 +582,12 @@ async function handleFormSubmit(e) {
     });
     
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Request failed');
+    if (!res.ok) {
+      if (res.status === 409) {
+        $('#uf-username')?.classList.add('invalid-field');
+      }
+      throw new Error(data.error || 'Request failed');
+    }
 
     if (data.apiKey) {
       // Show the generated sync command details
@@ -766,20 +776,40 @@ async function handleMemberFormSubmit(e) {
   if (!displayName) {
     errorEl.textContent = 'Display name is required';
     errorEl.hidden = false;
+    $('#mf-displayname')?.classList.add('invalid-field');
     return;
   }
 
+  const method = id ? 'PUT' : 'POST';
+
   try {
     const res = await fetch('/api/admin/members', {
-      method: 'PUT',
+      method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, displayName, teamIds: selectedTeamIds })
+      body: JSON.stringify(id ? { id, displayName, teamIds: selectedTeamIds } : { displayName, teamIds: selectedTeamIds })
     });
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Update failed');
+    if (!res.ok) throw new Error(data.error || 'Request failed');
 
-    window.showToast(`Member "${displayName}" updated.`, { type: 'success' });
+    if (!id && data.apiKey) {
+      const banner = $('#new-password-banner');
+      const val = $('#new-password-value');
+      if (banner && val) {
+        let msg = `<b>Member:</b> ${displayName}<br>`;
+        msg += `<b>API Key:</b> <code>${data.apiKey}</code><br><br>`;
+        const serverUrl = window.location.origin;
+        const macCmd = `curl -fsSL ${serverUrl}/install.sh | bash -s -- --key ${data.apiKey}`;
+        const winCmd = `$ApiKey="${data.apiKey}"; iex (irm ${serverUrl}/install.ps1)`;
+        msg += `<b>🍎 Mac Command:</b><br><pre style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; overflow-x: auto; font-family: monospace; font-size: 12px; margin: 4px 0 12px 0; user-select: all;">${macCmd}</pre>`;
+        msg += `<b>🪟 Windows Command:</b><br><pre style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; overflow-x: auto; font-family: monospace; font-size: 12px; margin: 4px 0 12px 0; user-select: all;">${winCmd}</pre>`;
+        val.innerHTML = msg;
+        banner.hidden = false;
+      }
+    } else {
+      window.showToast(id ? `Member "${displayName}" updated.` : `Member "${displayName}" created.`, { type: 'success' });
+    }
+
     cancelMemberForm();
     await loadData();
   } catch (err) {
@@ -837,6 +867,7 @@ async function handleTeamFormSubmit(e) {
   if (!name) {
     errorEl.textContent = 'Team name is required';
     errorEl.hidden = false;
+    $('#tf-name')?.classList.add('invalid-field');
     return;
   }
 
@@ -859,6 +890,46 @@ async function handleTeamFormSubmit(e) {
     errorEl.textContent = err.message;
     errorEl.hidden = false;
   }
+}
+
+async function deleteTeam(id, name) {
+  if (!confirm(`Are you sure you want to permanently delete team "${name}"?\nThis will cascade delete any associated members/sessions linked only to this team.`)) return;
+
+  try {
+    const res = await fetch(`/api/admin/teams?id=${id}`, {
+      method: 'DELETE'
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Delete failed');
+
+    await loadData();
+    window.showToast(`Team "${name}" deleted.`, { type: 'success' });
+  } catch (err) {
+    window.showToast(err.message, { type: 'error' });
+  }
+}
+
+function setupInputEventListeners() {
+  const inputs = [
+    { id: '#uf-username', errorId: '#uf-error' },
+    { id: '#uf-displayname', errorId: '#uf-error' },
+    { id: '#uf-password', errorId: '#uf-error' },
+    { id: '#mf-displayname', errorId: '#mf-error' },
+    { id: '#tf-name', errorId: '#tf-error' },
+    { id: '#pf-pattern', errorId: '#pf-error' },
+    { id: '#pf-cost-in', errorId: '#pf-error' },
+    { id: '#pf-cost-out', errorId: '#pf-error' },
+    { id: '#pf-cost-cache', errorId: '#pf-error' }
+  ];
+
+  inputs.forEach(({ id, errorId }) => {
+    $(id)?.addEventListener('input', () => {
+      $(id).classList.remove('invalid-field');
+      const err = $(errorId);
+      if (err) err.hidden = true;
+    });
+  });
 }
 
 // Model Pricing & Global Sync
@@ -1179,8 +1250,16 @@ function closeMobileNav() {
   });
 
   // Member form listeners
+  $('#create-member-btn')?.addEventListener('click', () => {
+    cancelMemberForm();
+    $('#member-form-title').textContent = 'Add Member';
+    $('#member-form-wrap').hidden = false;
+    $('#mf-displayname').focus();
+  });
   $('#mf-cancel')?.addEventListener('click', cancelMemberForm);
   $('#member-form')?.addEventListener('submit', handleMemberFormSubmit);
+
+  setupInputEventListeners();
 
   // Team form listeners
   $('#create-team-btn')?.addEventListener('click', () => {

@@ -2340,4 +2340,28 @@ details.member-card .member-body {
   animation: spin 1s linear infinite;
 }
 
+/* ── Form validation & Alert Styles ────────────────────────── */
+.error {
+  display: block;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm, 6px);
+  background: color-mix(in srgb, var(--critical, #d03b3b) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--critical, #d03b3b) 30%, transparent);
+  color: var(--critical, #d03b3b);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  position: relative;
+}
+
+.invalid-field {
+  border-color: var(--critical, #d03b3b) !important;
+  background-color: color-mix(in srgb, var(--critical, #d03b3b) 4%, var(--input-bg, rgba(255,255,255,0.03))) !important;
+}
+
+.invalid-field:focus {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--critical, #d03b3b) 20%, transparent) !important;
+}
+
 

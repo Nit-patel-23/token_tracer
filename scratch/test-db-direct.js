@@ -1,11 +1,17 @@
-const { query } = require('../lib/team/db');
+const { Pool } = require('pg');
+
+const url = "postgresql://neondb_owner:npg_ZAGKmM7na2bq@ep-soft-resonance-azhtqsdx.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require";
+const pool = new Pool({
+  connectionString: url.replace(/[\?&]sslmode=[^&]+/g, ''),
+  ssl: { rejectUnauthorized: false }
+});
 
 async function test() {
   try {
-    const res = await query('SELECT tablename FROM pg_tables WHERE schemaname = $1', ['public']);
+    const res = await pool.query('SELECT tablename FROM pg_tables WHERE schemaname = $1', ['public']);
     console.log('Tables:', res.rows.map(r => r.tablename));
 
-    const fks = await query(`
+    const fks = await pool.query(`
       SELECT
         tc.table_name, 
         kcu.column_name, 
@@ -23,6 +29,7 @@ async function test() {
     `);
     console.log('Foreign Keys:', fks.rows);
 
+    await pool.end();
     process.exit(0);
   } catch (err) {
     console.error('Error:', err);
