@@ -214,17 +214,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let finalTeamId = teamId;
-    if (role === 'admin' && newTeamName) {
-      const { rows: teamRows } = await query(
-        'INSERT INTO teams (name) VALUES ($1) RETURNING id',
-        [newTeamName]
-      );
-      finalTeamId = teamRows[0].id;
-    } else if (role !== 'admin') {
-      finalTeamId = null;
-    }
-
     const { rows } = await query(`
       INSERT INTO users (username, password_hash, display_name, member_id, team_id, role, api_key)
       VALUES ($1, $2, $3, $4, $5, $6, $7)

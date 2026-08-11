@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorizedTeamId } from '@/lib/auth';
+import { getAuthorizedTeamId, getSessionFromCookie } from '@/lib/auth';
 import { createMemberWithKey, createTeamUserWithMember, updateMember, deleteMember } from '@/lib/team/stats';
 import { query } from '@/lib/team/db';
 
@@ -18,6 +18,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ members: [] });
     }
 
+    const session = getSessionFromCookie(req.headers.get('cookie'));
+    let memberFilter = '';
+    const queryParams: any[] = [teamId];
+    if (session?.role === 'user') {
+      memberFilter = ' AND m.id = $2';
+      queryParams.push(session.memberId);
+    }
+
     const { rows: members } = await query(
       `SELECT m.id, m.display_name, tm.role, m.created_at, m.sync_requested_at,
               m.daemon_version, m.daemon_last_seen_at,
@@ -31,9 +39,9 @@ export async function GET(req: NextRequest) {
               (SELECT coalesce(sum(s.api_cost), 0) FROM sync_sessions s WHERE s.member_id = m.id)::float AS total_cost
        FROM team_members tm
        JOIN members m ON m.id = tm.member_id
-       WHERE tm.team_id = $1
+       WHERE tm.team_id = $1${memberFilter}
        ORDER BY m.display_name`,
-      [teamId],
+      queryParams,
     );
     return NextResponse.json({ members });
 

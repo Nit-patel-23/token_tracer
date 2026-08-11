@@ -17,7 +17,7 @@ export async function OPTIONS() {
 
 function requireAdmin(req: NextRequest): boolean {
   const session = getSessionFromCookie(req.headers.get('cookie'));
-  if (session?.role === 'admin' || session?.role === 'superadmin') return true;
+  if (session?.role === 'admin' || session?.role === 'superadmin' || session?.role === 'user') return true;
 
   const authHeader = req.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
@@ -45,10 +45,18 @@ export async function POST(req: NextRequest) {
 
     const rawTeamId = body.teamId ? String(body.teamId) : null;
     const teamId = getAuthorizedTeamId(req, rawTeamId);
-    const memberId = String(body.memberId || 'all');
+    let memberId = String(body.memberId || 'all');
 
     if (!teamId) {
       return NextResponse.json({ error: 'unauthorized or teamId required' }, { status: 401, headers: corsHeaders });
+    }
+
+    const session = getSessionFromCookie(req.headers.get('cookie'));
+    if (session?.role === 'user') {
+      if (!session.memberId) {
+        return NextResponse.json({ error: 'unauthorized: no linked member profile' }, { status: 403, headers: corsHeaders });
+      }
+      memberId = session.memberId;
     }
 
     if (memberId === 'all') {

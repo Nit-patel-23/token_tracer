@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 function requireAdmin(req: NextRequest): boolean {
   const session = getSessionFromCookie(req.headers.get('cookie'));
-  if (session?.role === 'admin' || session?.role === 'superadmin') return true;
+  if (session?.role === 'admin' || session?.role === 'superadmin' || session?.role === 'user') return true;
 
   const authHeader = req.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     const isUuid = (val: string | null | undefined): boolean =>
       Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
 
-    if (session && session.role === 'admin') {
+    if (session && (session.role === 'admin' || session.role === 'user')) {
       const hasTeam = isUuid(session.teamId);
       const hasUser = isUuid(session.userId);
       if (hasTeam || hasUser) {

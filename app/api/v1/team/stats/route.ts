@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorizedTeamId } from '@/lib/auth';
+import { getAuthorizedTeamId, getSessionFromCookie } from '@/lib/auth';
 import { buildTeamStats } from '@/lib/team/stats';
 
 export const dynamic = 'force-dynamic';
@@ -10,13 +10,19 @@ export async function GET(req: NextRequest) {
     const teamId = getAuthorizedTeamId(req, rawTeamId);
     if (!teamId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+    const session = getSessionFromCookie(req.headers.get('cookie'));
+    let memberId = req.nextUrl.searchParams.get('memberId');
+    if (session?.role === 'user') {
+      memberId = session.memberId;
+    }
+
     const minTok = req.nextUrl.searchParams.get('minTokens');
     const maxTok = req.nextUrl.searchParams.get('maxTokens');
 
     const stats = await buildTeamStats(teamId, {
       from: req.nextUrl.searchParams.get('from'),
       to: req.nextUrl.searchParams.get('to'),
-      memberId: req.nextUrl.searchParams.get('memberId'),
+      memberId: memberId,
       source: req.nextUrl.searchParams.get('source'),
       minTokens: minTok ? Number(minTok) : null,
       maxTokens: maxTok ? Number(maxTok) : null,

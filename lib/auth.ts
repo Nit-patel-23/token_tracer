@@ -218,6 +218,9 @@ export function getAuthorizedTeamId(req: any, paramTeamId: string | null | undef
     if (session.role === 'admin') {
       return session.teamId || paramTeamId || null;
     }
+    if (session.role === 'user') {
+      return session.teamId || null;
+    }
   }
 
   // Fallback check for legacy static admin password token

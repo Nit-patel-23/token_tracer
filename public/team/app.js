@@ -23,7 +23,7 @@ async function checkAuth() {
       return false;
     }
     currentUser = await res.json();
-    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin') {
+    if (currentUser.role !== 'admin' && currentUser.role !== 'superadmin' && currentUser.role !== 'user') {
       window.location.href = '/';
       return false;
     }
@@ -49,7 +49,13 @@ function openTeamProfileModal() {
 
   const roleEl = document.getElementById('team-profile-role-val');
   if (roleEl) {
-    roleEl.textContent = currentUser?.role === 'superadmin' ? 'Superadmin' : 'Team Admin';
+    if (currentUser?.role === 'superadmin') {
+      roleEl.textContent = 'Superadmin';
+    } else if (currentUser?.role === 'admin') {
+      roleEl.textContent = 'Team Admin';
+    } else {
+      roleEl.textContent = 'Member';
+    }
   }
 
   const teamsEl = document.getElementById('team-profile-teams-val');
@@ -898,6 +904,31 @@ async function showApp() {
   showDashboardShell();
   setLoading(true);
   try {
+    if (currentUser && currentUser.role === 'user') {
+      // Hide settings tab button
+      const settingsTabBtn = document.getElementById('tabbtn-settings');
+      if (settingsTabBtn) settingsTabBtn.style.display = 'none';
+
+      // Hide current team select wrapper
+      const teamSelectDiv = document.querySelector('.sidebar-team-select');
+      if (teamSelectDiv) teamSelectDiv.style.display = 'none';
+
+      // Hide member filter select & label
+      const memberFilterSelect = document.getElementById('global-member-filter');
+      const memberFilterLabel = memberFilterSelect?.closest('label');
+      if (memberFilterLabel) memberFilterLabel.style.display = 'none';
+
+      // Hide pricing cost modification and recalculation buttons
+      const recalcBtn = document.getElementById('recalculate-costs-btn');
+      if (recalcBtn) recalcBtn.style.display = 'none';
+      const addPriceBtn = document.getElementById('add-pricing-btn');
+      if (addPriceBtn) addPriceBtn.style.display = 'none';
+
+      // Hide personal dashboard links in sidebar footer
+      const backLinks = document.querySelectorAll('.sidebar-footer-links a[href="/"]');
+      backLinks.forEach(link => link.style.display = 'none');
+    }
+
     await loadDashboardData();
   } catch (err) {
     showLogin();
