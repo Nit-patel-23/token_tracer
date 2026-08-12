@@ -27,8 +27,8 @@ export async function GET(req: NextRequest) {
       SELECT 
         st.model,
         COALESCE(ust.intent_category, 'other') AS "intentCategory",
-        REGR_SLOPE(st.output_tokens, st.input_tokens)::float AS slope,
-        REGR_INTERCEPT(st.output_tokens, st.input_tokens)::float AS intercept,
+        COALESCE(REGR_SLOPE(st.output_tokens, st.input_tokens)::float, 0) AS slope,
+        COALESCE(REGR_INTERCEPT(st.output_tokens, st.input_tokens)::float, 0) AS intercept,
         COALESCE(REGR_R2(st.output_tokens, st.input_tokens)::float, 0) AS r2,
         COUNT(*)::int AS "sampleSize"
       FROM session_turns st

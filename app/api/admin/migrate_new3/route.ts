@@ -1,92 +1,39 @@
-import { query } from './db';
+import { NextRequest, NextResponse } from 'next/server';
+import pg from 'pg';
+import { getSessionFromCookie } from '@/lib/auth';
+import { requireDatabaseUrl } from '@/lib/team/env';
+import { classifyIntent, extractEditOperations, calculateCosineSimilarity } from '@/lib/team/research';
 
-const EDIT_TOOLS = new Set([
-  'edit', 'write', 'notebookedit', 'str_replace_editor', 'apply_patch', 'multiedit'
-]);
+export const dynamic = 'force-dynamic';
 
-function lineCount(str: string): number {
-  if (!str) return 0;
-  return str.split('\n').length;
+const { Pool } = pg;
+
+// Define a local database pool inside this module context
+let localPool: pg.Pool | null = null;
+
+function getLocalPool(): pg.Pool {
+  if (!localPool) {
+    let url = requireDatabaseUrl();
+    url = url.replace(/[\?&]sslmode=[^&]+/g, '');
+    localPool = new Pool({
+      connectionString: url,
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      connectionTimeoutMillis: 20000,
+      idleTimeoutMillis: 30000,
+    });
+  }
+  return localPool;
 }
 
-function stringEdit(path: string, oldText: string, newText: string) {
-  const p = String(path || '');
-  return [{ path: p, additions: lineCount(newText), deletions: lineCount(oldText) }];
+async function localQuery<T extends pg.QueryResultRow = pg.QueryResultRow>(
+  text: string,
+  params: unknown[] = []
+): Promise<pg.QueryResult<T>> {
+  return getLocalPool().query<T>(text, params);
 }
 
-function parsePatch(patch: string) {
-  const edits: Array<{ path: string; additions: number; deletions: number }> = [];
-  const lines = patch.split('\n');
-  let currentFile = '';
-  let additions = 0;
-  let deletions = 0;
-  for (const line of lines) {
-    if (line.startsWith('--- a/')) {
-      // ignore
-    } else if (line.startsWith('+++ b/')) {
-      if (currentFile && (additions > 0 || deletions > 0)) {
-        edits.push({ path: currentFile, additions, deletions });
-      }
-      currentFile = line.substring(6).trim();
-      additions = 0;
-      deletions = 0;
-    } else if (line.startsWith('+') && !line.startsWith('+++')) {
-      additions++;
-    } else if (line.startsWith('-') && !line.startsWith('---')) {
-      deletions++;
-    }
-  }
-  if (currentFile && (additions > 0 || deletions > 0)) {
-    edits.push({ path: currentFile, additions, deletions });
-  }
-  return edits;
-}
-
-export function extractEditOperations(ev: any) {
-  if (ev?.kind !== 'tool') return [];
-  const name = String(ev.tool?.name ?? '').toLowerCase();
-  const args = ev.tool?.args ?? {};
-  
-  const patch = args.patch ?? args.patch_text ?? args.diff ?? '';
-  if (patch && (name === 'apply_patch' || patch.includes('+++ b/'))) {
-    return parsePatch(patch);
-  }
-  if (!EDIT_TOOLS.has(name)) return [];
-
-  const p = args.file_path ?? args.path ?? args.notebook_path ?? args.file;
-  if (name === 'multiedit' || Array.isArray(args.edits)) {
-    return (args.edits ?? []).flatMap((edit: any) => 
-      stringEdit(p, edit.old_string ?? edit.old_str ?? '', edit.new_string ?? edit.new_str ?? '')
-    );
-  }
-  if (name === 'write') return stringEdit(p, '', args.content ?? args.file_text ?? args.text ?? '');
-  if (name === 'notebookedit') return stringEdit(p, args.old_source ?? '', args.new_source ?? args.source ?? '');
-  if (name === 'str_replace_editor') {
-    const command = String(args.command ?? '').toLowerCase();
-    if (command === 'create') return stringEdit(p, '', args.file_text ?? args.new_str ?? '');
-    if (command === 'insert') return stringEdit(p, '', args.new_str ?? args.text ?? '');
-    return stringEdit(p, args.old_str ?? args.old_string ?? '', args.new_str ?? args.new_string ?? '');
-  }
-  return stringEdit(p, args.old_string ?? args.old_str ?? '', args.new_string ?? args.new_str ?? args.content ?? '');
-}
-
-/**
- * Classifies prompt intent category using regex rules
- */
-export function classifyIntent(text: string): string {
-  const t = text.toLowerCase();
-  if (/\b(fix|bug|error|issue|crash|fail|broken|prevent|resolve|bugfix|exception)\b/i.test(t)) return 'bug_fix';
-  if (/\b(add|implement|create|new|feature|build|support|newfeature)\b/i.test(t)) return 'feature';
-  if (/\b(refactor|clean|cleanup|rename|move|simplify|optimize|structure|restructure)\b/i.test(t)) return 'refactor';
-  if (/\b(explain|why|what|how|understand|read|question|describe|help)\b/i.test(t)) return 'explain';
-  if (/\b(test|tests|coverage|pytest|jest|unittest|spec|specs|testing)\b/i.test(t)) return 'test';
-  return 'other';
-}
-
-/**
- * Parses events from a trajectory and populates turn-level stats into session_turns
- */
-export async function saveSessionTurns(
+async function localSaveSessionTurns(
   teamId: string,
   memberId: string,
   source: string,
@@ -108,7 +55,7 @@ export async function saveSessionTurns(
   }
 
   // Clean old turns for idempotency
-  await query('DELETE FROM session_turns WHERE session_id = $1', [sessionId]);
+  await localQuery('DELETE FROM session_turns WHERE session_id = $1', [sessionId]);
 
   // Group events into turns starting with each user message
   const turns: any[] = [];
@@ -136,7 +83,7 @@ export async function saveSessionTurns(
   }
 
   // Fetch session totals for allocation if turn-level usage is missing/null
-  const { rows: sessionInfo } = await query(
+  const { rows: sessionInfo } = await localQuery(
     `SELECT 
       tokens_in, tokens_out, tool_calls, tool_errors, 
       rework_loops, corrections, additions, deletions, 
@@ -175,15 +122,18 @@ export async function saveSessionTurns(
     const t = turns[idx];
     const userText = t.userEvent.text || '';
     
+    // Performance optimization: slice long userText to prevent regex catastrophic backtracking
+    const userTextForRegex = userText.slice(0, 5000);
+    
     // Feature extraction from user prompt
-    const hasCodeBlock = /```[\s\S]*?```/.test(userText);
-    const hasFilePath = /(?:[a-zA-Z0-9_\-]+\/)+[a-zA-Z0-9_\.\-]+|[a-zA-Z0-9_\-]+\.(?:ts|tsx|js|jsx|py|json|yml|yaml|css|html|md|rs|go|sh|sql)/i.test(userText);
-    const hasTraceback = /\b(traceback|stack trace|at [a-zA-Z0-9_\-\.\/]+\:\d+|exception|uncaught|nullpointer|indexoutofbound)\b/i.test(userText);
-    const intentCategory = classifyIntent(userText);
-    const userRevert = /\b(revert|undo|go back|reset)\b/i.test(userText);
+    const hasCodeBlock = /```[\s\S]*?```/.test(userTextForRegex);
+    const hasFilePath = /(?:[a-zA-Z0-9_\-]+\/)+[a-zA-Z0-9_\.\-]+|[a-zA-Z0-9_\-]+\.(?:ts|tsx|js|jsx|py|json|yml|yaml|css|html|md|rs|go|sh|sql)/i.test(userTextForRegex);
+    const hasTraceback = /\b(traceback|stack trace|at [a-zA-Z0-9_\-\.\/]+\:\d+|exception|uncaught|nullpointer|indexoutofbound)\b/i.test(userTextForRegex);
+    const intentCategory = classifyIntent(userTextForRegex);
+    const userRevert = /\b(revert|undo|go back|reset)\b/i.test(userTextForRegex);
 
     // Turn 1: Save User Turn Row
-    await query(
+    await localQuery(
       `INSERT INTO session_turns (
         session_id, org_id, user_id, tool, model, turn_index, turn_role,
         prompt_text_sanitized, prompt_char_len, has_code_block, has_file_path, has_traceback,
@@ -272,7 +222,7 @@ export async function saveSessionTurns(
     }
 
     // Turn 2: Save Assistant Turn Row
-    const { rows: insertedTurn } = await query(
+    const { rows: insertedTurn } = await localQuery(
       `INSERT INTO session_turns (
         session_id, org_id, user_id, tool, model, turn_index, turn_role,
         input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cumulative_input_tokens,
@@ -292,11 +242,15 @@ export async function saveSessionTurns(
     if (turnId) {
       if (isFallback) {
         if (toolErrors > 0) {
-          const { rows: toolsUsed } = await query(
+          const { rows: toolsUsed } = await localQuery(
             `SELECT tool_name, call_count 
              FROM sync_session_tools 
-             WHERE sync_session_id = (SELECT id FROM sync_sessions WHERE session_id = $1)`,
-            [sessionId]
+             WHERE sync_session_id = (
+               SELECT id FROM sync_sessions 
+               WHERE team_id = $1::uuid AND member_id = $2::uuid AND source = $3 AND session_id = $4
+               LIMIT 1
+             )`,
+            [teamId, memberId, source, sessionId]
           );
           const toolList: string[] = [];
           for (const tRow of toolsUsed) {
@@ -314,7 +268,7 @@ export async function saveSessionTurns(
           let errorInserted = 0;
           for (const toolName of toolList) {
             if (errorInserted >= toolErrors) break;
-            await query(
+            await localQuery(
               `INSERT INTO session_tool_errors (
                 turn_id, session_id, org_id, tool, model, tool_name, tool_args_summary, is_error
               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
@@ -330,13 +284,13 @@ export async function saveSessionTurns(
         for (const toolEv of t.tools) {
           if (!toolEv.tool?.isError) continue;
           const toolName = String(toolEv.tool?.name ?? 'unknown');
-          await query(
+          await localQuery(
             `INSERT INTO session_tool_errors (
               turn_id, session_id, org_id, tool, model, tool_name, tool_args_summary, is_error
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
             [
               turnId, sessionId, teamId, source, model, toolName,
-              summarizeToolArgs(toolEv.tool?.args), true
+              'Ingested tool error', true
             ]
           );
         }
@@ -350,7 +304,7 @@ export async function saveSessionTurns(
       const similarity = calculateCosineSimilarity(prevUserText, userText);
       
       if (similarity >= 0.85) {
-        await query(
+        await localQuery(
           `INSERT INTO redundant_reprompt_events (session_id, turn_index, similarity_score, tokens_cost_of_following_turn)
            VALUES ($1, $2, $3, $4)`,
           [sessionId, idx, similarity, inputTokens + outputTokens]
@@ -360,59 +314,9 @@ export async function saveSessionTurns(
   }
 }
 
-function summarizeToolArgs(args: any): string | null {
-  if (!args) return null;
-  const val = args.command ?? args.file_path ?? args.path ?? args.notebook_path ?? args.file ?? args.query ?? args.pattern;
-  if (val == null) return null;
-  const s = String(val);
-  return s.length > 500 ? s.slice(0, 500) : s;
-}
-
-function getTokens(text: string): string[] {
-  return text.toLowerCase().match(/\b\w+\b/g) || [];
-}
-
-export function calculateCosineSimilarity(text1: string, text2: string): number {
-  const tokens1 = getTokens(text1);
-  const tokens2 = getTokens(text2);
-
-  if (!tokens1.length || !tokens2.length) return 0;
-
-  const freq1: Record<string, number> = {};
-  const freq2: Record<string, number> = {};
-  const allWords = new Set<string>();
-
-  for (const w of tokens1) {
-    freq1[w] = (freq1[w] || 0) + 1;
-    allWords.add(w);
-  }
-  for (const w of tokens2) {
-    freq2[w] = (freq2[w] || 0) + 1;
-    allWords.add(w);
-  }
-
-  let dotProduct = 0;
-  let mag1 = 0;
-  let mag2 = 0;
-
-  for (const w of allWords) {
-    const val1 = freq1[w] || 0;
-    const val2 = freq2[w] || 0;
-    dotProduct += val1 * val2;
-    mag1 += val1 * val1;
-    mag2 += val2 * val2;
-  }
-
-  if (mag1 === 0 || mag2 === 0) return 0;
-  return dotProduct / (Math.sqrt(mag1) * Math.sqrt(mag2));
-}
-
-/**
- * Runs nightly calculations to sync session_turns to session_outcomes rollups
- */
-export async function runResearchRollup(): Promise<void> {
+async function localRunResearchRollup(): Promise<void> {
   // Aggregate turns into session outcomes
-  await query(`
+  await localQuery(`
     INSERT INTO session_outcomes (
       session_id, org_id, tool, model, intent_category,
       total_input_tokens, total_output_tokens, total_cost,
@@ -459,7 +363,7 @@ export async function runResearchRollup(): Promise<void> {
   `);
 
   // Calculate task complexity scores
-  await query(`
+  await localQuery(`
     WITH stats AS (
       SELECT 
         AVG(files_touched)::float AS avg_files,
@@ -479,10 +383,9 @@ export async function runResearchRollup(): Promise<void> {
   `);
 }
 
-export async function backfillResearchAnalytics(limit?: number, offset?: number): Promise<{ processed: number }> {
-  // Fetch all sync_sessions to backfill turn analytics
+async function localBackfillResearchAnalytics(limit?: number, offset?: number): Promise<{ processed: number }> {
   const limitClause = limit ? `LIMIT ${limit} OFFSET ${offset || 0}` : '';
-  const { rows } = await query(`
+  const { rows } = await localQuery(`
     SELECT team_id::text AS org_id, member_id::text AS user_id, source AS tool, model, session_id, events
     FROM sync_sessions
     ORDER BY id
@@ -505,7 +408,7 @@ export async function backfillResearchAnalytics(limit?: number, offset?: number)
       continue;
     }
 
-    await saveSessionTurns(
+    await localSaveSessionTurns(
       row.org_id || 'unknown_org',
       row.user_id || 'unknown_member',
       row.tool || 'cursor',
@@ -516,8 +419,76 @@ export async function backfillResearchAnalytics(limit?: number, offset?: number)
     processed++;
   }
 
-  // Run outcome rollups
-  await runResearchRollup();
+  await localRunResearchRollup();
 
   return { processed };
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const searchParams = req.nextUrl.searchParams;
+    const kill = searchParams.get('kill');
+    const status = searchParams.get('status');
+    
+    if (status !== null) {
+      const { rows: activity } = await localQuery(`
+        SELECT pid, state, query, age(query_start) AS age, wait_event_type, wait_event
+        FROM pg_stat_activity 
+        WHERE datname = current_database() AND pid <> pg_backend_pid()
+      `);
+      const { rows: triggers } = await localQuery(`
+        SELECT tgname, tgenabled, pg_get_triggerdef(oid) as definition
+        FROM pg_trigger 
+        WHERE tgrelid = 'session_turns'::regclass
+      `);
+      return NextResponse.json({ ok: true, activity, triggers });
+    }
+    
+    if (kill !== null) {
+      (globalThis as any).abortBackfill = true;
+      if (localPool) {
+        try { await localPool.end(); } catch {}
+        localPool = null;
+      }
+      const { rows } = await localQuery(`
+        SELECT pid, state, query, pg_terminate_backend(pid) AS terminated
+        FROM pg_stat_activity 
+        WHERE (query LIKE '%session_turns%' OR query LIKE '%sync_sessions%' OR query LIKE '%session_outcomes%' OR state = 'idle in transaction') 
+          AND pid <> pg_backend_pid()
+      `);
+      return NextResponse.json({ ok: true, terminatedQueries: rows });
+    }
+    
+    const batch = searchParams.get('batch');
+    let processed = 0;
+    if (batch !== null) {
+      (globalThis as any).abortBackfill = false;
+      const limit = 50;
+      const offset = Number(batch) * 50;
+      const backfillStats = await localBackfillResearchAnalytics(limit, offset);
+      processed = backfillStats.processed;
+    }
+    
+    const { rows: sumSyncErrors } = await localQuery('SELECT SUM(tool_errors)::int AS count FROM sync_sessions');
+    const { rows: countToolErrors } = await localQuery('SELECT COUNT(*)::int AS count FROM session_tool_errors WHERE is_error = true');
+    const { rows: turnsCount } = await localQuery('SELECT COUNT(*)::int AS count FROM session_turns');
+    const { rows: outcomesCount } = await localQuery('SELECT COUNT(*)::int AS count FROM session_outcomes');
+    
+    return NextResponse.json({
+      ok: true,
+      batch: batch !== null ? Number(batch) : 'none',
+      processed,
+      sumSyncErrors: sumSyncErrors[0]?.count,
+      countToolErrors: countToolErrors[0]?.count,
+      turnsCount: turnsCount[0]?.count,
+      outcomesCount: outcomesCount[0]?.count
+    });
+  } catch (err: any) {
+    console.error('[admin/migrate GET error]', err);
+    return NextResponse.json({
+      ok: false,
+      error: err.message,
+      stack: err.stack
+    });
+  }
 }

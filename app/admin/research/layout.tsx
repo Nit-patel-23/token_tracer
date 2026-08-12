@@ -31,14 +31,14 @@ export default async function ResearchLayout({ children }: { children: React.Rea
 
   return (
     <div className="min-h-screen bg-page text-ink font-body">
-      <header className="block border-b border-border bg-surface">
+      <div className="block border-b border-border bg-surface">
         <div className="mx-auto flex max-w-[1400px] items-center gap-4 px-5 py-3">
           <Link href="/admin" className="text-xs text-muted hover:text-ink">
             ← Admin
           </Link>
           <span className="text-sm font-medium text-ink">Research Analytics</span>
         </div>
-        <nav className="mx-auto flex max-w-[1400px] gap-1 overflow-x-auto px-5 pb-2">
+        <div className="mx-auto flex max-w-[1400px] gap-1 overflow-x-auto px-5 pb-2">
           {NAV.map((item) => (
             <Link
               key={item.href}
@@ -48,11 +48,11 @@ export default async function ResearchLayout({ children }: { children: React.Rea
               {item.label}
             </Link>
           ))}
-        </nav>
-      </header>
-      <main className="mx-auto max-w-[1400px] px-5 py-6">
+        </div>
+      </div>
+      <div className="mx-auto max-w-[1400px] px-5 py-6">
         <ResearchQueryProvider>{children}</ResearchQueryProvider>
-      </main>
+      </div>
     </div>
   );
 }

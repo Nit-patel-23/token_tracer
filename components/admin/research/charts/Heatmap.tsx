@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 
 export interface HeatmapCell {
   row: string;
@@ -40,34 +40,32 @@ export default function Heatmap({
         className="grid gap-1"
         style={{ gridTemplateColumns: `120px repeat(${cols.length}, 1fr)` }}
       >
-        <div />
+        <div key="header-spacer" />
         {cols.map((c) => (
           <div key={c} className="px-1 text-center text-xs text-muted">
             {c}
           </div>
         ))}
-        {rows.map((r) => (
-          <>
-            <div key={`${r}-label`} className="flex items-center px-1 text-xs text-muted">
-              {r}
-            </div>
-            {cols.map((c) => {
-              const cell = cellFor(r, c);
-              const step = cell ? Math.min(4, Math.floor((cell.value / max) * 5)) : 0;
-              return (
-                <div
-                  key={`${r}-${c}`}
-                  onMouseEnter={() => cell && setHovered(cell)}
-                  onMouseLeave={() => setHovered(null)}
-                  className="flex h-14 items-center justify-center rounded-md text-xs font-medium text-ink transition-transform hover:scale-[1.03]"
-                  style={{ background: cell ? HEAT_RAMP[step] : 'var(--wash)' }}
-                >
-                  {cell ? valueFormat(cell.value) : '—'}
-                </div>
-              );
-            })}
-          </>
-        ))}
+        {rows.flatMap((r) => [
+          <div key={`${r}-label`} className="flex items-center px-1 text-xs text-muted">
+            {r}
+          </div>,
+          ...cols.map((c) => {
+            const cell = cellFor(r, c);
+            const step = cell ? Math.min(4, Math.floor((cell.value / max) * 5)) : 0;
+            return (
+              <div
+                key={`${r}-${c}`}
+                onMouseEnter={() => cell && setHovered(cell)}
+                onMouseLeave={() => setHovered(null)}
+                className="flex h-14 items-center justify-center rounded-md text-xs font-medium text-ink transition-transform hover:scale-[1.03]"
+                style={{ background: cell ? HEAT_RAMP[step] : 'var(--wash)' }}
+              >
+                {cell ? valueFormat(cell.value) : '—'}
+              </div>
+            );
+          })
+        ])}
       </div>
       <div className="mt-2 h-4 text-xs text-muted">
         {hovered ? `${valueLabel}: ${valueFormat(hovered.value)}${hovered.sampleSize != null ? ` · n=${hovered.sampleSize}` : ''}` : ''}

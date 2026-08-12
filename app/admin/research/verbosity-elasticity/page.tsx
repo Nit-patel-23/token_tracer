@@ -40,7 +40,7 @@ export default function VerbosityElasticityPage() {
   const activeStat = stats.find((s) => s.model === activeModel && (!intent || s.intentCategory === intent));
 
   const regressionLine = useMemo(() => {
-    if (!activeStat || !filteredPoints.length) return [];
+    if (!activeStat || !filteredPoints.length || activeStat.slope == null || activeStat.intercept == null) return [];
     const xs = filteredPoints.map((p) => p.x);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
@@ -97,7 +97,7 @@ export default function VerbosityElasticityPage() {
           <div className="text-sm font-medium text-ink">Input vs. output tokens — {activeModel ?? '—'}</div>
           {activeStat && (
             <div className="text-xs text-muted">
-              slope {activeStat.slope.toFixed(2)} · R² {activeStat.r2.toFixed(2)} · n={activeStat.sampleSize}
+              slope {activeStat.slope != null ? activeStat.slope.toFixed(2) : '—'} · R² {activeStat.r2 != null ? activeStat.r2.toFixed(2) : '—'} · n={activeStat.sampleSize}
             </div>
           )}
         </div>
@@ -178,8 +178,8 @@ export default function VerbosityElasticityPage() {
               <tr key={i} className="text-ink">
                 <td className="px-3 py-2 font-mono">{s.model}</td>
                 <td className="px-3 py-2 font-mono">{s.intentCategory}</td>
-                <td className="px-3 py-2 font-mono tabular-nums">{s.slope.toFixed(3)}</td>
-                <td className="px-3 py-2 font-mono tabular-nums">{s.r2.toFixed(3)}</td>
+                <td className="px-3 py-2 font-mono tabular-nums">{s.slope != null ? s.slope.toFixed(3) : '—'}</td>
+                <td className="px-3 py-2 font-mono tabular-nums">{s.r2 != null ? s.r2.toFixed(3) : '—'}</td>
                 <td className="px-3 py-2 font-mono tabular-nums">{s.sampleSize}</td>
               </tr>
             ))}

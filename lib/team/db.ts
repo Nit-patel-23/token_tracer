@@ -337,11 +337,7 @@ export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
       await ensureSchema();
       return await getPool().query<T>(text, params);
     }
-    // If pool connection dropped, reset pool reference
-    if (globalForDb.conn) {
-      try { await globalForDb.conn.end(); } catch { /* ignore */ }
-      globalForDb.conn = undefined;
-    }
+    console.error('[DATABASE-QUERY-ERROR]', err, '\nQuery:', text, '\nParams:', params);
     throw err;
   }
 }

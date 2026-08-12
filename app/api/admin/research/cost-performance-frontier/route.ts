@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       SELECT 
         COALESCE(so.intent_category, 'other') AS "intentCategory",
         so.model,
-        AVG(so.total_cost)::float AS "avgCost",
+        COALESCE(AVG(so.total_cost)::float, 0) AS "avgCost",
         COALESCE(COUNT(*) FILTER (WHERE so.success)::float / NULLIF(COUNT(*), 0), 0) AS "successRate",
         COUNT(*)::int AS "sessionCount"
       FROM session_outcomes so
@@ -79,8 +79,7 @@ export async function GET(req: NextRequest) {
 
     if (intentFilter) {
       return NextResponse.json({
-        intentCategory: intentFilter,
-        points: responseData[intentFilter] || []
+        [intentFilter]: responseData[intentFilter] || []
       });
     }
 
