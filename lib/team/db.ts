@@ -341,3 +341,27 @@ export async function query<T extends pg.QueryResultRow = pg.QueryResultRow>(
     throw err;
   }
 }
+
+/**
+ * Insert many rows in a single round trip via unnest() instead of one query per row.
+ * `columns`/`types` are internal constants, never user input — safe to interpolate.
+ */
+export async function insertMany<T extends pg.QueryResultRow = pg.QueryResultRow>(
+  table: string,
+  columns: string[],
+  types: string[],
+  rows: unknown[][],
+  opts?: { returning?: string },
+): Promise<pg.QueryResult<T>> {
+  if (!rows.length) {
+    return { rows: [], rowCount: 0, command: '', oid: 0, fields: [] } as unknown as pg.QueryResult<T>;
+  }
+  const columnParams = columns.map((_, colIdx) => rows.map((row) => row[colIdx]));
+  const placeholders = types.map((t, i) => `$${i + 1}::${t}[]`).join(', ');
+  const sql = `
+    INSERT INTO ${table} (${columns.join(', ')})
+    SELECT * FROM unnest(${placeholders}) AS t(${columns.join(', ')})
+    ${opts?.returning ? `RETURNING ${opts.returning}` : ''}
+  `;
+  return query<T>(sql, columnParams);
+}

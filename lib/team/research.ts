@@ -1,4 +1,4 @@
-import { query } from './db';
+import { query, insertMany } from './db';
 
 const EDIT_TOOLS = new Set([
   'edit', 'write', 'notebookedit', 'str_replace_editor', 'apply_patch', 'multiedit'
@@ -171,10 +171,18 @@ export async function saveSessionTurns(
   const previouslyEditedFiles = new Set<string>();
   let cumulativeInputTokens = 0;
 
+  const userRows: unknown[][] = [];
+  const assistantRows: unknown[][] = [];
+  // Tool-error rows keyed by turn index — resolved to real turn ids once the
+  // assistant rows are bulk-inserted and their generated ids come back.
+  const pendingToolErrors: Array<{ turnIndex: number; rows: Array<[string, string | null]> }> = [];
+  const repromptRows: unknown[][] = [];
+  let fallbackToolsUsedCache: Array<{ tool_name: string; call_count: number }> | null = null;
+
   for (let idx = 0; idx < turns.length; idx++) {
     const t = turns[idx];
     const userText = t.userEvent.text || '';
-    
+
     // Feature extraction from user prompt
     const hasCodeBlock = /```[\s\S]*?```/.test(userText);
     const hasFilePath = /(?:[a-zA-Z0-9_\-]+\/)+[a-zA-Z0-9_\.\-]+|[a-zA-Z0-9_\-]+\.(?:ts|tsx|js|jsx|py|json|yml|yaml|css|html|md|rs|go|sh|sql)/i.test(userText);
@@ -182,19 +190,11 @@ export async function saveSessionTurns(
     const intentCategory = classifyIntent(userText);
     const userRevert = /\b(revert|undo|go back|reset)\b/i.test(userText);
 
-    // Turn 1: Save User Turn Row
-    await query(
-      `INSERT INTO session_turns (
-        session_id, org_id, user_id, tool, model, turn_index, turn_role,
-        prompt_text_sanitized, prompt_char_len, has_code_block, has_file_path, has_traceback,
-        intent_category, revert_flag
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-      [
-        sessionId, teamId, memberId, source, model, idx, 'user',
-        userText, userText.length, hasCodeBlock, hasFilePath, hasTraceback,
-        intentCategory, userRevert
-      ]
-    );
+    userRows.push([
+      sessionId, teamId, memberId, source, model, idx, 'user',
+      userText, userText.length, hasCodeBlock, hasFilePath, hasTraceback,
+      intentCategory, userRevert,
+    ]);
 
     // Extract stats from assistant response & tool calls
     const usage = t.assistantEvent?.usage;
@@ -271,76 +271,54 @@ export async function saveSessionTurns(
       toolCallValidCount = Array.from(filesTouchedInTurn).length; // tools that referenced real files/lines
     }
 
-    // Turn 2: Save Assistant Turn Row
-    const { rows: insertedTurn } = await query(
-      `INSERT INTO session_turns (
-        session_id, org_id, user_id, tool, model, turn_index, turn_role,
-        input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cumulative_input_tokens,
-        files_touched, lines_added, lines_removed, tool_call_count, tool_call_valid_count,
-        tool_error_flag, rework_flag, revert_flag
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-      RETURNING id`,
-      [
-        sessionId, teamId, memberId, source, model, idx, 'assistant',
-        inputTokens, outputTokens, cacheRead, cacheWrite, cumulativeInputTokens,
-        filesTouchedInTurn.size, linesAdded, linesRemoved, toolCallCount, toolCallValidCount,
-        toolErrors > 0, reworkFlag, turnRevert
-      ]
-    );
+    assistantRows.push([
+      sessionId, teamId, memberId, source, model, idx, 'assistant',
+      inputTokens, outputTokens, cacheRead, cacheWrite, cumulativeInputTokens,
+      filesTouchedInTurn.size, linesAdded, linesRemoved, toolCallCount, toolCallValidCount,
+      toolErrors > 0, reworkFlag, turnRevert,
+    ]);
 
-    const turnId = insertedTurn[0]?.id;
-    if (turnId) {
-      if (isFallback) {
-        if (toolErrors > 0) {
-          const { rows: toolsUsed } = await query(
-            `SELECT tool_name, call_count 
-             FROM sync_session_tools 
+    if (isFallback) {
+      if (toolErrors > 0) {
+        if (!fallbackToolsUsedCache) {
+          const { rows: toolsUsed } = await query<{ tool_name: string; call_count: number }>(
+            `SELECT tool_name, call_count
+             FROM sync_session_tools
              WHERE sync_session_id = (SELECT id FROM sync_sessions WHERE session_id = $1)`,
             [sessionId]
           );
-          const toolList: string[] = [];
-          for (const tRow of toolsUsed) {
-            const name = tRow.tool_name || 'unknown';
-            const count = Number(tRow.call_count || 1);
-            for (let c = 0; c < count; c++) {
-              toolList.push(name);
-            }
-          }
-          if (!toolList.length) {
-            for (let c = 0; c < toolCallCount; c++) {
-              toolList.push('unknown');
-            }
-          }
-          let errorInserted = 0;
-          for (const toolName of toolList) {
-            if (errorInserted >= toolErrors) break;
-            await query(
-              `INSERT INTO session_tool_errors (
-                turn_id, session_id, org_id, tool, model, tool_name, tool_args_summary, is_error
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-              [
-                turnId, sessionId, teamId, source, model, toolName,
-                'Mocked tool call from trajectory totals', true
-              ]
-            );
-            errorInserted++;
+          fallbackToolsUsedCache = toolsUsed;
+        }
+        const toolList: string[] = [];
+        for (const tRow of fallbackToolsUsedCache!) {
+          const name = tRow.tool_name || 'unknown';
+          const count = Number(tRow.call_count || 1);
+          for (let c = 0; c < count; c++) {
+            toolList.push(name);
           }
         }
-      } else if (t.tools.length) {
-        for (const toolEv of t.tools) {
-          if (!toolEv.tool?.isError) continue;
-          const toolName = String(toolEv.tool?.name ?? 'unknown');
-          await query(
-            `INSERT INTO session_tool_errors (
-              turn_id, session_id, org_id, tool, model, tool_name, tool_args_summary, is_error
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-            [
-              turnId, sessionId, teamId, source, model, toolName,
-              summarizeToolArgs(toolEv.tool?.args), true
-            ]
-          );
+        if (!toolList.length) {
+          for (let c = 0; c < toolCallCount; c++) {
+            toolList.push('unknown');
+          }
         }
+        const errorRows: Array<[string, string | null]> = [];
+        let errorInserted = 0;
+        for (const toolName of toolList) {
+          if (errorInserted >= toolErrors) break;
+          errorRows.push([toolName, 'Mocked tool call from trajectory totals']);
+          errorInserted++;
+        }
+        if (errorRows.length) pendingToolErrors.push({ turnIndex: idx, rows: errorRows });
       }
+    } else if (t.tools.length) {
+      const errorRows: Array<[string, string | null]> = [];
+      for (const toolEv of t.tools) {
+        if (!toolEv.tool?.isError) continue;
+        const toolName = String(toolEv.tool?.name ?? 'unknown');
+        errorRows.push([toolName, summarizeToolArgs(toolEv.tool?.args)]);
+      }
+      if (errorRows.length) pendingToolErrors.push({ turnIndex: idx, rows: errorRows });
     }
 
     // ── Pilot reprompt similarity checks (Study 5) ──
@@ -348,16 +326,62 @@ export async function saveSessionTurns(
     if (pilotOrgId && teamId === pilotOrgId && idx > 0) {
       const prevUserText = turns[idx - 1].userEvent?.text || '';
       const similarity = calculateCosineSimilarity(prevUserText, userText);
-      
+
       if (similarity >= 0.85) {
-        await query(
-          `INSERT INTO redundant_reprompt_events (session_id, turn_index, similarity_score, tokens_cost_of_following_turn)
-           VALUES ($1, $2, $3, $4)`,
-          [sessionId, idx, similarity, inputTokens + outputTokens]
-        );
+        repromptRows.push([sessionId, idx, similarity, inputTokens + outputTokens]);
       }
     }
   }
+
+  await insertMany(
+    'session_turns',
+    ['session_id', 'org_id', 'user_id', 'tool', 'model', 'turn_index', 'turn_role',
+      'prompt_text_sanitized', 'prompt_char_len', 'has_code_block', 'has_file_path', 'has_traceback',
+      'intent_category', 'revert_flag'],
+    ['text', 'text', 'text', 'text', 'text', 'int', 'text',
+      'text', 'int', 'boolean', 'boolean', 'boolean',
+      'text', 'boolean'],
+    userRows,
+  );
+
+  const { rows: insertedAssistantRows } = await insertMany<{ id: string; turn_index: number }>(
+    'session_turns',
+    ['session_id', 'org_id', 'user_id', 'tool', 'model', 'turn_index', 'turn_role',
+      'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens', 'cumulative_input_tokens',
+      'files_touched', 'lines_added', 'lines_removed', 'tool_call_count', 'tool_call_valid_count',
+      'tool_error_flag', 'rework_flag', 'revert_flag'],
+    ['text', 'text', 'text', 'text', 'text', 'int', 'text',
+      'int', 'int', 'int', 'int', 'int',
+      'int', 'int', 'int', 'int', 'int',
+      'boolean', 'boolean', 'boolean'],
+    assistantRows,
+    { returning: 'id, turn_index' },
+  );
+
+  const turnIdByIndex = new Map<number, string>();
+  for (const row of insertedAssistantRows) turnIdByIndex.set(Number(row.turn_index), String(row.id));
+
+  const toolErrorRows: unknown[][] = [];
+  for (const pending of pendingToolErrors) {
+    const turnId = turnIdByIndex.get(pending.turnIndex);
+    if (!turnId) continue;
+    for (const [toolName, argsSummary] of pending.rows) {
+      toolErrorRows.push([turnId, sessionId, teamId, source, model, toolName, argsSummary, true]);
+    }
+  }
+  await insertMany(
+    'session_tool_errors',
+    ['turn_id', 'session_id', 'org_id', 'tool', 'model', 'tool_name', 'tool_args_summary', 'is_error'],
+    ['bigint', 'text', 'text', 'text', 'text', 'text', 'text', 'boolean'],
+    toolErrorRows,
+  );
+
+  await insertMany(
+    'redundant_reprompt_events',
+    ['session_id', 'turn_index', 'similarity_score', 'tokens_cost_of_following_turn'],
+    ['text', 'int', 'numeric', 'int'],
+    repromptRows,
+  );
 }
 
 function summarizeToolArgs(args: any): string | null {

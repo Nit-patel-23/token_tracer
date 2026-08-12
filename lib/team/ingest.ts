@@ -3,7 +3,7 @@
  * Calculates session costs inline using database pricing rules for instant and
  * concurrency-safe pricing without timeouts.
  */
-import { query } from './db';
+import { query, insertMany } from './db';
 import { recalculateTeamCosts, matchesModelPattern } from './stats';
 import { saveSessionTurns } from './research';
 
@@ -194,21 +194,31 @@ export async function ingestSessions(
       }
     }
 
-    await query('DELETE FROM sync_session_tools WHERE sync_session_id = $1', [syncSessionId]);
-    await query('DELETE FROM sync_session_files WHERE sync_session_id = $1', [syncSessionId]);
+    await Promise.all([
+      query('DELETE FROM sync_session_tools WHERE sync_session_id = $1', [syncSessionId]),
+      query('DELETE FROM sync_session_files WHERE sync_session_id = $1', [syncSessionId]),
+    ]);
 
-    for (const t of s.tools ?? []) {
-      await query(
-        'INSERT INTO sync_session_tools (sync_session_id, tool_name, call_count) VALUES ($1, $2, $3)',
-        [syncSessionId, t.name, t.count],
-      );
-    }
-    for (const f of s.files ?? []) {
-      await query(
-        'INSERT INTO sync_session_files (sync_session_id, path, edits, additions, deletions) VALUES ($1, $2, $3, $4, $5)',
-        [syncSessionId, f.path, f.edits ?? 0, f.additions ?? 0, f.deletions ?? 0],
-      );
-    }
+    const tools: NonNullable<SessionPayload['tools']> = s.tools ?? [];
+    const files: NonNullable<SessionPayload['files']> = s.files ?? [];
+    await Promise.all([
+      tools.length
+        ? insertMany(
+            'sync_session_tools',
+            ['sync_session_id', 'tool_name', 'call_count'],
+            ['uuid', 'text', 'int'],
+            tools.map((t) => [syncSessionId, t.name, t.count]),
+          )
+        : Promise.resolve(),
+      files.length
+        ? insertMany(
+            'sync_session_files',
+            ['sync_session_id', 'path', 'edits', 'additions', 'deletions'],
+            ['uuid', 'text', 'int', 'int', 'int'],
+            files.map((f) => [syncSessionId, f.path, f.edits ?? 0, f.additions ?? 0, f.deletions ?? 0]),
+          )
+        : Promise.resolve(),
+    ]);
   }
 
   await query(
