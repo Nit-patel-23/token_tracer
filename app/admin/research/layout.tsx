@@ -31,7 +31,7 @@ export default async function ResearchLayout({ children }: { children: React.Rea
 
   return (
     <div className="min-h-screen bg-page text-ink font-body">
-      <header className="border-b border-border bg-surface">
+      <header className="block border-b border-border bg-surface">
         <div className="mx-auto flex max-w-[1400px] items-center gap-4 px-5 py-3">
           <Link href="/admin" className="text-xs text-muted hover:text-ink">
             ← Admin
