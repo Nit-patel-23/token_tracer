@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromCookie, hashPassword } from '@/lib/auth';
 import { generateApiKey, hashApiKey } from '@/lib/team/auth';
 import { query } from '@/lib/team/db';
+import { recordAuditEvent } from '@/lib/team/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,6 +95,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (!requireSuperadmin(req)) return NextResponse.json({ error: 'superadmin access required' }, { status: 403 });
+  const actorSession = getSessionFromCookie(req.headers.get('cookie'));
 
   try {
     const body = await req.json();
@@ -227,6 +229,15 @@ export async function POST(req: NextRequest) {
       installCommandMac = `curl -fsSL ${serverUrl}/install.sh | bash -s -- --key ${rawApiKey}`;
       installCommandWin = `$ApiKey="${rawApiKey}"; iex (irm ${serverUrl}/install.ps1)`;
     }
+
+    await recordAuditEvent({
+      actorUserId: actorSession?.userId,
+      actorUsername: actorSession?.username,
+      action: 'user.create',
+      targetType: 'user',
+      targetId: rows[0].id,
+      metadata: { username, role, memberId: finalMemberId },
+    });
 
     return NextResponse.json({
       user: rows[0],

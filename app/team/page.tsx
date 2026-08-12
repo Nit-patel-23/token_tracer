@@ -19,7 +19,7 @@ export default async function TeamDashboardPage() {
   const cookieStore = await cookies();
   const session = getSessionFromCookie(cookieStore.toString());
 
-  if (!session || (session.role !== 'admin' && session.role !== 'superadmin')) {
+  if (!session || (session.role !== 'admin' && session.role !== 'superadmin' && session.role !== 'user')) {
     redirect('/');
   }
 
@@ -239,6 +239,11 @@ export default async function TeamDashboardPage() {
               <section id="tab-overview" className="tab-content active" role="tabpanel" aria-labelledby="tabbtn-overview">
                 <div className="cards" id="totals"></div>
 
+                <section className="panel" id="at-risk-panel" hidden>
+                  <h2>⚠️ At-Risk Members</h2>
+                  <div id="at-risk"></div>
+                </section>
+
                 <div className="grid-2">
                   <section className="panel">
                     <h2>Member Token & Cost Summary</h2>
@@ -260,6 +265,11 @@ export default async function TeamDashboardPage() {
                     <div id="top-tools"></div>
                   </section>
                 </div>
+
+                <section className="panel">
+                  <h2>Activity Rhythm</h2>
+                  <div id="activity-rhythm"></div>
+                </section>
               </section>
 
               {/* TAB: PROMPTS & TRAJECTORIES */}

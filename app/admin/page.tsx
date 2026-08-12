@@ -90,6 +90,9 @@ export default async function AdminPage() {
             <button type="button" id="tabbtn-prompts" className="tab-btn" data-tab="tab-prompts" role="tab" aria-selected="false" aria-controls="tab-prompts" tabIndex={-1}>
               <span className="nav-icon" aria-hidden="true">📝</span> Prompt Explorer
             </button>
+            <button type="button" id="tabbtn-audit" className="tab-btn" data-tab="tab-audit" role="tab" aria-selected="false" aria-controls="tab-audit" tabIndex={-1}>
+              <span className="nav-icon" aria-hidden="true">🕵️</span> Audit Log
+            </button>
           </nav>
           <div className="sidebar-footer">
             <button type="button" id="admin-profile-btn" className="hbtn sidebar-profile-btn" title="Account &amp; Profile Settings">
@@ -1240,6 +1243,32 @@ export default async function AdminPage() {
                 <button type="button" id="prompts-next-btn" className="preset-pill" style={{ padding: '6px 12px' }}>Next ▶</button>
               </div>
             </div>
+          </div>
+
+          {/* Audit Log Tab */}
+          <div id="tab-audit" className="admin-tab" role="tabpanel" aria-labelledby="tabbtn-audit" hidden>
+            <div className="admin-section-header">
+              <div>
+                <h2 className="admin-section-title">Audit Log</h2>
+                <p className="admin-section-desc">
+                  Read-only record of sensitive superadmin actions — impersonation, user creation, password resets, and pricing changes.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <select id="audit-action-filter" className="range-select" aria-label="Filter by action">
+                  <option value="">All actions</option>
+                  <option value="impersonate.start">Impersonation started</option>
+                  <option value="impersonate.end">Impersonation ended</option>
+                  <option value="user.create">User created</option>
+                  <option value="user.reset-password">Password reset</option>
+                  <option value="pricing.create">Pricing rule created</option>
+                  <option value="pricing.update">Pricing rule updated</option>
+                  <option value="pricing.delete">Pricing rule deleted</option>
+                </select>
+                <button type="button" id="audit-refresh-btn" className="btn btn-secondary">🔄 Refresh</button>
+              </div>
+            </div>
+            <div id="audit-log-table" className="table-wrap"></div>
           </div>
 
         </main>

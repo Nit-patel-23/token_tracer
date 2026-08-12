@@ -219,7 +219,7 @@ export function getAuthorizedTeamId(req: any, paramTeamId: string | null | undef
       return session.teamId || paramTeamId || null;
     }
     if (session.role === 'user') {
-      return paramTeamId || session.teamId || null;
+      return session.teamId || paramTeamId || null;
     }
   }
 

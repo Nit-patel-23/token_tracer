@@ -276,6 +276,20 @@ export async function ensureSchema(): Promise<void> {
            -- Track user login lockout state
            ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INT NOT NULL DEFAULT 0;
            ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
+
+           -- Audit trail for sensitive superadmin actions (impersonation, password resets, pricing changes)
+           CREATE TABLE IF NOT EXISTS audit_log (
+             id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+             actor_user_id  UUID REFERENCES users(id) ON DELETE SET NULL,
+             actor_username TEXT,
+             action         TEXT NOT NULL,
+             target_type    TEXT,
+             target_id      TEXT,
+             metadata       JSONB,
+             created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+           );
+           CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
+           CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_user_id);
          `);
         schemaChecked = true;
       } catch (err) {

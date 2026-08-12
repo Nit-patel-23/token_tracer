@@ -13,6 +13,7 @@ import {
   clearImpersonationCookie,
   COOKIE_NAME,
 } from '@/lib/auth';
+import { recordAuditEvent } from '@/lib/team/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,14 @@ export async function POST(req: NextRequest) {
     res.headers.append('Set-Cookie', clearImpersonationCookie());
 
     console.log(`[impersonate/return] Superadmin "${originalSession.username}" returned from impersonating "${currentSession.username}"`);
+    await recordAuditEvent({
+      actorUserId: originalSession.userId,
+      actorUsername: originalSession.username,
+      action: 'impersonate.end',
+      targetType: 'user',
+      targetId: currentSession.userId,
+      metadata: { targetUsername: currentSession.username },
+    });
 
     return res;
   } catch (err) {

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromCookie } from '@/lib/auth';
 import { query } from '@/lib/team/db';
 import { recalculateAllCosts, recalculateTeamCosts } from '@/lib/team/stats';
+import { recordAuditEvent } from '@/lib/team/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
   if (!requireSuperadmin(req)) {
     return NextResponse.json({ error: 'superadmin access required' }, { status: 403 });
   }
+  const actorSession = getSessionFromCookie(req.headers.get('cookie'));
 
   try {
     const body = await req.json();
@@ -135,6 +137,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    await recordAuditEvent({
+      actorUserId: actorSession?.userId,
+      actorUsername: actorSession?.username,
+      action: id ? 'pricing.update' : 'pricing.create',
+      targetType: 'model_pricing',
+      targetId: savedRule?.id ?? null,
+      metadata: { teamId: finalTeamId, modelPattern: pattern, costIn, costOut, costCache },
+    });
+
     return NextResponse.json({
       ok: true,
       rule: savedRule,
@@ -150,6 +161,7 @@ export async function DELETE(req: NextRequest) {
   if (!requireSuperadmin(req)) {
     return NextResponse.json({ error: 'superadmin access required' }, { status: 403 });
   }
+  const actorSession = getSessionFromCookie(req.headers.get('cookie'));
 
   const id = req.nextUrl.searchParams.get('id');
   if (!id) {
@@ -157,16 +169,25 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    const { rows } = await query('SELECT team_id FROM model_pricing WHERE id = $1', [id]);
+    const { rows } = await query('SELECT team_id, model_pattern FROM model_pricing WHERE id = $1', [id]);
     const teamId = rows[0]?.team_id || null;
 
     const { rowCount } = await query('DELETE FROM model_pricing WHERE id = $1', [id]);
-    
+
     if (teamId) {
       await recalculateTeamCosts(teamId, true);
     } else {
       await recalculateAllCosts(true);
     }
+
+    await recordAuditEvent({
+      actorUserId: actorSession?.userId,
+      actorUsername: actorSession?.username,
+      action: 'pricing.delete',
+      targetType: 'model_pricing',
+      targetId: id,
+      metadata: { teamId, modelPattern: rows[0]?.model_pattern ?? null },
+    });
 
     return NextResponse.json({ ok: true, deleted: (rowCount || 0) > 0 });
   } catch (err: any) {

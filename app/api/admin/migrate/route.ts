@@ -98,6 +98,22 @@ export async function POST(req: NextRequest) {
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_model_pricing_global_unique ON model_pricing (LOWER(model_pattern)) WHERE team_id IS NULL`).catch(() => {});
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_model_pricing_team_unique ON model_pricing (team_id, LOWER(model_pattern)) WHERE team_id IS NOT NULL`).catch(() => {});
 
+    // Audit log for sensitive superadmin actions (impersonation, password resets, pricing changes)
+    await query(`
+      CREATE TABLE IF NOT EXISTS audit_log (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        actor_username TEXT,
+        action        TEXT NOT NULL,
+        target_type   TEXT,
+        target_id     TEXT,
+        metadata      JSONB,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_user_id)`);
+
     // Parse and backfill historical session trajectories
     const backfillStats = await backfillResearchAnalytics().catch((err) => {
       console.warn('[research-backfill-warn]', err.message);

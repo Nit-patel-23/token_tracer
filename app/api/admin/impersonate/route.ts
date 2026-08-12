@@ -14,6 +14,7 @@ import {
   type SessionPayload,
 } from '@/lib/auth';
 import { query } from '@/lib/team/db';
+import { recordAuditEvent } from '@/lib/team/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -120,6 +121,14 @@ export async function POST(req: NextRequest) {
     res.headers.append('Set-Cookie', buildImpersonationCookie(originalToken, secure));
 
     console.log(`[impersonate] Superadmin "${session.username}" is now impersonating "${targetUser.username}" (${targetUser.role})`);
+    await recordAuditEvent({
+      actorUserId: session.userId,
+      actorUsername: session.username,
+      action: 'impersonate.start',
+      targetType: 'user',
+      targetId: targetUser.id,
+      metadata: { targetUsername: targetUser.username, targetRole: targetUser.role },
+    });
 
     return res;
   } catch (err) {

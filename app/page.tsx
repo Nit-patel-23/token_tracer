@@ -566,6 +566,11 @@ export default async function LoginPage() {
                     <div id="top-tools"></div>
                   </section>
                 </div>
+
+                <section className="panel">
+                  <h2>Activity Rhythm</h2>
+                  <div id="activity-rhythm"></div>
+                </section>
               </section>
 
               {/* TAB: PROMPTS & TRAJECTORIES */}

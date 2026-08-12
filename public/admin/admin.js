@@ -1911,6 +1911,7 @@ function renderCostOverview(data) {
 // ── Usage & Growth ──────────────────────────────────────────────────────────
 
 let usageLoaded = false;
+let auditLoaded = false;
 
 async function loadUsageTrends(range = '30d') {
   try {
@@ -2053,6 +2054,10 @@ function setupAnalyticsTabs() {
     }
     if (tabId === 'tab-releases') {
       loadReleases();
+    }
+    if (tabId === 'tab-audit' && !auditLoaded) {
+      auditLoaded = true;
+      loadAuditLog();
     }
   }
 
@@ -2264,6 +2269,86 @@ function bindReleasesForm() {
 // Bind form setup when script runs or DOM is ready
 if (typeof window !== 'undefined') {
   setTimeout(bindReleasesForm, 0);
+}
+
+// ── Audit Log ────────────────────────────────────────────────────────────────
+const AUDIT_ACTION_LABELS = {
+  'impersonate.start': '🎭 Impersonation started',
+  'impersonate.end': '↩️ Impersonation ended',
+  'user.create': '👤 User created',
+  'user.reset-password': '🔑 Password reset',
+  'pricing.create': '💲 Pricing rule created',
+  'pricing.update': '💲 Pricing rule updated',
+  'pricing.delete': '🗑️ Pricing rule deleted',
+};
+
+function fmtAuditDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+  });
+}
+
+async function loadAuditLog() {
+  const el = $('#audit-log-table');
+  if (!el) return;
+  el.innerHTML = '<p class="muted admin-empty" style="padding:24px; text-align:center">Loading audit log…</p>';
+  try {
+    const action = $('#audit-action-filter')?.value || '';
+    const qs = action ? `?action=${encodeURIComponent(action)}` : '';
+    const res = await fetch(`/api/admin/audit-log${qs}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    renderAuditLogTable(data.events || []);
+  } catch (err) {
+    el.innerHTML = `<p class="error admin-empty" style="padding:12px">Unable to load audit log: ${esc(err.message)}</p>`;
+  }
+}
+
+function renderAuditLogTable(events) {
+  const el = $('#audit-log-table');
+  if (!el) return;
+  if (!events.length) {
+    el.innerHTML = '<p class="muted admin-empty" style="padding:24px; text-align:center">No audit events recorded yet.</p>';
+    return;
+  }
+  el.innerHTML = `
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Actor</th>
+          <th>Action</th>
+          <th>Target</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${events.map((e) => {
+          const label = AUDIT_ACTION_LABELS[e.action] || esc(e.action);
+          const target = e.target_id ? `<code>${esc(e.target_type || '')} ${esc(String(e.target_id).slice(0, 8))}…</code>` : '—';
+          const metaStr = e.metadata ? esc(JSON.stringify(e.metadata)) : '—';
+          return `
+            <tr>
+              <td>${fmtAuditDate(e.created_at)}</td>
+              <td>${esc(e.actor_username || '—')}</td>
+              <td>${label}</td>
+              <td>${target}</td>
+              <td style="max-width:320px; overflow-wrap:anywhere; font-size:11.5px; color:var(--muted)">${metaStr}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function bindAuditLogFilters() {
+  $('#audit-refresh-btn')?.addEventListener('click', () => loadAuditLog());
+  $('#audit-action-filter')?.addEventListener('change', () => loadAuditLog());
+}
+if (typeof window !== 'undefined') {
+  setTimeout(bindAuditLogFilters, 0);
 }
 
 

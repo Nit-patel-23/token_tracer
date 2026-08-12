@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromCookie, hashPassword } from '@/lib/auth';
 import { query } from '@/lib/team/db';
+import { recordAuditEvent } from '@/lib/team/audit';
 import crypto from 'node:crypto';
 
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,14 @@ export async function POST(req: NextRequest) {
     );
 
     if (!rowCount) return NextResponse.json({ error: 'user not found' }, { status: 404 });
+
+    await recordAuditEvent({
+      actorUserId: session.userId,
+      actorUsername: session.username,
+      action: 'user.reset-password',
+      targetType: 'user',
+      targetId: id,
+    });
 
     // Return the new password once (it will not be stored in plain text anywhere)
     return NextResponse.json({ ok: true, newPassword });

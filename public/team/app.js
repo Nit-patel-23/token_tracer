@@ -360,6 +360,48 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleString();
 }
 
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DOW_FULL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+function fmtHour(h) {
+  return h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`;
+}
+
+// hour × weekday activity heat grid — same shape as the legacy personal-dashboard punchcard
+function renderActivityRhythm(punch, activity) {
+  const host = document.getElementById('activity-rhythm');
+  if (!host) return;
+  if (!punch || !activity || !activity.activeDays) {
+    host.innerHTML = emptyState('No activity data yet for this range');
+    return;
+  }
+  const order = [1, 2, 3, 4, 5, 6, 0]; // Mon-first
+  const values = punch.flat().filter((v) => v > 0).sort((a, b) => a - b);
+  const q = (p) => (values.length ? values[Math.min(values.length - 1, Math.floor(p * values.length))] : 1);
+  const th = [q(0.2), q(0.4), q(0.6), q(0.8)];
+  const cls = (v) => (v <= 0 ? '' : v <= th[0] ? 'h1' : v <= th[1] ? 'h2' : v <= th[2] ? 'h3' : v <= th[3] ? 'h4' : 'h5');
+
+  let cells = '';
+  for (const w of order) {
+    for (let h = 0; h < 24; h++) {
+      cells += `<span class="cell ${cls(punch[w][h])}" title="${DOW[w]} ${fmtHour(h)}: ${punch[w][h]} events"></span>`;
+    }
+  }
+  const hours = Array.from({ length: 24 }, (_, h) => `<span>${fmtHour(h).replace('m', '')}</span>`).join('');
+
+  const peak = activity.peakHour;
+  host.innerHTML = `
+    <div class="punch">
+      <div class="dows">${order.map((w) => `<span>${DOW[w]}</span>`).join('')}</div>
+      <div class="cells">${cells}</div>
+      <div></div>
+      <div class="hours">${hours}</div>
+    </div>
+    <div class="punch-note">
+      ${peak && peak.n > 0 ? `Peak: <b>${DOW_FULL[peak.weekday]} around ${fmtHour(peak.hour)}</b> — ${peak.n} events. ` : ''}
+      Active <b>${activity.activeDays}</b> day${activity.activeDays === 1 ? '' : 's'} in range · current streak <b>${activity.streak}d</b>
+    </div>`;
+}
+
 function renderPresets() {
   const el = document.getElementById('range-presets');
   if (!el) return;
@@ -423,6 +465,27 @@ function renderTotals(t) {
     ['Code Edits', fmt(t.edits), `${fmt(t.changedLines)} lines changed`],
     ['API Equivalent Cost', fmtCost(t.apiCost), 'Estimated billable value'],
   ].map(([label, value, sub]) => `<div class="card"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`).join('');
+}
+
+// Flags members whose error/correction/abandonment rate runs well above the team
+// average (computed server-side in buildTeamStats), so an admin doesn't have to
+// eyeball the raw head-to-head scoreboard to spot who might need help.
+function renderAtRisk(rows) {
+  const panel = document.getElementById('at-risk-panel');
+  const host = document.getElementById('at-risk');
+  if (!panel || !host) return;
+  if (!rows || !rows.length) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  host.innerHTML = rows.map((r) => `
+    <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+      <div><b>${r.display_name}</b> <span class="muted" style="font-size:12px">(${r.sessions} sessions)</span></div>
+      <ul style="margin:6px 0 0 18px;padding:0;font-size:12.5px;color:var(--muted)">
+        ${r.reasons.map((reason) => `<li>${reason}</li>`).join('')}
+      </ul>
+    </div>`).join('');
 }
 
 function renderLeaderboard(rows) {
@@ -848,11 +911,13 @@ async function loadStats({ soft = true } = {}) {
     renderLeaderboard(stats.leaderboard);
     renderTokenLeaderboard(stats.tokenLeaderboard);
     renderHeadToHead(stats.scoreboard);
+    renderAtRisk(stats.atRisk);
     renderMemberDrilldown(stats.leaderboard);
     renderProjects(stats.projects);
     renderBars('by-source', stats.bySource, 'source', 'api_cost');
     renderBars('by-day', stats.byDay, 'date', 'tokens_in');
     renderBars('top-tools', stats.topTools, 'name', 'count');
+    renderActivityRhythm(stats.punch, stats.activity);
     renderTopFiles(stats.topFiles);
     renderSessionLogs(stats.recentLogs);
     renderModelPricingTable(stats.modelPricing);
@@ -1013,6 +1078,11 @@ async function showApp() {
       // Hide personal dashboard links in sidebar footer
       const backLinks = document.querySelectorAll('.sidebar-footer-links a[href="/"]');
       backLinks.forEach(link => link.style.display = 'none');
+
+      // "At risk" callouts compare a member against the team average — meaningless
+      // when the "team" is just the signed-in member themselves.
+      const atRiskPanel = document.getElementById('at-risk-panel');
+      if (atRiskPanel) atRiskPanel.style.display = 'none';
     }
 
     await loadDashboardData();

@@ -26,6 +26,8 @@ interface StatsOptions {
 const EFF_IN = `CASE WHEN s.tokens_in = 0 AND (s.tool_calls + s.edits) > 0 THEN GREATEST(500, (s.tool_calls + s.edits) * 350 + s.changed_lines * 10) ELSE s.tokens_in END`;
 const EFF_OUT = `CASE WHEN s.tokens_out = 0 AND (s.tool_calls + s.edits) > 0 THEN GREATEST(200, (s.tool_calls + s.edits) * 150 + s.changed_lines * 5) ELSE s.tokens_out END`;
 
+const fmtPctReason = (n: number): string => `${(n * 100).toFixed(0)}%`;
+
 export async function buildTeamStats(
   teamId: string,
   { from = null, to = null, memberId = null, minTokens = null, maxTokens = null, source = null }: StatsOptions = {},
@@ -40,8 +42,11 @@ export async function buildTeamStats(
       leaderboard: [],
       tokenLeaderboard: [],
       scoreboard: [],
+      atRisk: [],
       bySource: [],
       byDay: [],
+      punch: Array.from({ length: 7 }, () => Array(24).fill(0)),
+      activity: { activeDays: 0, streak: 0, peakHour: { weekday: 0, hour: 0, n: 0 }, busiestDay: null },
       topTools: [],
       topFiles: [],
       recentLogs: [],
@@ -115,11 +120,11 @@ export async function buildTeamStats(
             coalesce(sum(CASE WHEN s.priced THEN 1 ELSE 0 END), 0)::int AS priced_sessions
      FROM team_members tm
      JOIN members m ON m.id = tm.member_id
-     LEFT JOIN sync_sessions s ON s.member_id = m.id ${dateFilter}
-     WHERE tm.team_id = $1 ${memberId && memberId !== 'all' ? `AND m.id = '${memberId}'` : ''}
+     LEFT JOIN sync_sessions s ON s.member_id = m.id AND s.team_id = tm.team_id ${dateFilter}
+     WHERE tm.team_id = $1 ${memberId && memberId !== 'all' ? `AND m.id = $${params.length + 1}` : ''}
      GROUP BY m.id, m.display_name
      ORDER BY api_cost DESC, edits DESC, sessions DESC`,
-    params,
+    memberId && memberId !== 'all' ? [...params, memberId] : params,
   );
 
   // 3. Per-member breakdown by agent source
@@ -134,7 +139,7 @@ export async function buildTeamStats(
             coalesce(sum(s.edits), 0)::int AS edits,
             coalesce(sum(s.changed_lines), 0)::int AS changed_lines
      FROM sync_sessions s
-     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
+     WHERE s.team_id = $1 ${dateFilter}
      GROUP BY s.member_id, s.source
      ORDER BY api_cost DESC`,
     params,
@@ -154,7 +159,7 @@ export async function buildTeamStats(
             coalesce(sum(s.changed_lines), 0)::int AS changed_lines,
             max(COALESCE(s.ended_at, s.started_at, s.synced_at)) AS last_activity
      FROM sync_sessions s
-     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
+     WHERE s.team_id = $1 ${dateFilter}
      GROUP BY s.member_id, COALESCE(s.agent, 'default'), s.source
      ORDER BY api_cost DESC, sessions DESC`,
     params,
@@ -170,7 +175,7 @@ export async function buildTeamStats(
             sum(f.additions + f.deletions)::int AS changed_lines
      FROM sync_session_files f
      JOIN sync_sessions s ON s.id = f.sync_session_id
-     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
+     WHERE s.team_id = $1 ${dateFilter}
      GROUP BY s.member_id, f.path
      ORDER BY changed_lines DESC`,
     params,
@@ -189,7 +194,7 @@ export async function buildTeamStats(
             coalesce(sum(s.api_cost), 0)::float AS api_cost
      FROM sync_sessions s
      JOIN members m ON m.id = s.member_id
-     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
+     WHERE s.team_id = $1 ${dateFilter}
      GROUP BY s.member_id, m.display_name, COALESCE(s.model, 'default'), s.source
      ORDER BY api_cost DESC, sessions DESC`,
     params,
@@ -209,7 +214,7 @@ export async function buildTeamStats(
             coalesce(sum(s.changed_lines), 0)::int AS changed_lines,
             max(COALESCE(s.ended_at, s.started_at, s.synced_at)) AS last_activity
      FROM sync_sessions s
-     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
+     WHERE s.team_id = $1 ${dateFilter}
      GROUP BY COALESCE(s.agent, 'default')
      ORDER BY api_cost DESC, sessions DESC`,
     params,
@@ -226,7 +231,7 @@ export async function buildTeamStats(
             coalesce(sum(s.edits), 0)::int AS edits,
             coalesce(sum(s.api_cost), 0)::float AS api_cost
      FROM sync_sessions s
-     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
+     WHERE s.team_id = $1 ${dateFilter}
      GROUP BY s.source ORDER BY api_cost DESC, edits DESC`,
     params,
   );
@@ -240,17 +245,59 @@ export async function buildTeamStats(
             coalesce(sum(s.edits), 0)::int AS edits,
             coalesce(sum(s.api_cost), 0)::float AS api_cost
      FROM sync_sessions s
-     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
+     WHERE s.team_id = $1 ${dateFilter}
      GROUP BY 1 ORDER BY 1 DESC`,
     params,
   );
+
+  // 8b. Hourly activity punch-card (weekday 0-6, hour 0-23) — same shape/window as dateFilter above
+  const { rows: punchRows } = await query(
+    `SELECT
+       EXTRACT(DOW FROM COALESCE(s.ended_at, s.started_at, s.synced_at))::int AS weekday,
+       EXTRACT(HOUR FROM COALESCE(s.ended_at, s.started_at, s.synced_at))::int AS hour,
+       count(*)::int AS n
+     FROM sync_sessions s
+     WHERE s.team_id = $1 ${dateFilter}
+     GROUP BY 1, 2`,
+    params,
+  );
+  const punch: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
+  for (const r of punchRows) {
+    const w = Number(r.weekday);
+    const h = Number(r.hour);
+    if (w >= 0 && w < 7 && h >= 0 && h < 24) punch[w][h] += Number(r.n);
+  }
+  let peakHour = { weekday: 0, hour: 0, n: 0 };
+  for (let w = 0; w < 7; w++) for (let h = 0; h < 24; h++) if (punch[w][h] > peakHour.n) peakHour = { weekday: w, hour: h, n: punch[w][h] };
+
+  // Activity streak & active-day count, derived from byDay (a day only appears there if it had sessions).
+  const activeDayKeys = byDay.map((d) => String(d.date)).sort();
+  let streak = 0;
+  if (activeDayKeys.length) {
+    let cursor = new Date(`${activeDayKeys[activeDayKeys.length - 1]}T00:00:00Z`);
+    const daySet = new Set(activeDayKeys);
+    while (daySet.has(cursor.toISOString().slice(0, 10))) {
+      streak++;
+      cursor.setUTCDate(cursor.getUTCDate() - 1);
+    }
+  }
+  const busiestDay = byDay.reduce(
+    (m: any, d: any) => (Number(d.tokens_in) + Number(d.tokens_out) > (m ? Number(m.tokens_in) + Number(m.tokens_out) : -1) ? d : m),
+    null,
+  );
+  const activity = {
+    activeDays: byDay.length,
+    streak,
+    peakHour,
+    busiestDay: busiestDay ? { date: busiestDay.date, sessions: busiestDay.sessions, tokensIn: Number(busiestDay.tokens_in), tokensOut: Number(busiestDay.tokens_out) } : null,
+  };
 
   // 9. Top tools used team-wide
   const { rows: topTools } = await query(
     `SELECT t.tool_name AS name, sum(t.call_count)::int AS count
      FROM sync_session_tools t
      JOIN sync_sessions s ON s.id = t.sync_session_id
-     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
+     WHERE s.team_id = $1 ${dateFilter}
      GROUP BY t.tool_name ORDER BY count DESC LIMIT 20`,
     params,
   );
@@ -265,7 +312,7 @@ export async function buildTeamStats(
             count(DISTINCT s.member_id)::int AS member_count
      FROM sync_session_files f
      JOIN sync_sessions s ON s.id = f.sync_session_id
-     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
+     WHERE s.team_id = $1 ${dateFilter}
      GROUP BY f.path ORDER BY changed_lines DESC LIMIT 40`,
     params,
   );
@@ -291,7 +338,7 @@ export async function buildTeamStats(
             COALESCE(s.ended_at, s.started_at, s.synced_at) AS timestamp
      FROM sync_sessions s
      JOIN members m ON m.id = s.member_id
-     WHERE s.member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) ${dateFilter}
+     WHERE s.team_id = $1 ${dateFilter}
      ORDER BY timestamp DESC
      LIMIT 50`,
     params,
@@ -340,14 +387,44 @@ export async function buildTeamStats(
     return {
       member_id: m.member_id,
       display_name: m.display_name,
+      sessions: m.sessions,
       editsPerSession: m.edits / s,
       outputTokensPerEdit: (Number(m.tokens_in) + Number(m.tokens_out)) / edits,
       toolErrorRate: m.tool_errors / toolCalls,
+      correctionRate: m.corrections / s,
+      abandonedRate: m.abandoned / s,
       cacheEfficiency: Number(m.tokens_cache_read) / tokensIn,
       costPerEdit: m.api_cost / edits,
       costPer100Lines: m.api_cost / changedLines,
     };
   });
+
+  // At-risk callouts: members whose error/correction/abandonment rate runs well above the
+  // team average, flagged so an admin doesn't have to eyeball the raw scoreboard table.
+  // Members with too few sessions are excluded — a single bad session isn't a signal.
+  const MIN_SESSIONS_FOR_RISK = 3;
+  const RISK_THRESHOLD_MULTIPLIER = 1.5;
+  const riskEligible = scoreboard.filter((s) => s.sessions >= MIN_SESSIONS_FOR_RISK);
+  const avg = (key: 'toolErrorRate' | 'correctionRate' | 'abandonedRate') =>
+    riskEligible.length ? riskEligible.reduce((sum, s) => sum + s[key], 0) / riskEligible.length : 0;
+  const avgToolErrorRate = avg('toolErrorRate');
+  const avgCorrectionRate = avg('correctionRate');
+  const avgAbandonedRate = avg('abandonedRate');
+  const atRisk = riskEligible
+    .map((s) => {
+      const reasons: string[] = [];
+      if (avgToolErrorRate > 0 && s.toolErrorRate > avgToolErrorRate * RISK_THRESHOLD_MULTIPLIER) {
+        reasons.push(`tool error rate ${fmtPctReason(s.toolErrorRate)} (team avg ${fmtPctReason(avgToolErrorRate)})`);
+      }
+      if (avgCorrectionRate > 0 && s.correctionRate > avgCorrectionRate * RISK_THRESHOLD_MULTIPLIER) {
+        reasons.push(`${s.correctionRate.toFixed(1)} corrections/session (team avg ${avgCorrectionRate.toFixed(1)})`);
+      }
+      if (avgAbandonedRate > 0 && s.abandonedRate > avgAbandonedRate * RISK_THRESHOLD_MULTIPLIER) {
+        reasons.push(`abandoned-session rate ${fmtPctReason(s.abandonedRate)} (team avg ${fmtPctReason(avgAbandonedRate)})`);
+      }
+      return { member_id: s.member_id, display_name: s.display_name, sessions: s.sessions, reasons };
+    })
+    .filter((r) => r.reasons.length > 0);
 
   const memberMap = new Map<string, Record<string, unknown>>();
   for (const m of memberStats) {
@@ -451,6 +528,7 @@ export async function buildTeamStats(
     leaderboard: Array.from(memberMap.values()),
     tokenLeaderboard,
     scoreboard,
+    atRisk,
     projects,
     bySource: bySource.map((s) => ({
       ...s,
@@ -463,6 +541,8 @@ export async function buildTeamStats(
       tokens_in: Number(d.tokens_in || 0),
       tokens_out: Number(d.tokens_out || 0),
     })),
+    punch,
+    activity,
     topTools,
     topFiles,
     recentLogs,
@@ -667,8 +747,8 @@ export async function recalculateTeamCosts(teamId: string, forceAll: boolean = f
 
   const { rows: sessions } = await query(
     forceAll
-      ? 'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE member_id IN (SELECT member_id FROM team_members WHERE team_id = $1)'
-      : 'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE member_id IN (SELECT member_id FROM team_members WHERE team_id = $1) AND priced = false',
+      ? 'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE team_id = $1'
+      : 'SELECT id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, edits, tool_calls, changed_lines FROM sync_sessions WHERE team_id = $1 AND priced = false',
     [teamId],
   );
 
