@@ -205,6 +205,23 @@ export async function ensureSchema(): Promise<void> {
            CREATE INDEX IF NOT EXISTS idx_session_turns_session ON session_turns(session_id, turn_index);
            CREATE INDEX IF NOT EXISTS idx_session_turns_org_model ON session_turns(org_id, model, tool);
 
+           -- Per-tool-call detail (previously discarded after being reduced to tool_error_flag)
+           CREATE TABLE IF NOT EXISTS session_tool_errors (
+             id BIGSERIAL PRIMARY KEY,
+             turn_id BIGINT REFERENCES session_turns(id) ON DELETE CASCADE,
+             session_id TEXT NOT NULL,
+             org_id TEXT NOT NULL,
+             tool TEXT NOT NULL,
+             model TEXT NOT NULL,
+             tool_name TEXT NOT NULL,
+             tool_args_summary TEXT,
+             is_error BOOLEAN NOT NULL DEFAULT FALSE,
+             created_at TIMESTAMPTZ DEFAULT now()
+           );
+           CREATE INDEX IF NOT EXISTS idx_session_tool_errors_name ON session_tool_errors(tool_name, created_at DESC);
+           CREATE INDEX IF NOT EXISTS idx_session_tool_errors_session ON session_tool_errors(session_id);
+           CREATE INDEX IF NOT EXISTS idx_session_tool_errors_org ON session_tool_errors(org_id, model, created_at DESC);
+
            CREATE TABLE IF NOT EXISTS model_context_limits (
              model TEXT PRIMARY KEY,
              max_context_tokens INT NOT NULL

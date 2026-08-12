@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getSessionFromCookie } from '@/lib/auth';
 import { query } from '@/lib/team/db';
+import { buildResearchFilters, parseRangeDays, requireSuperadminApi } from '@/lib/team/researchQuery';
 
 export const dynamic = 'force-dynamic';
-
-function parseDays(range: string | null): number {
-  if (!range) return 30;
-  const m = range.match(/^(\d+)d$/);
-  return m ? Math.min(Math.max(1, Number(m[1])), 90) : 30;
-}
 
 interface OutcomePoint {
   model: string;
@@ -20,28 +13,19 @@ interface OutcomePoint {
 }
 
 export async function GET(req: NextRequest) {
-  const cookieStore = await cookies();
-  const session = getSessionFromCookie(cookieStore.toString());
-  if (!session || session.role !== 'superadmin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const forbidden = requireSuperadminApi(req);
+  if (forbidden) return forbidden;
 
   const searchParams = req.nextUrl.searchParams;
-  const days = parseDays(searchParams.get('range'));
   const intentFilter = searchParams.get('intent');
+  const days = parseRangeDays(searchParams.get('range'));
 
-  // Build filter conditions
-  const conditions = ["ss.started_at >= NOW() - $1::int * INTERVAL '1 day'"];
-  const params: any[] = [days];
-  let paramIdx = 2;
-
-  if (intentFilter) {
-    conditions.push(`so.intent_category = $${paramIdx}`);
-    params.push(intentFilter);
-    paramIdx++;
-  }
-
-  const whereClause = conditions.join(' AND ');
+  const { whereClause, params } = buildResearchFilters(
+    searchParams,
+    "ss.started_at >= NOW() - $1::int * INTERVAL '1 day'",
+    [days],
+    [{ param: 'intent', column: 'so.intent_category' }],
+  );
 
   try {
     const { rows } = await query(`

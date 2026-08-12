@@ -1,25 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getSessionFromCookie } from '@/lib/auth';
 import { query } from '@/lib/team/db';
+import { parseRangeDays, requireSuperadminApi } from '@/lib/team/researchQuery';
 
 export const dynamic = 'force-dynamic';
 
-function parseDays(range: string | null): number {
-  if (!range) return 30;
-  const m = range.match(/^(\d+)d$/);
-  return m ? Math.min(Math.max(1, Number(m[1])), 90) : 30;
-}
-
 export async function GET(req: NextRequest) {
-  const cookieStore = await cookies();
-  const session = getSessionFromCookie(cookieStore.toString());
-  if (!session || session.role !== 'superadmin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const forbidden = requireSuperadminApi(req);
+  if (forbidden) return forbidden;
 
   const searchParams = req.nextUrl.searchParams;
-  const days = parseDays(searchParams.get('range'));
+  const days = parseRangeDays(searchParams.get('range'));
   const org = searchParams.get('org');
 
   const pilotOrgId = process.env.ENABLE_REPROMPT_ANALYSIS_ORG_ID;

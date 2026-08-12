@@ -1,45 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getSessionFromCookie } from '@/lib/auth';
 import { query } from '@/lib/team/db';
+import { buildResearchFilters, parseRangeDays, requireSuperadminApi } from '@/lib/team/researchQuery';
 
 export const dynamic = 'force-dynamic';
 
-function parseDays(range: string | null): number {
-  if (!range) return 30;
-  const m = range.match(/^(\d+)d$/);
-  return m ? Math.min(Math.max(1, Number(m[1])), 90) : 30;
-}
-
 export async function GET(req: NextRequest) {
-  const cookieStore = await cookies();
-  const session = getSessionFromCookie(cookieStore.toString());
-  if (!session || session.role !== 'superadmin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const forbidden = requireSuperadminApi(req);
+  if (forbidden) return forbidden;
 
   const searchParams = req.nextUrl.searchParams;
-  const days = parseDays(searchParams.get('range'));
-  const modelFilter = searchParams.get('model');
-  const toolFilter = searchParams.get('tool');
+  const days = parseRangeDays(searchParams.get('range'));
 
-  // Build filter conditions
-  const conditions = ["ss.started_at >= NOW() - $1::int * INTERVAL '1 day'"];
-  const params: any[] = [days];
-  let paramIdx = 2;
-
-  if (modelFilter) {
-    conditions.push(`st.model = $${paramIdx}`);
-    params.push(modelFilter);
-    paramIdx++;
-  }
-  if (toolFilter) {
-    conditions.push(`st.tool = $${paramIdx}`);
-    params.push(toolFilter);
-    paramIdx++;
-  }
-
-  const whereClause = conditions.join(' AND ');
+  const { whereClause, params } = buildResearchFilters(
+    searchParams,
+    "ss.started_at >= NOW() - $1::int * INTERVAL '1 day'",
+    [days],
+    [
+      { param: 'model', column: 'st.model' },
+      { param: 'tool', column: 'st.tool' },
+    ],
+  );
 
   try {
     const { rows } = await query(`
@@ -84,7 +64,33 @@ export async function GET(req: NextRequest) {
       inflectionPoints[m] = inflectionBucket;
     }
 
-    return NextResponse.json({ rows, inflectionPoints });
+    // Turn-level scatter (fill % vs error flag), sampled for a drill-down
+    // view — the bucket histogram above hides individual near-limit turns.
+    const { rows: scatter } = await query(`
+      SELECT model, "fillPct", "toolErrorFlag", "sessionId", "turnIndex"
+      FROM (
+        SELECT
+          st.model,
+          (st.cumulative_input_tokens::float / COALESCE(mcl.max_context_tokens, 200000)) AS "fillPct",
+          st.tool_error_flag AS "toolErrorFlag",
+          st.session_id AS "sessionId",
+          st.turn_index AS "turnIndex",
+          ROW_NUMBER() OVER (PARTITION BY st.model ORDER BY RANDOM()) AS rn
+        FROM session_turns st
+        JOIN sync_sessions ss ON ss.session_id = st.session_id
+                             AND st.org_id = ss.team_id::text
+                             AND st.user_id = ss.member_id::text
+                             AND st.tool = ss.source
+        LEFT JOIN model_context_limits mcl ON mcl.model = st.model
+        WHERE st.turn_role = 'assistant'
+          AND st.cumulative_input_tokens > 0
+          AND ${whereClause}
+      ) sampled
+      WHERE rn <= 500
+      ORDER BY model, "fillPct"
+    `, params);
+
+    return NextResponse.json({ rows, inflectionPoints, scatter });
   } catch (err: any) {
     console.error('[research-saturation-error]', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

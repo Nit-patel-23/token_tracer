@@ -2046,9 +2046,6 @@ function setupAnalyticsTabs() {
       usageLoaded = true;
       loadUsageTrends($('#usage-range-select')?.value || '30d');
     }
-    if (tabId === 'tab-research') {
-      window.dispatchEvent(new CustomEvent('research-tab-activated'));
-    }
     if (tabId === 'tab-prompts') {
       window.dispatchEvent(new CustomEvent('prompts-tab-activated'));
     }

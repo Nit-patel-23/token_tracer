@@ -259,6 +259,22 @@ export async function saveSessionTurns(
       ]
     );
 
+    const turnId = insertedTurn[0]?.id;
+    if (turnId && t.tools.length) {
+      for (const toolEv of t.tools) {
+        const toolName = String(toolEv.tool?.name ?? 'unknown');
+        await query(
+          `INSERT INTO session_tool_errors (
+            turn_id, session_id, org_id, tool, model, tool_name, tool_args_summary, is_error
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            turnId, sessionId, teamId, source, model, toolName,
+            summarizeToolArgs(toolEv.tool?.args), Boolean(toolEv.tool?.isError)
+          ]
+        );
+      }
+    }
+
     // ── Pilot reprompt similarity checks (Study 5) ──
     const pilotOrgId = process.env.ENABLE_REPROMPT_ANALYSIS_ORG_ID;
     if (pilotOrgId && teamId === pilotOrgId && idx > 0) {
@@ -274,6 +290,14 @@ export async function saveSessionTurns(
       }
     }
   }
+}
+
+function summarizeToolArgs(args: any): string | null {
+  if (!args) return null;
+  const val = args.command ?? args.file_path ?? args.path ?? args.notebook_path ?? args.file ?? args.query ?? args.pattern;
+  if (val == null) return null;
+  const s = String(val);
+  return s.length > 500 ? s.slice(0, 500) : s;
 }
 
 function getTokens(text: string): string[] {

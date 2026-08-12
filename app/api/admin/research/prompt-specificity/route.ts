@@ -1,51 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { getSessionFromCookie } from '@/lib/auth';
 import { query } from '@/lib/team/db';
+import { buildResearchFilters, parseRangeDays, requireSuperadminApi } from '@/lib/team/researchQuery';
 
 export const dynamic = 'force-dynamic';
 
-function parseDays(range: string | null): number {
-  if (!range) return 30;
-  const m = range.match(/^(\d+)d$/);
-  return m ? Math.min(Math.max(1, Number(m[1])), 90) : 30;
-}
-
 export async function GET(req: NextRequest) {
-  const cookieStore = await cookies();
-  const session = getSessionFromCookie(cookieStore.toString());
-  if (!session || session.role !== 'superadmin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const forbidden = requireSuperadminApi(req);
+  if (forbidden) return forbidden;
 
   const searchParams = req.nextUrl.searchParams;
-  const days = parseDays(searchParams.get('range'));
-  const org = searchParams.get('org');
-  const tool = searchParams.get('tool');
-  const model = searchParams.get('model');
+  const days = parseRangeDays(searchParams.get('range'));
 
-  // Build filter conditions
-  const conditions = ["ss.started_at >= NOW() - $1::int * INTERVAL '1 day'"];
-  const params: any[] = [days];
-  let paramIdx = 2;
-
-  if (org) {
-    conditions.push(`so.org_id = $${paramIdx}`);
-    params.push(org);
-    paramIdx++;
-  }
-  if (tool) {
-    conditions.push(`so.tool = $${paramIdx}`);
-    params.push(tool);
-    paramIdx++;
-  }
-  if (model) {
-    conditions.push(`so.model = $${paramIdx}`);
-    params.push(model);
-    paramIdx++;
-  }
-
-  const whereClause = conditions.join(' AND ');
+  const { whereClause, params } = buildResearchFilters(
+    searchParams,
+    "ss.started_at >= NOW() - $1::int * INTERVAL '1 day'",
+    [days],
+    [
+      { param: 'org', column: 'so.org_id' },
+      { param: 'tool', column: 'so.tool' },
+      { param: 'model', column: 'so.model' },
+    ],
+  );
 
   try {
     const { rows } = await query(`
