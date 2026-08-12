@@ -10,8 +10,10 @@ const globalForDb = globalThis as unknown as {
 /** Shared Postgres pool (Neon serverless compatible). */
 export function getPool(): pg.Pool {
   if (!globalForDb.conn) {
-    let url = requireDatabaseUrl();
-    url = url.replace(/[\?&]sslmode=[^&]+/g, '');
+    const rawUrl = requireDatabaseUrl();
+    const parsed = new URL(rawUrl);
+    parsed.searchParams.delete('sslmode');
+    const url = parsed.toString();
     globalForDb.conn = new Pool({
       connectionString: url,
       ssl: { rejectUnauthorized: false },
